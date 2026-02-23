@@ -10,9 +10,9 @@
 </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Ege Ozgul - Robotics and AI Engineer specializing in autonomy">
-    <meta property="og:title" content="Ege Ozgul - Portfolio">
-    <meta property="og:description" content="Robotics and AI Engineer specializing in autonomy">
+    <meta name="description" content="Ege Ozgul - Robotics and AI Engineer specializing in autonomous systems, perception, and embedded hardware. Experience at Amazon Robotics, Rivian, and Samsung.">
+    <meta property="og:title" content="Ege Ozgul - Robotics and AI Engineer">
+    <meta property="og:description" content="Robotics and AI Engineer specializing in autonomous systems, perception, and embedded hardware. Experience at Amazon Robotics, Rivian, and Samsung.">
     <meta property="og:type" content="website">
     <title>Ege Ozgul - Portfolio</title>
     <style>
@@ -157,6 +157,13 @@
         .project-link:hover { transform: translateX(5px); }
         .project-link svg { margin-left: 5px; transition: transform 0.3s ease; }
         .project-link:hover svg { transform: translateX(5px); }
+        .tech-stack { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
+        .tech-tag {
+            font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em;
+            color: var(--accent-color); background: rgba(100,255,218,0.07);
+            border: 1px solid rgba(100,255,218,0.2); border-radius: 4px;
+            padding: 3px 9px;
+        }
 
         /* Other projects — smaller, dimmer */
         .project-group.other .project-card { border-color: rgba(100,255,218,0.05); opacity: 0.8; }
@@ -233,6 +240,7 @@
                     <div class="project-info">
                         <h3 class="project-title">Stretch 3 Simulation Environment</h3>
                         <p class="project-description">MuJoCo-based simulation environment for the Hello Robot Stretch 3 platform with ROS 2 integration. Models a kitchen workspace with manipulable objects for validating Reinforcement Learning algorithms, including a Macro MARL PPO model developed at Northeastern University.</p>
+                        <div class="tech-stack"><span class="tech-tag">MuJoCo</span><span class="tech-tag">ROS 2</span><span class="tech-tag">Python</span></div>
                         <a href="https://github.com/egeozgul/Stretch3_Simulation" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
@@ -241,6 +249,7 @@
                     <div class="project-info">
                         <h3 class="project-title">GTSAM Optimization &amp; Loop Closure</h3>
                         <p class="project-description">Applying GTSAM Levenberg–Marquardt optimization and loop closure detection on trajectory datasets. Demonstrates factor graph-based state estimation central to modern SLAM pipelines.</p>
+                        <div class="tech-stack"><span class="tech-tag">GTSAM</span><span class="tech-tag">Python</span></div>
                         <a href="https://github.com/egeozgul/GTSAM_Optimization/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
@@ -249,6 +258,7 @@
                     <div class="project-info">
                         <h3 class="project-title">Training Steerable CNNs</h3>
                         <p class="project-description">Comparing standard and group-equivariant steerable CNNs (C2–C8, D1–D8) on Rotated MNIST to show how building rotational symmetry into network architecture improves generalization to unseen rotations.</p>
+                        <div class="tech-stack"><span class="tech-tag">PyTorch</span><span class="tech-tag">Python</span></div>
                         <a href="https://github.com/egeozgul/Steerable_CNNs" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
@@ -267,6 +277,7 @@
                     <div class="project-info">
                         <h3 class="project-title">Smart Motor Driver</h3>
                         <p class="project-description">Custom motor control board with integrated current sensing, encoder feedback, and closed-loop control algorithms for precision robotics applications.</p>
+                        <div class="tech-stack"><span class="tech-tag">KiCad</span><span class="tech-tag">C/C++</span></div>
                         <a href="https://axionmotion.egeozgul.com/" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
@@ -275,6 +286,7 @@
                     <div class="project-info">
                         <h3 class="project-title">snowBoard</h3>
                         <p class="project-description">Rugged electronic development board built for low-power outdoor deployment. Features onboard sensing, wireless communication, and a compact form factor designed for field robotics and remote data collection.</p>
+                        <div class="tech-stack"><span class="tech-tag">KiCad</span><span class="tech-tag">C/C++</span></div>
                         <a href="https://github.com/egeozgul/SnowBOARD/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
@@ -283,6 +295,7 @@
                     <div class="project-info">
                         <h3 class="project-title">Tension Sensing Thread Factory</h3>
                         <p class="project-description">Manufacturing system with real-time tension monitoring and closed-loop control for automated thread production. Integrates custom sensing hardware with embedded control firmware.</p>
+                        <div class="tech-stack"><span class="tech-tag">KiCad</span><span class="tech-tag">C/C++</span><span class="tech-tag">Fusion 360</span></div>
                         <a href="https://github.com/egeozgul/Smart-Sensing-Thread-Factory/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
@@ -301,6 +314,7 @@
                     <div class="project-info">
                         <h3 class="project-title">Convertible Wing Drone</h3>
                         <p class="project-description">Custom built drone that converts to flying wing. AVR based microcontroller is integrated on a custom PCB which runs the custom flight controller firmware.</p>
+                        <div class="tech-stack"><span class="tech-tag">AVR</span><span class="tech-tag">C/C++</span><span class="tech-tag">KiCad</span></div>
                         <a href="https://github.com/egeozgul/Convertible-Drone-Firmware/tree/master" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
@@ -309,6 +323,7 @@
                     <div class="project-info">
                         <h3 class="project-title">3D Software Rendering Engine</h3>
                         <p class="project-description">Custom 3D graphics engine built from scratch, featuring real-time rendering and advanced shading techniques.</p>
+                        <div class="tech-stack"><span class="tech-tag">C++</span></div>
                         <a href="https://github.com/egeozgul/Custom-3D-Software-Rendering-Engine" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
@@ -317,6 +332,7 @@
                     <div class="project-info">
                         <h3 class="project-title">Procedural Spherical Map Generator</h3>
                         <p class="project-description">OpenGL-based tool for generating realistic planetary surfaces using procedural algorithms and noise functions.</p>
+                        <div class="tech-stack"><span class="tech-tag">OpenGL</span><span class="tech-tag">C++</span></div>
                         <a href="https://github.com/egeozgul/Procedural-Spherical-Map-generation-using-OpenGL/tree/master" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
@@ -325,6 +341,7 @@
                     <div class="project-info">
                         <h3 class="project-title">Large Volume 3D Printer</h3>
                         <p class="project-description">Custom-built FDM 3D printer with extended build volume for large-scale prototyping and manufacturing applications.</p>
+                        <div class="tech-stack"><span class="tech-tag">Fusion 360</span></div>
                         <a href="https://github.com/egeozgul/Custom-FDM-3D-Printer" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
@@ -333,6 +350,7 @@
                     <div class="project-info">
                         <h3 class="project-title">Rational Number Computing Accelerator</h3>
                         <p class="project-description">Hardware accelerator design in VHDL for efficient rational number computations in embedded systems.</p>
+                        <div class="tech-stack"><span class="tech-tag">VHDL</span></div>
                         <a href="https://github.com/egeozgul/Rational-Number-Accelerator-Design" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
