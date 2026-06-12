@@ -227,19 +227,16 @@
     <section class="projects" id="projects">
         <h2 class="section-title fade-in">Projects</h2>
 
-        <!-- GROUP 1: Autonomy & Intelligence -->
+        <!-- GROUP 1: Robotics and Artificial Intelligence -->
         <div class="project-group fade-in">
             <div class="group-header">
                 <span class="group-label">Robotics and Artificial Intelligence</span>
                 <div class="group-line"></div>
             </div>
 
-                <div class="projects-grid">
+            <div class="projects-grid">
 
-
-
-
-                  <div class="project-card">
+                <div class="project-card">
                     <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/H1_screenshot.png?raw=true" alt="Unitree H1 Humanoid Locomotion Isaac Lab" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">Unitree H1 Humanoid Locomotion in Isaac Lab</h3>
@@ -248,20 +245,19 @@
                         <a href="https://github.com/egeozgul/humanoid-locomotion-isaaclab" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
-                  
-                  <div class="project-card">
-                      <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/quadrapet_screenshot.png?raw=true" alt="Quadruped Locomotion Isaac Lab" class="project-image">
-                      <div class="project-info">
-                          <h3 class="project-title">Quadruped Locomotion with Domain Randomization</h3>
-                          <p class="project-description">Trained PPO locomotion policies for the Anymal C quadruped in Isaac Lab across 147M simulation steps. Designed an extended domain randomization experiment (friction 0.2–1.5, mass ±10 kg, joint parameters) and measured the robustness-performance tradeoff. DR policy reached comparable terrain curriculum progress (5.94 vs 5.98/8) demonstrating robust locomotion over a broader physics distribution relevant to sim-to-real transfer.</p>
-                          <div class="tech-stack"><span class="tech-tag">Isaac Lab</span><span class="tech-tag">Isaac Sim</span><span class="tech-tag">PPO</span><span class="tech-tag">Python</span><span class="tech-tag">PyTorch</span></div>
-                          <a href="https://github.com/egeozgul/quadruped-locomotion-isaaclab/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                      </div>
-                  </div>
 
-                  
                 <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/Stretch3_Simulation/refs/heads/main/media/screenshot.png?raw=true" alt="Stretch 3 Simulation" class="project-image">
+                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/quadrapet_screenshot.png?raw=true" alt="Quadruped Locomotion Isaac Lab" class="project-image">
+                    <div class="project-info">
+                        <h3 class="project-title">Quadruped Locomotion with Domain Randomization</h3>
+                        <p class="project-description">Trained PPO locomotion policies for the Anymal C quadruped in Isaac Lab across 147M simulation steps. Designed an extended domain randomization experiment (friction 0.2–1.5, mass ±10 kg, joint parameters) and measured the robustness-performance tradeoff. DR policy reached comparable terrain curriculum progress (5.94 vs 5.98/8) demonstrating robust locomotion over a broader physics distribution relevant to sim-to-real transfer.</p>
+                        <div class="tech-stack"><span class="tech-tag">Isaac Lab</span><span class="tech-tag">Isaac Sim</span><span class="tech-tag">PPO</span><span class="tech-tag">Python</span><span class="tech-tag">PyTorch</span></div>
+                        <a href="https://github.com/egeozgul/quadruped-locomotion-isaaclab/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
+                    </div>
+                </div>
+
+                <div class="project-card">
+                    <img src="https://raw.githubusercontent.com/egeozgul/Stretch3_Simulation/refs/heads/main/media/screenshot.png?raw=true" alt="Stretch 3 Full Autonomy Stack" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">Stretch 3 Full Autonomy Stack</h3>
                         <p class="project-description">Designed and deployed a full autonomy pipeline from MuJoCo simulation to physical Stretch 3 for assistive HRI research. Implemented a hierarchical macro-action system coordinating navigation, perception, and grasping as a unified mobile manipulation stack. Achieved reliable autonomous pick-and-place on real hardware using Nav2, LiDAR SLAM (AMCL), ArUco-based object detection, and a Jacobian IK solver. Integrated speech recognition for voice-commanded task execution, demonstrated end-to-end on physical hardware.</p>
@@ -271,18 +267,17 @@
                 </div>
 
                 <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/kizKulesi.png?raw=true" alt="GTSAM Optimization" class="project-image">
+                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/kizKulesi.png?raw=true" alt="3D Pointcloud Reconstruction" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">3D Pointcloud Reconstruction</h3>
-                        <p class="project-description">An incremental Structure from Motion (SfM) pipeline that reconstructs a sparse 3D point cloud from a sequence of images, recovering both scene geometry and camera trajectory.</p>
+                        <p class="project-description">Incremental Structure-from-Motion pipeline that reconstructs a sparse 3D point cloud from monocular image sequences, recovering both scene geometry and full camera trajectory. Uses SIFT feature detection, RANSAC-based Essential Matrix estimation, PnP camera registration, and bundle adjustment to minimize reprojection error. Exports georeferenced PLY output.</p>
                         <div class="tech-stack"><span class="tech-tag">OpenCV</span><span class="tech-tag">Python</span></div>
                         <a href="https://github.com/egeozgul/Incremental-3D-Reconstruction-SfM/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
 
-                  
                 <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/FactorGraph_.png" alt="GTSAM Optimization" class="project-image">
+                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/FactorGraph_.png" alt="2D Mosaic Reconstruction" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">2D Mosaic Reconstruction</h3>
                         <p class="project-description">A 2D image stitching pipeline that builds globally consistent panoramas from overlapping image sequences by combining covariance-weighted graph construction, loop closure detection, and a GTSAM factor graph optimization to eliminate accumulated drift.</p>
@@ -291,11 +286,11 @@
                     </div>
                 </div>
 
-              <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/3d-Voxel.png" alt="Architecture" class="project-image">
+                <div class="project-card">
+                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/3d-Voxel.png" alt="Equivariant β-VAE for 3D Shape Generation" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">Equivariant β-VAE for 3D Shape Generation</h3>
-                        <p class="project-description">Designed and trained a β-Variational Autoencoder with a 3D convolutional encoder-decoder architecture to learn probabilistic latent representations of human spinal bone geometry from voxelized mesh data, evaluating both a standard CNN variant and a group-equivariant steerable CNN with octahedral symmetry across reconstruction and generative metrics.</p>
+                        <p class="project-description">Trained a 30M-parameter β-VAE on the MedShapeNet dataset to generate anatomically plausible 3D thoracic vertebrae from voxelized mesh data, achieving IoU of 0.62 on reconstruction. Evaluated both a standard CNN variant and a group-equivariant steerable CNN with octahedral symmetry; identified posterior collapse as the primary bottleneck via latent space diagnostics.</p>
                         <div class="tech-stack"><span class="tech-tag">PyTorch</span><span class="tech-tag">Python</span><span class="tech-tag">Equivariant Steerable CNNs</span></div>
                         <a href="https://github.com/egeozgul/3d-equivariant-variational-autoencoder/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
@@ -303,15 +298,15 @@
 
             </div>
         </div>
-        
 
-        <!-- GROUP 2: Robotics & Hardware -->
+        <!-- GROUP 2: Electrical and Embedded Systems -->
         <div class="project-group fade-in">
             <div class="group-header">
                 <span class="group-label">Electrical and Embedded Systems</span>
                 <div class="group-line"></div>
             </div>
             <div class="projects-grid">
+
                 <div class="project-card">
                     <img src="https://raw.githubusercontent.com/egeozgul/Smart-Motor-Driver/refs/heads/main/media/pcb_.png?raw=true" alt="Smart Motor Driver" class="project-image">
                     <div class="project-info">
@@ -321,24 +316,27 @@
                         <a href="https://github.com/egeozgul/Servo-Motor-Feedback-Controller" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
+
                 <div class="project-card">
                     <img src="https://raw.githubusercontent.com/egeozgul/SnowBOARD/main/snowboardA.png?raw=true" alt="snowBoard" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">snowBoard</h3>
-                        <p class="project-description">Rugged electronic development board built for low-power outdoor deployment. Features onboard sensing, wireless communication, and a compact form factor designed for field robotics and remote data collection.</p>
-                        <div class="tech-stack"><span class="tech-tag">KiCad</span><span class="tech-tag">C/C++</span></div>
+                        <p class="project-description">Open-source embedded prototyping module designed to eliminate soldering and complex wiring for field deployments. Features plug-and-play peripheral connectors, onboard SD card storage, battery power management, USB-C connectivity, and a built-in USB-to-UART converter for streamlined firmware flashing and debugging. Designed for field robotics and remote data collection.</p>
+                        <div class="tech-stack"><span class="tech-tag">KiCad</span><span class="tech-tag">C/C++</span><span class="tech-tag">PCB Design</span></div>
                         <a href="https://github.com/egeozgul/SnowBOARD/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
+
                 <div class="project-card">
                     <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/Thread_Factory_Model_render_.png?raw=true" alt="Tension Sensing Thread Factory" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">Tension Sensing Thread Factory</h3>
-                        <p class="project-description">Manufacturing system with real-time tension monitoring and closed-loop control for automated thread production. Integrates custom sensing hardware with embedded control firmware.</p>
-                        <div class="tech-stack"><span class="tech-tag">KiCad</span><span class="tech-tag">C/C++</span><span class="tech-tag">Fusion 360</span></div>
+                        <p class="project-description">Automated smart thread sensor fabrication device built for Tufts NanoLab to support wearable electronics research. Custom PCB connects microcontroller to sensors and stepper motors; firmware implements real-time PID tension control, sensor data acquisition, and a user interface for system configuration. Accelerated prototyping cycles from weeks to hours with reproducible sensor output. Published at MDPI.</p>
+                        <div class="tech-stack"><span class="tech-tag">KiCad</span><span class="tech-tag">C/C++</span><span class="tech-tag">STM32</span><span class="tech-tag">PID Control</span><span class="tech-tag">Fusion 360</span></div>
                         <a href="https://github.com/egeozgul/Smart-Sensing-Thread-Factory/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
+
             </div>
         </div>
 
@@ -349,24 +347,27 @@
                 <div class="group-line"></div>
             </div>
             <div class="projects-grid">
+
                 <div class="project-card">
                     <img src="https://raw.githubusercontent.com/egeozgul/Convertible-Drone-Firmware/refs/heads/master/m6.webp?raw=true" alt="Convertible Wing Drone" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">Convertible Wing Drone</h3>
-                        <p class="project-description">Custom built drone that converts to flying wing. AVR based microcontroller is integrated on a custom PCB which runs the custom flight controller firmware.</p>
-                        <div class="tech-stack"><span class="tech-tag">AVR</span><span class="tech-tag">C/C++</span><span class="tech-tag">KiCad</span></div>
+                        <p class="project-description">Custom-built drone that converts between quadcopter and fixed-wing flight modes. Custom flight controller firmware in C++ on an AVR microcontroller with MPU6050 gyroscopic stabilization, PID attitude control, and dynamic PWM motor mixing. Handles the distinct control dynamics of both flight modes in a single firmware with mode-switching logic.</p>
+                        <div class="tech-stack"><span class="tech-tag">AVR</span><span class="tech-tag">C/C++</span><span class="tech-tag">KiCad</span><span class="tech-tag">PID Control</span></div>
                         <a href="https://github.com/egeozgul/Convertible-Drone-Firmware/tree/master" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
+
                 <div class="project-card">
                     <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/sim.png?raw=true" alt="3D Software Rendering Engine" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">3D Software Rendering Engine</h3>
-                        <p class="project-description">Custom 3D graphics engine built from scratch, featuring real-time rendering and advanced shading techniques.</p>
-                        <div class="tech-stack"><span class="tech-tag">C++</span></div>
+                        <p class="project-description">C++ rendering and physics simulation engine built entirely from scratch without external graphics libraries. Implements triangle rasterization, depth buffering, face culling, 3D projection, .obj model loading, and font rendering. Includes a buoyancy simulation that dynamically calculates buoyant forces and torque for realistic wave interaction on floating objects.</p>
+                        <div class="tech-stack"><span class="tech-tag">C++</span><span class="tech-tag">Graphics</span><span class="tech-tag">Physics Simulation</span></div>
                         <a href="https://github.com/egeozgul/Custom-3D-Software-Rendering-Engine" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
+
                 <div class="project-card">
                     <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/planet.png?raw=true" alt="Procedural Spherical Map Generator" class="project-image">
                     <div class="project-info">
@@ -376,24 +377,27 @@
                         <a href="https://github.com/egeozgul/Procedural-Spherical-Map-generation-using-OpenGL/tree/master" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
+
                 <div class="project-card">
                     <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/printer.webp?raw=true" alt="Large Volume 3D Printer" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">Large Volume 3D Printer</h3>
-                        <p class="project-description">Custom-built FDM 3D printer with a 110×75×40 cm build volume — large enough to print a full human torso in one piece. Supports swappable extruders including a syringe extruder. Designed so anyone can replicate it at any size.</p>
-                        <div class="tech-stack"><span class="tech-tag">Fusion 360</span></div>
+                        <p class="project-description">Custom-built open-source FDM 3D printer with a 110×75×40 cm build volume — large enough to print a full human torso in one piece. Designed from scratch with swappable extruder support including a syringe extruder for non-standard materials. Fully documented so anyone can replicate it at any scale.</p>
+                        <div class="tech-stack"><span class="tech-tag">Fusion 360</span><span class="tech-tag">Mechanical Design</span></div>
                         <a href="https://github.com/egeozgul/Custom-FDM-3D-Printer" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
+
                 <div class="project-card">
                     <img src="https://raw.githubusercontent.com/egeozgul/Rational-Number-Accelerator-Design/refs/heads/main/RLU_Block_Diagram.png?raw=true" alt="Rational Number Computing Accelerator" class="project-image">
                     <div class="project-info">
                         <h3 class="project-title">Rational Number Computing Accelerator</h3>
-                        <p class="project-description">Hardware accelerator design in VHDL for efficient rational number computations in embedded systems.</p>
-                        <div class="tech-stack"><span class="tech-tag">VHDL</span></div>
+                        <p class="project-description">VHDL implementation of a Rational Arithmetic Unit based on Binary Continued Logarithms (BCLs) — a number format that stores rational numbers exactly without floating-point rounding error. Developed both the mathematical theory and the hardware logic design, enabling lossless arithmetic for scientific computing applications. Accompanied by a published research paper.</p>
+                        <div class="tech-stack"><span class="tech-tag">VHDL</span><span class="tech-tag">Hardware Design</span><span class="tech-tag">FPGA</span></div>
                         <a href="https://github.com/egeozgul/Rational-Number-Accelerator-Design" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
                     </div>
                 </div>
+
             </div>
         </div>
 
