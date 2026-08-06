@@ -1,448 +1,579 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-J4QZLQNEW5"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-J4QZLQNEW5');
-</script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Ege Ozgul - Robotics and AI Engineer specializing in autonomous systems, perception, and embedded hardware. Experience at Amazon Robotics, Rivian, and Samsung.">
-    <meta property="og:title" content="Ege Ozgul - Robotics and AI Engineer">
-    <meta property="og:description" content="Robotics and AI Engineer specializing in autonomous systems, perception, and embedded hardware. Experience at Amazon Robotics, Rivian, and Samsung.">
-    <meta property="og:type" content="website">
-    <title>Ege Ozgul</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        :root {
-            --primary-color: #0a0e27;
-            --secondary-color: #1a1f3a;
-            --accent-color: #64ffda;
-            --text-primary: #e6f1ff;
-            --text-secondary: #8892b0;
-            --card-bg: rgba(26, 31, 58, 0.8);
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-            background: var(--primary-color);
-            color: var(--text-primary);
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-        .background-animation {
-            position: fixed; width: 100%; height: 100%; top: 0; left: 0; z-index: -1;
-            background: linear-gradient(45deg, #0a0e27 0%, #1a1f3a 50%, #0a0e27 100%);
-            background-size: 400% 400%;
-            animation: gradientShift 15s ease infinite;
-        }
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-        .particles { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; z-index: -1; }
-        .particle {
-            position: absolute; display: block; width: 2px; height: 2px;
-            background: var(--accent-color); opacity: 0.3;
-            animation: float 20s linear infinite;
-        }
-        @keyframes float {
-            from { transform: translateY(100vh) translateX(0); }
-            to { transform: translateY(-10vh) translateX(100px); }
-        }
-        header {
-            position: fixed; top: 0; width: 100%; padding: 20px 50px;
-            background: rgba(10, 14, 39, 0.95); backdrop-filter: blur(10px);
-            z-index: 1000; transition: all 0.3s ease;
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-        }
-        header.scrolled { padding: 15px 50px; box-shadow: 0 5px 30px rgba(0,0,0,0.3); }
-        .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-        .logo { font-size: 1.5rem; font-weight: 600; color: var(--accent-color); text-decoration: none; transition: all 0.3s ease; }
-        .logo:hover { text-shadow: 0 0 20px rgba(100,255,218,0.5); }
-        nav ul { list-style: none; display: flex; gap: 30px; }
-        nav a { color: var(--text-primary); text-decoration: none; transition: all 0.3s ease; position: relative; padding: 5px 0; }
-        nav a::after { content: ''; position: absolute; bottom: 0; left: 0; width: 0; height: 2px; background: var(--accent-color); transition: width 0.3s ease; }
-        nav a:hover::after { width: 100%; }
-        .resume-button { border: 2px solid var(--accent-color); border-radius: 12px; padding: 5px 20px 8px 20px !important; }
-        .resume-button::after { display: none; }
-        .resume-button:hover { background: var(--accent-color); color: var(--primary-color); }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 Controller</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:      #0a0e17;
+    --surface: #161b22;
+    --border:  #30363d;
+    --text:    #c9d1d9;
+    --muted:   #8b949e;
+    --blue:    #58a6ff;
+    --green:   #3fb950;
+    --red:     #f85149;
+    --yellow:  #d29922;
+  }
+  body { font-family: monospace; background: var(--bg); color: var(--text); padding: 16px; max-width: 1000px; margin: 0 auto; }
+  h1   { color: var(--blue); font-size: 18px; margin-bottom: 4px; }
+  h2   { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
 
-        .hero {
-            min-height: 100vh; display: flex; align-items: center;
-            justify-content: center; padding: 0 50px; position: relative;
-        }
-        .hero-content { max-width: 800px; text-align: center; animation: fadeInUp 1s ease; }
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .hero h1 {
-            font-size: clamp(2.5rem, 5vw, 4rem); margin-bottom: 20px;
-            background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-color) 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-        }
-        .hero .subtitle { font-size: 1.5rem; color: var(--accent-color); margin-bottom: 30px; }
-        .hero p { font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 40px; line-height: 1.8; }
-        .cta-button {
-            display: inline-block; padding: 15px 40px; background: transparent;
-            color: var(--accent-color); border: 2px solid var(--accent-color);
-            text-decoration: none; border-radius: 5px; transition: all 0.3s ease;
-            position: relative; overflow: hidden;
-        }
-        .cta-button:hover { color: var(--primary-color); transform: translateY(-2px); box-shadow: 0 10px 30px rgba(100,255,218,0.3); }
-        .cta-button::before {
-            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-            background: var(--accent-color); transition: left 0.3s ease; z-index: -1;
-        }
-        .cta-button:hover::before { left: 0; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .dot    { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+  .dot.on { background: var(--green); animation: pulse 1.5s infinite; }
+  .dot.rx { background: var(--blue); animation: pulse 0.3s infinite; }
+  .dot.rec { background: var(--red); animation: pulse 0.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-        /* Projects */
-        .projects { padding: 100px 50px; max-width: 1400px; margin: 0 auto; }
-        .section-title {
-            font-size: 2.5rem; text-align: center; margin-bottom: 80px;
-            position: relative; display: inline-block; width: 100%;
-        }
-        .section-title::after {
-            content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
-            width: 100px; height: 3px; background: var(--accent-color);
-        }
+  .section { margin-bottom: 20px; }
+  .section-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
 
-        /* Project Group */
-        .project-group { margin-bottom: 80px; }
-        .group-header {
-            display: flex; align-items: center; gap: 16px;
-            margin-bottom: 35px;
-        }
-        .group-label {
-            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.18em;
-            text-transform: uppercase; color: var(--accent-color);
-            background: rgba(100,255,218,0.08); border: 1px solid rgba(100,255,218,0.25);
-            border-radius: 4px; padding: 5px 12px; white-space: nowrap;
-        }
-        .group-line { flex: 1; height: 1px; background: rgba(100,255,218,0.15); }
+  .btn-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  button {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--blue); font-family: monospace;
+    font-size: 13px; padding: 10px 16px; cursor: pointer; flex: 1; min-width: 120px;
+  }
+  button:active   { background: var(--border); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.primary  { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  button.green    { border-color: var(--green); color: var(--green); }
+  button.red      { border-color: var(--red); color: var(--red); }
+  button.rec-on   { background: var(--red); border-color: var(--red); color: #fff; }
+  button.danger   { border-color: var(--red); color: var(--red); }
 
-        /* Hero project card (first in autonomy group) */
-        .project-card-hero {
-            display: grid; grid-template-columns: 1fr 1fr;
-            background: var(--card-bg); border-radius: 10px; overflow: hidden;
-            transition: all 0.3s ease; border: 1px solid rgba(100,255,218,0.2);
-            backdrop-filter: blur(10px); margin-bottom: 30px;
-        }
-        .project-card-hero:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.3); border-color: rgba(100,255,218,0.4); }
-        .project-card-hero .project-image { width: 100%; height: 100%; min-height: 280px; object-fit: cover; }
-        .project-card-hero .project-info { padding: 40px; display: flex; flex-direction: column; justify-content: center; }
-        .project-card-hero .project-title { font-size: 1.6rem; margin-bottom: 15px; color: var(--text-primary); }
-        .project-card-hero .project-description { color: var(--text-secondary); margin-bottom: 25px; font-size: 1rem; line-height: 1.7; }
+  .rec-status { font-size: 12px; color: var(--red); font-weight: bold; display: none; margin-left: 8px; }
 
-        .projects-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 25px;
-        }
-        .project-card {
-            background: var(--card-bg); border-radius: 10px; overflow: hidden;
-            transition: all 0.3s ease; position: relative;
-            backdrop-filter: blur(10px); border: 1px solid rgba(100,255,218,0.1);
-        }
-        .project-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.3); border-color: rgba(100,255,218,0.3); }
-        .project-image { width: 100%; height: 220px; object-fit: cover; transition: all 0.3s ease; }
-        .project-card:hover .project-image { transform: scale(1.05); }
-        .project-info { padding: 25px; }
-        .project-title { font-size: 1.2rem; margin-bottom: 12px; color: var(--text-primary); }
-        .project-description { color: var(--text-secondary); margin-bottom: 20px; font-size: 0.95rem; }
-        .project-link { display: inline-flex; align-items: center; color: var(--accent-color); text-decoration: none; font-weight: 500; transition: all 0.3s ease; }
-        .project-link:hover { transform: translateX(5px); }
-        .project-link svg { margin-left: 5px; transition: transform 0.3s ease; }
-        .project-link:hover svg { transform: translateX(5px); }
-        .tech-stack { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
-        .tech-tag {
-            font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em;
-            color: var(--accent-color); background: rgba(100,255,218,0.07);
-            border: 1px solid rgba(100,255,218,0.2); border-radius: 4px;
-            padding: 3px 9px;
-        }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; display: none; }
+  .stat  { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .stat .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .stat .value { font-size: 22px; font-weight: bold; color: var(--blue); margin-top: 4px; }
+  .stat .sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-        /* Other projects — smaller, dimmer */
-        .project-group.other .project-card { border-color: rgba(100,255,218,0.05); opacity: 0.8; }
-        .project-group.other .project-card:hover { opacity: 1; border-color: rgba(100,255,218,0.2); }
-        .project-group.other .project-image { height: 180px; }
-        .project-group.other .project-title { font-size: 1.05rem; }
+  .table-wrap { overflow-x: auto; margin-bottom: 16px; display: none; max-height: 400px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th { background: var(--surface); color: var(--muted); padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); position: sticky; top: 0; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: #0d1117; }
+  tbody tr:hover { background: var(--surface); }
+  tbody td { padding: 5px 10px; border-bottom: 1px solid #1a1f27; white-space: nowrap; }
+  tbody td.session { color: var(--yellow); font-weight: bold; }
+  tbody td.gps     { color: var(--green); }
+  tbody td.header  { color: var(--muted); font-style: italic; }
 
-        footer { text-align: center; padding: 50px; border-top: 1px solid rgba(255,255,255,0.1); }
-        .social-links { display: flex; justify-content: center; gap: 20px; margin-bottom: 30px; }
-        .social-links a {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 40px; height: 40px; border-radius: 50%;
-            border: 2px solid var(--text-secondary); color: var(--text-secondary); transition: all 0.3s ease;
-        }
-        .social-links a:hover { border-color: var(--accent-color); color: var(--accent-color); transform: translateY(-3px); }
+  .terminal { background: #060a10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 11px; line-height: 1.7; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-bottom: 16px; }
+  .t-pass  { color: var(--green); }
+  .t-fail  { color: var(--red); }
+  .t-head  { color: var(--blue); }
+  .t-muted { color: var(--muted); }
+  .t-warn  { color: var(--yellow); }
 
-        @media (max-width: 900px) {
-            .project-card-hero { grid-template-columns: 1fr; }
-            .project-card-hero .project-image { min-height: 220px; }
-        }
-        @media (max-width: 768px) {
-            header { padding: 15px 25px; }
-            nav ul { gap: 15px; }
-            .hero { padding: 0 25px; }
-            .projects { padding: 50px 25px; }
-            .projects-grid { grid-template-columns: 1fr; gap: 20px; }
-        }
+  .progress { background: #21262d; border-radius: 4px; height: 6px; margin-bottom: 16px; display: none; }
+  .progress-fill { height: 6px; border-radius: 4px; background: var(--blue); transition: width 0.3s; }
 
-        .fade-in { opacity: 0; transform: translateY(30px); transition: all 0.6s ease; }
-        .fade-in.visible { opacity: 1; transform: translateY(0); }
-    </style>
+  #unsupported { background: #1c1208; border: 1px solid var(--yellow); border-radius: 6px; padding: 12px; color: var(--yellow); font-size: 13px; margin-bottom: 16px; display: none; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+</style>
 </head>
 <body>
-    <div class="background-animation"></div>
-    <div class="particles" id="particles"></div>
 
-    <header id="header">
-        <div class="header-content">
-            <a href="#" class="logo">Ege Ozgul</a>
-            <nav>
-                <ul>
-                    <li><a href="EgeOzgulResume.pdf" class="resume-button" target="_blank">Resume</a></li>
-                    <li><a href="#home">Home</a></li>
-                    <li><a href="#projects">Projects</a></li>
-                    <li><a href="https://github.com/egeozgul" target="_blank">GitHub</a></li>
-                    <li><a href="#contact">Contact</a></li>
-                </ul>
-            </nav>
-        </div>
-    </header>
+<h1>&#9889; ESP32 Controller</h1>
+<h2>Connect via USB to control and read your ESP32</h2>
 
-   <section class="hero" id="home">
-        <div class="hero-content">
-            <h1>Hi, I'm Ege Özgül</h1>
-            <p class="subtitle">Robotics and AI Engineer</p>
-            <p>I build autonomous systems that work in the real world, from perception pipelines and real-time decision-making to full autonomy stacks deployed on physical robots. Trained in Electrical and Computer Engineering at Tufts University and Robotics Engineering (EECE concentration) at Northeastern University, I've shipped production robotics at <span style="color: var(--accent-color);">Amazon Robotics</span>, <span style="color: var(--accent-color);">Rivian</span>, and <span style="color: var(--accent-color);">Samsung</span>, and conducted research at both institutions. My work is grounded in a deep embedded and hardware background, which lets me build things that actually run on real platforms and not just in simulation.</p>
-            <a href="#projects" class="cta-button">Explore My Work</a>
-        </div>
-    </section>
+<div id="unsupported">&#9888; Web Serial API not supported. Use Chrome or Edge on desktop/Android.</div>
 
-    <section class="projects" id="projects">
-        <h2 class="section-title fade-in">Projects</h2>
+<!-- Connection -->
+<div class="section">
+  <div class="section-title">&#128268; Connection</div>
+  <div class="btn-row">
+    <button class="primary" id="btn-connect" onclick="connectSerial()">&#9889; Connect USB</button>
+    <button class="danger"  id="btn-disconnect" onclick="disconnectSerial()" disabled>&#10005; Disconnect</button>
+  </div>
+  <div class="status">
+    <div class="dot" id="dot"></div>
+    <span id="status-txt">Disconnected — connect via USB</span>
+  </div>
+</div>
 
-        <!-- GROUP 1: Robotics and Artificial Intelligence -->
-        <div class="project-group fade-in">
-            <div class="group-header">
-                <span class="group-label">Robotics and Artificial Intelligence</span>
-                <div class="group-line"></div>
-            </div>
+<hr>
 
-            <div class="projects-grid">
+<!-- Recording -->
+<div class="section">
+  <div class="section-title">&#9679; Recording</div>
+  <div class="btn-row">
+    <button class="green" id="btn-rec-start" onclick="startRecording()" disabled>&#9679; Start Recording</button>
+    <button class="red"   id="btn-rec-stop"  onclick="stopRecording()"  disabled>&#9632; Stop Recording</button>
+  </div>
+  <div class="status">
+    <div class="dot" id="rec-dot"></div>
+    <span id="rec-status-txt">Not recording</span>
+  </div>
+</div>
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/H1_screenshot.png?raw=true" alt="Unitree H1 Humanoid Locomotion Isaac Lab" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">Unitree H1 Humanoid Locomotion in Isaac Lab</h3>
-                        <p class="project-description">Trained a PPO locomotion policy for the Unitree H1 humanoid on rough terrain in Isaac Lab across 393M simulation steps using 4096 parallel environments. Policy achieved 99.3% episode survival rate and 0.74% fall rate at terrain curriculum level 5.76/8. Compared bipedal vs. quadrupedal convergence dynamics against the Anymal C baseline — H1 achieved higher final reward (28.58 vs 16.30) and lower fall rate, attributable to a 14-term reward structure including termination penalty and joint deviation regularization.</p>
-                        <div class="tech-stack"><span class="tech-tag">Isaac Lab</span><span class="tech-tag">Isaac Sim</span><span class="tech-tag">PPO</span><span class="tech-tag">Python</span><span class="tech-tag">PyTorch</span></div>
-                        <a href="https://github.com/egeozgul/humanoid-locomotion-isaaclab" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+<hr>
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/quadrapet_screenshot.png?raw=true" alt="Quadruped Locomotion Isaac Lab" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">Quadruped Locomotion with Domain Randomization</h3>
-                        <p class="project-description">Trained PPO locomotion policies for the Anymal C quadruped in Isaac Lab across 147M simulation steps. Designed an extended domain randomization experiment (friction 0.2–1.5, mass ±10 kg, joint parameters) and measured the robustness-performance tradeoff. DR policy reached comparable terrain curriculum progress (5.94 vs 5.98/8) demonstrating robust locomotion over a broader physics distribution relevant to sim-to-real transfer.</p>
-                        <div class="tech-stack"><span class="tech-tag">Isaac Lab</span><span class="tech-tag">Isaac Sim</span><span class="tech-tag">PPO</span><span class="tech-tag">Python</span><span class="tech-tag">PyTorch</span></div>
-                        <a href="https://github.com/egeozgul/quadruped-locomotion-isaaclab/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+<!-- Memory -->
+<div class="section">
+  <div class="section-title">&#128190; Memory</div>
+  <div class="btn-row">
+    <button id="btn-read"  onclick="readMemory()"  disabled>&#128190; Show Memory</button>
+    <button class="green" id="btn-csv"   onclick="downloadCSV()" disabled>&#11015; Download CSV</button>
+    <button class="danger" id="btn-clear" onclick="clearMemory()" disabled>&#128465; Clear Memory</button>
+  </div>
+</div>
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/Stretch3_Simulation/refs/heads/main/media/screenshot.png?raw=true" alt="Stretch 3 Full Autonomy Stack" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">Stretch 3 Full Autonomy Stack</h3>
-                        <p class="project-description">Designed and deployed a full autonomy pipeline from MuJoCo simulation to physical Stretch 3 for assistive HRI research. Implemented a hierarchical macro-action system coordinating navigation, perception, and grasping as a unified mobile manipulation stack. Achieved reliable autonomous pick-and-place on real hardware using Nav2, LiDAR SLAM (AMCL), ArUco-based object detection, and a Jacobian IK solver. Integrated speech recognition for voice-commanded task execution, demonstrated end-to-end on physical hardware.</p>
-                        <div class="tech-stack"><span class="tech-tag">MuJoCo</span><span class="tech-tag">ROS 2</span><span class="tech-tag">Nav2</span><span class="tech-tag">SLAM</span><span class="tech-tag">Python</span></div>
-                        <a href="https://github.com/egeozgul/Stretch3_Simulation" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+<div class="progress" id="progress"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/kizKulesi.png?raw=true" alt="3D Pointcloud Reconstruction" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">3D Pointcloud Reconstruction</h3>
-                        <p class="project-description">Incremental Structure-from-Motion pipeline that reconstructs a sparse 3D point cloud from monocular image sequences, recovering both scene geometry and full camera trajectory. Uses SIFT feature detection, RANSAC-based Essential Matrix estimation, PnP camera registration, and bundle adjustment to minimize reprojection error. Exports georeferenced PLY output.</p>
-                        <div class="tech-stack"><span class="tech-tag">OpenCV</span><span class="tech-tag">Python</span></div>
-                        <a href="https://github.com/egeozgul/Incremental-3D-Reconstruction-SfM/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+<div class="stats" id="stats">
+  <div class="stat"><div class="label">Data Entries</div><div class="value" id="stat-entries">--</div><div class="sub">data rows</div></div>
+  <div class="stat"><div class="label">Sessions</div><div class="value" id="stat-sessions">--</div><div class="sub">recording sessions</div></div>
+  <div class="stat"><div class="label">Duration</div><div class="value" id="stat-duration">--</div><div class="sub">last session</div></div>
+  <div class="stat"><div class="label">Memory Used</div><div class="value" id="stat-mem">--</div><div class="sub">KB of 15360 KB</div></div>
+</div>
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/FactorGraph_.png" alt="2D Mosaic Reconstruction" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">2D Mosaic Reconstruction</h3>
-                        <p class="project-description">A 2D image stitching pipeline that builds globally consistent panoramas from overlapping image sequences by combining covariance-weighted graph construction, loop closure detection, and a GTSAM factor graph optimization to eliminate accumulated drift.</p>
-                        <div class="tech-stack"><span class="tech-tag">GTSAM</span><span class="tech-tag">Python</span></div>
-                        <a href="https://github.com/egeozgul/Reconstruction_VisualSLAM" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+<div class="table-wrap" id="table-wrap">
+  <table id="data-table">
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/3d-Voxel.png" alt="Equivariant β-VAE for 3D Shape Generation" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">Equivariant β-VAE for 3D Shape Generation</h3>
-                        <p class="project-description">Trained a 30M-parameter β-VAE on the MedShapeNet dataset to generate anatomically plausible 3D thoracic vertebrae from voxelized mesh data, achieving IoU of 0.62 on reconstruction. Evaluated both a standard CNN variant and a group-equivariant steerable CNN with octahedral symmetry; identified posterior collapse as the primary bottleneck via latent space diagnostics.</p>
-                        <div class="tech-stack"><span class="tech-tag">PyTorch</span><span class="tech-tag">Python</span><span class="tech-tag">Equivariant Steerable CNNs</span></div>
-                        <a href="https://github.com/egeozgul/3d-equivariant-variational-autoencoder/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+<hr>
 
-            </div>
-        </div>
+<!-- Terminal -->
+<div class="section">
+  <div class="section-title" style="display:flex;justify-content:space-between">
+    <span>&#128196; Terminal</span>
+    <button onclick="clearTerminal()" style="flex:none;font-size:11px;padding:3px 8px;min-width:unset">Clear</button>
+  </div>
+  <div class="terminal" id="terminal">Terminal output will appear here...</div>
+</div>
 
-        <!-- GROUP 2: Electrical and Embedded Systems -->
-        <div class="project-group fade-in">
-            <div class="group-header">
-                <span class="group-label">Electrical and Embedded Systems</span>
-                <div class="group-line"></div>
-            </div>
-            <div class="projects-grid">
+<script>
+// ── MicroPython scripts ────────────────────────────────────────────────────
+const SCRIPT_READ_MEMORY = `
+from machine import Pin, SPI
+spi    = SPI(1, baudrate=100000, polarity=0, phase=0, sck=Pin(7), mosi=Pin(9), miso=Pin(8))
+cs_mem = Pin(4, Pin.OUT)
+cs_mag = Pin(2, Pin.OUT)
+cs_mem.value(1)
+cs_mag.value(1)
+LOG_ADDR   = 0x010000
+LOG_MAX    = 0xFF0000
+ENTRY_SIZE = 96
+def mem_read(addr, n):
+    cs_mag.value(1); cs_mem.value(0)
+    spi.write(bytes([0x03,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF]))
+    data = spi.read(n)
+    cs_mem.value(1)
+    return data
+log_ptr = LOG_ADDR
+while log_ptr < LOG_MAX:
+    raw = mem_read(log_ptr, 4)
+    if raw == b'\\xff\\xff\\xff\\xff' or raw == b'\\x00\\x00\\x00\\x00':
+        break
+    log_ptr += ENTRY_SIZE
+total = (log_ptr - LOG_ADDR) // ENTRY_SIZE
+print("MEMSTART")
+print("TOTAL:" + str(total))
+ptr = LOG_ADDR
+while ptr < log_ptr:
+    raw  = mem_read(ptr, ENTRY_SIZE)
+    line = bytes(b for b in raw if 0x20 <= b <= 0x7E).decode()
+    if line:
+        print("D:" + line)
+    ptr += ENTRY_SIZE
+print("MEMEND")
+`;
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/Smart-Motor-Driver/refs/heads/main/media/pcb_.png?raw=true" alt="Smart Motor Driver" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">Feedback Motor Controller</h3>
-                        <p class="project-description">Open-source closed-loop DC motor driver with custom PCB, STM32 firmware in C, onboard PID control and trapezoidal trajectory planning on a 30×40mm board. Plugs directly into any Raspberry Pi or microcontroller via Qwiic connectors — no soldering required. Up to 112 units daisy-chainable on a single I2C bus.</p>
-                        <div class="tech-stack"><span class="tech-tag">KiCad</span><span class="tech-tag">C/C++</span><span class="tech-tag">STM32</span></div>
-                        <a href="https://github.com/egeozgul/Servo-Motor-Feedback-Controller" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+const SCRIPT_START_RECORDING = `
+from machine import Pin, SPI
+import time
+spi    = SPI(1, baudrate=100000, polarity=0, phase=0, sck=Pin(7), mosi=Pin(9), miso=Pin(8))
+cs_mem = Pin(4, Pin.OUT)
+cs_mag = Pin(2, Pin.OUT)
+cs_mem.value(1); cs_mag.value(1)
+LOG_ADDR=0x010000; LOG_MAX=0xFF0000; ENTRY_SIZE=96
+def mwe():
+    cs_mag.value(1); cs_mem.value(0); spi.write(bytes([0x06])); cs_mem.value(1)
+def mwr():
+    while True:
+        cs_mag.value(1); cs_mem.value(0); spi.write(bytes([0x05])); s=spi.read(1); cs_mem.value(1)
+        if s[0]&1==0: break
+def mw(addr,data):
+    mwe(); cs_mag.value(1); cs_mem.value(0)
+    spi.write(bytes([0x02,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF])+data); cs_mem.value(1); mwr()
+def mr(addr,n):
+    cs_mag.value(1); cs_mem.value(0)
+    spi.write(bytes([0x03,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF])); data=spi.read(n); cs_mem.value(1); return data
+log_ptr=LOG_ADDR
+while log_ptr<LOG_MAX:
+    r=mr(log_ptr,4)
+    if r==b'\\xff\\xff\\xff\\xff' or r==b'\\x00\\x00\\x00\\x00': break
+    log_ptr+=ENTRY_SIZE
+def wl(entry):
+    global log_ptr
+    e=entry.encode()[:ENTRY_SIZE]; p=e+b'\\x00'*(ENTRY_SIZE-len(e)); mw(log_ptr,p); log_ptr+=ENTRY_SIZE
+wl("SESSION_START")
+wl("t,ax,ay,az,gx,gy,gz,press,temp,mx,my,mz,bat_v")
+print("RECORDING_STARTED")
+`;
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/SnowBOARD/main/snowboardA.png?raw=true" alt="snowBoard" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">snowBoard</h3>
-                        <p class="project-description">Open-source embedded prototyping module designed to eliminate soldering and complex wiring for field deployments. Features plug-and-play peripheral connectors, onboard SD card storage, battery power management, USB-C connectivity, and a built-in USB-to-UART converter for streamlined firmware flashing and debugging. Designed for field robotics and remote data collection.</p>
-                        <div class="tech-stack"><span class="tech-tag">KiCad</span><span class="tech-tag">C/C++</span><span class="tech-tag">PCB Design</span></div>
-                        <a href="https://github.com/egeozgul/SnowBOARD/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+const SCRIPT_STOP_RECORDING = `print("RECORDING_STOPPED")`;
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/Thread_Factory_Model_render_.png?raw=true" alt="Tension Sensing Thread Factory" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">Tension Sensing Thread Factory</h3>
-                        <p class="project-description">Automated smart thread sensor fabrication device built for Tufts NanoLab to support wearable electronics research. Custom PCB connects microcontroller to sensors and stepper motors; firmware implements real-time PID tension control, sensor data acquisition, and a user interface for system configuration. Accelerated prototyping cycles from weeks to hours with reproducible sensor output. Published at MDPI.</p>
-                        <div class="tech-stack"><span class="tech-tag">KiCad</span><span class="tech-tag">C/C++</span><span class="tech-tag">STM32</span><span class="tech-tag">PID Control</span><span class="tech-tag">Fusion 360</span></div>
-                        <a href="https://github.com/egeozgul/Smart-Sensing-Thread-Factory/tree/main" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+const SCRIPT_CLEAR_MEMORY = `
+from machine import Pin, SPI
+spi    = SPI(1, baudrate=100000, polarity=0, phase=0, sck=Pin(7), mosi=Pin(9), miso=Pin(8))
+cs_mem = Pin(4, Pin.OUT)
+cs_mag = Pin(2, Pin.OUT)
+cs_mem.value(1); cs_mag.value(1)
+def mwe():
+    cs_mag.value(1); cs_mem.value(0); spi.write(bytes([0x06])); cs_mem.value(1)
+def mwr():
+    while True:
+        cs_mag.value(1); cs_mem.value(0); spi.write(bytes([0x05])); s=spi.read(1); cs_mem.value(1)
+        if s[0]&1==0: break
+def erase(addr):
+    mwe(); cs_mag.value(1); cs_mem.value(0)
+    spi.write(bytes([0x20,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF])); cs_mem.value(1); mwr()
+print("CLEARING_MEMORY")
+for addr in range(0x00F000, 0x100000, 0x1000):
+    erase(addr)
+print("MEMORY_CLEARED")
+`;
 
-            </div>
-        </div>
+// ── State ──────────────────────────────────────────────────────────────────
+let port, reader, writer;
+let buffer     = '';
+let allEntries = [];
+let headers    = [];
+let readingMem = false;
+let connected  = false;
+let recording  = false;
 
-        <!-- GROUP 3: Other Explorations -->
-        <div class="project-group other fade-in">
-            <div class="group-header">
-                <span class="group-label">Other Explorations</span>
-                <div class="group-line"></div>
-            </div>
-            <div class="projects-grid">
+if (!('serial' in navigator)) {
+  document.getElementById('unsupported').style.display = 'block';
+  document.getElementById('btn-connect').disabled = true;
+}
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/Convertible-Drone-Firmware/refs/heads/master/m6.webp?raw=true" alt="Convertible Wing Drone" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">Convertible Wing Drone</h3>
-                        <p class="project-description">Custom-built drone that converts between quadcopter and fixed-wing flight modes. Custom flight controller firmware in C++ on an AVR microcontroller with MPU6050 gyroscopic stabilization, PID attitude control, and dynamic PWM motor mixing. Handles the distinct control dynamics of both flight modes in a single firmware with mode-switching logic.</p>
-                        <div class="tech-stack"><span class="tech-tag">AVR</span><span class="tech-tag">C/C++</span><span class="tech-tag">KiCad</span><span class="tech-tag">PID Control</span></div>
-                        <a href="https://github.com/egeozgul/Convertible-Drone-Firmware/tree/master" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function setStatus(txt, state) {
+  document.getElementById('status-txt').textContent = txt;
+  const dot = document.getElementById('dot');
+  dot.className = 'dot' + (state === 'on' ? ' on' : state === 'rx' ? ' rx' : '');
+}
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/sim.png?raw=true" alt="3D Software Rendering Engine" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">3D Software Rendering Engine</h3>
-                        <p class="project-description">C++ rendering and physics simulation engine built entirely from scratch without external graphics libraries. Implements triangle rasterization, depth buffering, face culling, 3D projection, .obj model loading, and font rendering. Includes a buoyancy simulation that dynamically calculates buoyant forces and torque for realistic wave interaction on floating objects.</p>
-                        <div class="tech-stack"><span class="tech-tag">C++</span><span class="tech-tag">Graphics</span><span class="tech-tag">Physics Simulation</span></div>
-                        <a href="https://github.com/egeozgul/Custom-3D-Software-Rendering-Engine" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+function setRecStatus(txt, isRecording) {
+  document.getElementById('rec-status-txt').textContent = txt;
+  const dot = document.getElementById('rec-dot');
+  dot.className = 'dot' + (isRecording ? ' rec' : '');
+}
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/planet.png?raw=true" alt="Procedural Spherical Map Generator" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">Procedural Spherical Map Generator</h3>
-                        <p class="project-description">OpenGL-based tool for generating realistic planetary surfaces using procedural algorithms and noise functions.</p>
-                        <div class="tech-stack"><span class="tech-tag">OpenGL</span><span class="tech-tag">C++</span></div>
-                        <a href="https://github.com/egeozgul/Procedural-Spherical-Map-generation-using-OpenGL/tree/master" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+function log(text, cls) {
+  const t = document.getElementById('terminal');
+  const el = document.createElement('span');
+  el.className = cls || '';
+  el.textContent = text + '\n';
+  t.appendChild(el);
+  t.scrollTop = t.scrollHeight;
+  while (t.children.length > 300) t.removeChild(t.firstChild);
+}
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/portfolio/refs/heads/main/printer.webp?raw=true" alt="Large Volume 3D Printer" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">Large Volume 3D Printer</h3>
-                        <p class="project-description">Custom-built open-source FDM 3D printer with a 110×75×40 cm build volume — large enough to print a full human torso in one piece. Designed from scratch with swappable extruder support including a syringe extruder for non-standard materials. Fully documented so anyone can replicate it at any scale.</p>
-                        <div class="tech-stack"><span class="tech-tag">Fusion 360</span><span class="tech-tag">Mechanical Design</span></div>
-                        <a href="https://github.com/egeozgul/Custom-FDM-3D-Printer" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+function clearTerminal() {
+  document.getElementById('terminal').innerHTML = '';
+}
 
-                <div class="project-card">
-                    <img src="https://raw.githubusercontent.com/egeozgul/Rational-Number-Accelerator-Design/refs/heads/main/RLU_Block_Diagram.png?raw=true" alt="Rational Number Computing Accelerator" class="project-image">
-                    <div class="project-info">
-                        <h3 class="project-title">Rational Number Computing Accelerator</h3>
-                        <p class="project-description">VHDL implementation of a Rational Arithmetic Unit based on Binary Continued Logarithms (BCLs) — a number format that stores rational numbers exactly without floating-point rounding error. Developed both the mathematical theory and the hardware logic design, enabling lossless arithmetic for scientific computing applications. Accompanied by a published research paper.</p>
-                        <div class="tech-stack"><span class="tech-tag">VHDL</span><span class="tech-tag">Hardware Design</span><span class="tech-tag">FPGA</span></div>
-                        <a href="https://github.com/egeozgul/Rational-Number-Accelerator-Design" target="_blank" class="project-link">View Project <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-                    </div>
-                </div>
+function setControlsEnabled(enabled) {
+  ['btn-rec-start','btn-rec-stop','btn-read','btn-clear','btn-disconnect'].forEach(id => {
+    document.getElementById(id).disabled = !enabled;
+  });
+  document.getElementById('btn-rec-stop').disabled  = true; // off by default
+  document.getElementById('btn-csv').disabled       = true;
+}
 
-            </div>
-        </div>
+// ── Serial ─────────────────────────────────────────────────────────────────
+async function connectSerial() {
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    writer = port.writable.getWriter();
+    connected = true;
+    setStatus('Connected', 'on');
+    document.getElementById('btn-connect').disabled = true;
+    setControlsEnabled(true);
+    log('Connected at 115200 baud', 't-pass');
+    readLoop();
+    // Send Ctrl+C to interrupt anything running
+    await sendRaw('\x03');
+  } catch(e) {
+    setStatus('Failed: ' + e.message, '');
+    log('Error: ' + e.message, 't-fail');
+  }
+}
 
-    </section>
+async function disconnectSerial() {
+  try {
+    if (reader) { await reader.cancel(); }
+    if (writer) { writer.releaseLock(); }
+    if (port)   { await port.close(); }
+  } catch(e) {}
+  connected = false;
+  recording = false;
+  setStatus('Disconnected', '');
+  setRecStatus('Not recording', false);
+  document.getElementById('btn-connect').disabled = false;
+  setControlsEnabled(false);
+  log('Disconnected', 't-muted');
+}
 
-    <footer id="contact">
-        <div class="social-links">
-            <a href="https://github.com/egeozgul" target="_blank" aria-label="GitHub">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-            </a>
-            <a href="https://www.linkedin.com/in/egeozgul/" target="_blank" aria-label="LinkedIn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-            </a>
-            <a href="mailto:egeozgul@gmail.com" aria-label="Email">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            </a>
-        </div>
-        <p>&copy; 2026 Ege Ozgul. All rights reserved.</p>
-    </footer>
-
-    <script>
-        const particlesContainer = document.getElementById('particles');
-        for (let i = 0; i < 50; i++) {
-            const p = document.createElement('span');
-            p.className = 'particle';
-            p.style.left = Math.random() * 100 + '%';
-            p.style.animationDelay = Math.random() * 20 + 's';
-            p.style.animationDuration = (15 + Math.random() * 10) + 's';
-            particlesContainer.appendChild(p);
+async function readLoop() {
+  const decoder = new TextDecoder();
+  try {
+    while (port && port.readable) {
+      reader = port.readable.getReader();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value);
+          processBuffer();
         }
-        window.addEventListener('scroll', () => {
-            const header = document.getElementById('header');
-            header.classList.toggle('scrolled', window.scrollY > 50);
-        });
-        document.querySelectorAll('a[href^="#"]').forEach(a => {
-            a.addEventListener('click', e => {
-                e.preventDefault();
-                const t = document.querySelector(a.getAttribute('href'));
-                if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            });
-        });
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-        }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
-        document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
-    </script>
+      } finally { reader.releaseLock(); }
+    }
+  } catch(e) {
+    if (e.name !== 'AbortError') log('Read error: ' + e.message, 't-fail');
+  }
+}
+
+function processBuffer() {
+  const lines = buffer.split('\n');
+  buffer = lines.pop();
+  lines.forEach(line => {
+    const l = line.replace(/\r/g, '').trim();
+    if (!l) return;
+    setStatus('Connected', 'on');
+
+    // Special markers
+    if (l === 'MEMSTART') {
+      readingMem = true;
+      allEntries = []; headers = [];
+      log('Reading memory...', 't-head');
+      document.getElementById('progress').style.display = 'block';
+      document.getElementById('progress-fill').style.width = '0%';
+      return;
+    }
+    if (l === 'MEMEND') {
+      readingMem = false;
+      document.getElementById('progress').style.display = 'none';
+      document.getElementById('progress-fill').style.width = '100%';
+      log('Done! ' + allEntries.filter(e=>e._type==='data').length + ' data entries loaded.', 't-pass');
+      renderTable();
+      document.getElementById('btn-csv').disabled = false;
+      return;
+    }
+    if (l.startsWith('TOTAL:')) {
+      log('Total entries in flash: ' + l.split(':')[1], 't-muted');
+      return;
+    }
+    if (l === 'RECORDING_STARTED') {
+      recording = true;
+      setRecStatus('● Recording...', true);
+      document.getElementById('btn-rec-start').disabled = true;
+      document.getElementById('btn-rec-stop').disabled  = false;
+      log('Recording started!', 't-pass');
+      return;
+    }
+    if (l === 'RECORDING_STOPPED') {
+      recording = false;
+      setRecStatus('Stopped', false);
+      document.getElementById('btn-rec-start').disabled = false;
+      document.getElementById('btn-rec-stop').disabled  = true;
+      log('Recording stopped.', 't-warn');
+      return;
+    }
+    if (l === 'CLEARING_MEMORY') {
+      log('Erasing flash sectors...', 't-warn');
+      return;
+    }
+    if (l === 'MEMORY_CLEARED') {
+      allEntries = []; headers = [];
+      document.getElementById('table-wrap').style.display = 'none';
+      document.getElementById('stats').style.display      = 'none';
+      document.getElementById('btn-csv').disabled         = true;
+      log('Memory cleared!', 't-pass');
+      return;
+    }
+    if (readingMem && l.startsWith('D:')) {
+      parseEntry(l.slice(2));
+      const pct = Math.min(95, allEntries.length / 2);
+      document.getElementById('progress-fill').style.width = pct + '%';
+      return;
+    }
+
+    // Default terminal output
+    const cls = l.includes('Error') || l.includes('Traceback') ? 't-fail'
+              : l.startsWith('===') ? 't-head'
+              : l.startsWith('>>>') ? 't-muted' : '';
+    log(l, cls);
+  });
+}
+
+// ── Script sender ──────────────────────────────────────────────────────────
+async function runScript(script) {
+  if (!connected) return;
+  await sendRaw('\x03'); await sleep(400);
+  await sendRaw('\x03'); await sleep(200);
+  await sendRaw('\x01'); await sleep(300); // raw REPL
+  const encoded = new TextEncoder().encode(script);
+  for (let i = 0; i < encoded.length; i += 128) {
+    await writer.write(encoded.slice(i, i + 128));
+    await sleep(15);
+  }
+  await sendRaw('\x04'); // execute
+}
+
+async function sendRaw(text) {
+  if (!writer) return;
+  await writer.write(new TextEncoder().encode(text));
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Actions ────────────────────────────────────────────────────────────────
+async function startRecording() {
+  log('Starting recording...', 't-muted');
+  await runScript(SCRIPT_START_RECORDING);
+}
+
+async function stopRecording() {
+  log('Stopping recording...', 't-muted');
+  await sendRaw('\x03'); // Ctrl+C stops any running loop
+  await sleep(300);
+  recording = false;
+  setRecStatus('Stopped', false);
+  document.getElementById('btn-rec-start').disabled = false;
+  document.getElementById('btn-rec-stop').disabled  = true;
+  log('Recording stopped.', 't-warn');
+}
+
+async function readMemory() {
+  log('Reading flash memory...', 't-muted');
+  document.getElementById('table-wrap').style.display = 'none';
+  document.getElementById('stats').style.display      = 'none';
+  document.getElementById('btn-csv').disabled         = true;
+  await runScript(SCRIPT_READ_MEMORY);
+}
+
+async function clearMemory() {
+  if (!confirm('Clear ALL recorded data from flash? This cannot be undone.')) return;
+  log('Clearing memory...', 't-warn');
+  await runScript(SCRIPT_CLEAR_MEMORY);
+}
+
+// ── Table rendering ────────────────────────────────────────────────────────
+function parseEntry(line) {
+  if (line.startsWith('SESSION_START')) {
+    allEntries.push({ _type: 'session', _raw: line });
+  } else if (line.startsWith('GPS:')) {
+    allEntries.push({ _type: 'gps', _raw: line });
+  } else if (line.startsWith('t,') || line.startsWith('time,')) {
+    if (headers.length === 0) headers = line.split(',');
+    allEntries.push({ _type: 'header', _raw: line });
+  } else {
+    const vals = line.split(',');
+    if (vals.length >= 2) {
+      const obj = { _type: 'data', _raw: line };
+      headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+      allEntries.push(obj);
+    }
+  }
+}
+
+function renderTable() {
+  const dataRows = allEntries.filter(e => e._type === 'data');
+  const sessions = allEntries.filter(e => e._type === 'session').length;
+  const maxT     = dataRows.length > 0 ? parseFloat(dataRows[dataRows.length-1][headers[0]] || 0) : 0;
+  const memUsed  = Math.round(allEntries.length * 96 / 1024);
+
+  document.getElementById('stat-entries').textContent  = dataRows.length;
+  document.getElementById('stat-sessions').textContent = sessions;
+  document.getElementById('stat-duration').textContent = maxT + 's';
+  document.getElementById('stat-mem').textContent      = memUsed;
+  document.getElementById('stats').style.display       = 'grid';
+
+  const thead = document.getElementById('thead');
+  thead.innerHTML = '';
+  const hr = document.createElement('tr');
+  ['#', ...headers].forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    hr.appendChild(th);
+  });
+  thead.appendChild(hr);
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  let rowIdx = 0;
+
+  allEntries.forEach(entry => {
+    const tr = document.createElement('tr');
+    if (entry._type === 'session') {
+      const td = document.createElement('td');
+      td.colSpan = headers.length + 1;
+      td.className = 'session';
+      td.textContent = '▶ ' + entry._raw;
+      tr.appendChild(td);
+    } else if (entry._type === 'gps') {
+      const td = document.createElement('td');
+      td.colSpan = headers.length + 1;
+      td.className = 'gps';
+      td.textContent = '📍 ' + entry._raw;
+      tr.appendChild(td);
+    } else if (entry._type === 'header') {
+      const td = document.createElement('td');
+      td.colSpan = headers.length + 1;
+      td.className = 'header';
+      td.textContent = entry._raw;
+      tr.appendChild(td);
+    } else {
+      const numTd = document.createElement('td');
+      numTd.textContent = rowIdx++;
+      numTd.style.color = 'var(--muted)';
+      tr.appendChild(numTd);
+      headers.forEach(h => {
+        const td = document.createElement('td');
+        td.textContent = entry[h] || '';
+        tr.appendChild(td);
+      });
+    }
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('table-wrap').style.display = 'block';
+}
+
+function downloadCSV() {
+  const dataRows = allEntries.filter(e => e._type === 'data');
+  if (dataRows.length === 0) { alert('No data to download.'); return; }
+  let csv = '';
+  let sessionLabel = '';
+  allEntries.forEach(entry => {
+    if (entry._type === 'session') sessionLabel = entry._raw;
+    else if (entry._type === 'gps')    csv += '# ' + entry._raw + '\n';
+    else if (entry._type === 'header') csv += '# Session: ' + sessionLabel + '\n' + entry._raw + '\n';
+    else if (entry._type === 'data')   csv += entry._raw + '\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = 'esp32_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
 </body>
 </html>
