@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ESP32 Controller</title>
+<title>ESP32 Battery Monitor</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -16,564 +16,336 @@
     --green:   #3fb950;
     --red:     #f85149;
     --yellow:  #d29922;
+    --orange:  #e3b341;
   }
-  body { font-family: monospace; background: var(--bg); color: var(--text); padding: 16px; max-width: 1000px; margin: 0 auto; }
-  h1   { color: var(--blue); font-size: 18px; margin-bottom: 4px; }
-  h2   { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+  body {
+    font-family: 'Courier New', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+    max-width: 700px;
+    margin: 0 auto;
+  }
 
-  .status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 16px; }
-  .dot    { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
-  .dot.on { background: var(--green); animation: pulse 1.5s infinite; }
-  .dot.rx { background: var(--blue); animation: pulse 0.3s infinite; }
-  .dot.rec { background: var(--red); animation: pulse 0.5s infinite; }
+  h1 { color: var(--blue); font-size: 20px; margin-bottom: 4px; letter-spacing: 2px; }
+  h2 { color: var(--muted); font-size: 12px; margin-bottom: 24px; }
+
+  .status {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--muted); margin-bottom: 20px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+  .dot.on  { background: var(--green); animation: pulse 1.5s infinite; }
+  .dot.rx  { background: var(--blue);  animation: pulse 0.3s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-  .section { margin-bottom: 20px; }
-  .section-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-
-  .btn-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .btn-row { display: flex; gap: 10px; margin-bottom: 24px; }
   button {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 6px; color: var(--blue); font-family: monospace;
-    font-size: 13px; padding: 10px 16px; cursor: pointer; flex: 1; min-width: 120px;
+    flex: 1; padding: 12px; border-radius: 8px;
+    font-family: monospace; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--blue);
   }
-  button:active   { background: var(--border); }
-  button:disabled { opacity: 0.4; cursor: default; }
-  button.primary  { background: #1f6feb; border-color: #1f6feb; color: #fff; }
-  button.green    { border-color: var(--green); color: var(--green); }
-  button.red      { border-color: var(--red); color: var(--red); }
-  button.rec-on   { background: var(--red); border-color: var(--red); color: #fff; }
-  button.danger   { border-color: var(--red); color: var(--red); }
+  button:active  { opacity: 0.7; }
+  button:disabled { opacity: 0.35; cursor: default; }
+  button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  button.danger  { border-color: var(--red); color: var(--red); }
 
-  .rec-status { font-size: 12px; color: var(--red); font-weight: bold; display: none; margin-left: 8px; }
+  /* Big voltage display */
+  .voltage-display {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 20px;
+  }
+  .voltage-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+  .voltage-value { font-size: 64px; font-weight: bold; color: var(--blue); line-height: 1; transition: color 0.3s; }
+  .voltage-unit  { font-size: 20px; color: var(--muted); margin-left: 4px; }
+  .voltage-pct   { font-size: 16px; color: var(--muted); margin-top: 8px; }
 
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; display: none; }
-  .stat  { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
-  .stat .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-  .stat .value { font-size: 22px; font-weight: bold; color: var(--blue); margin-top: 4px; }
-  .stat .sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  /* Battery bar */
+  .bat-wrap { background: #21262d; border-radius: 6px; height: 14px; margin: 14px 0 4px; overflow: hidden; }
+  .bat-fill  { height: 14px; border-radius: 6px; transition: width 0.5s, background 0.5s; }
+  .bat-range { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
 
-  .table-wrap { overflow-x: auto; margin-bottom: 16px; display: none; max-height: 400px; overflow-y: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  thead th { background: var(--surface); color: var(--muted); padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); position: sticky; top: 0; white-space: nowrap; }
-  tbody tr:nth-child(even) { background: #0d1117; }
-  tbody tr:hover { background: var(--surface); }
-  tbody td { padding: 5px 10px; border-bottom: 1px solid #1a1f27; white-space: nowrap; }
-  tbody td.session { color: var(--yellow); font-weight: bold; }
-  tbody td.gps     { color: var(--green); }
-  tbody td.header  { color: var(--muted); font-style: italic; }
+  /* Chart */
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px; margin-bottom: 20px;
+  }
+  .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .chart-title  { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .chart-range  { font-size: 11px; color: var(--muted); }
+  canvas { width: 100%; display: block; }
 
-  .terminal { background: #060a10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 11px; line-height: 1.7; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-bottom: 16px; }
-  .t-pass  { color: var(--green); }
-  .t-fail  { color: var(--red); }
-  .t-head  { color: var(--blue); }
-  .t-muted { color: var(--muted); }
-  .t-warn  { color: var(--yellow); }
+  /* Stats row */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+  .stat  { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+  .stat .s-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .stat .s-value { font-size: 18px; font-weight: bold; color: var(--blue); margin-top: 4px; }
 
-  .progress { background: #21262d; border-radius: 4px; height: 6px; margin-bottom: 16px; display: none; }
-  .progress-fill { height: 6px; border-radius: 4px; background: var(--blue); transition: width 0.3s; }
-
-  #unsupported { background: #1c1208; border: 1px solid var(--yellow); border-radius: 6px; padding: 12px; color: var(--yellow); font-size: 13px; margin-bottom: 16px; display: none; }
-
-  hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  #unsupported { background: #1c1208; border: 1px solid var(--yellow); border-radius: 8px; padding: 14px; color: var(--yellow); font-size: 13px; margin-bottom: 20px; display: none; }
 </style>
 </head>
 <body>
 
-<h1>&#9889; ESP32 Controller</h1>
-<h2>Connect via USB to control and read your ESP32</h2>
+<h1>&#128267; ESP32 Battery Monitor</h1>
+<h2>Live voltage over BLE — no WiFi needed</h2>
 
-<div id="unsupported">&#9888; Web Serial API not supported. Use Chrome or Edge on desktop/Android.</div>
+<div id="unsupported">&#9888; Web Bluetooth not supported. Use Chrome on Android or desktop (not iOS Safari).</div>
 
-<!-- Connection -->
-<div class="section">
-  <div class="section-title">&#128268; Connection</div>
-  <div class="btn-row">
-    <button class="primary" id="btn-connect" onclick="connectSerial()">&#9889; Connect USB</button>
-    <button class="danger"  id="btn-disconnect" onclick="disconnectSerial()" disabled>&#10005; Disconnect</button>
-  </div>
-  <div class="status">
-    <div class="dot" id="dot"></div>
-    <span id="status-txt">Disconnected — connect via USB</span>
-  </div>
+<div class="status">
+  <div class="dot" id="dot"></div>
+  <span id="status-txt">Disconnected — press Connect to start</span>
 </div>
 
-<hr>
-
-<!-- Recording -->
-<div class="section">
-  <div class="section-title">&#9679; Recording</div>
-  <div class="btn-row">
-    <button class="green" id="btn-rec-start" onclick="startRecording()" disabled>&#9679; Start Recording</button>
-    <button class="red"   id="btn-rec-stop"  onclick="stopRecording()"  disabled>&#9632; Stop Recording</button>
-  </div>
-  <div class="status">
-    <div class="dot" id="rec-dot"></div>
-    <span id="rec-status-txt">Not recording</span>
-  </div>
+<div class="btn-row">
+  <button class="primary" id="btn-connect"    onclick="connectBLE()">&#128268; Connect BLE</button>
+  <button class="danger"  id="btn-disconnect" onclick="disconnectBLE()" disabled>&#10005; Disconnect</button>
+  <button id="btn-clear" onclick="clearHistory()">&#128465; Clear History</button>
 </div>
 
-<hr>
-
-<!-- Memory -->
-<div class="section">
-  <div class="section-title">&#128190; Memory</div>
-  <div class="btn-row">
-    <button id="btn-read"  onclick="readMemory()"  disabled>&#128190; Show Memory</button>
-    <button class="green" id="btn-csv"   onclick="downloadCSV()" disabled>&#11015; Download CSV</button>
-    <button class="danger" id="btn-clear" onclick="clearMemory()" disabled>&#128465; Clear Memory</button>
+<!-- Voltage display -->
+<div class="voltage-display">
+  <div class="voltage-label">Battery Voltage</div>
+  <div>
+    <span class="voltage-value" id="v-value">--</span>
+    <span class="voltage-unit">V</span>
   </div>
-</div>
-
-<div class="progress" id="progress"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
-
-<div class="stats" id="stats">
-  <div class="stat"><div class="label">Data Entries</div><div class="value" id="stat-entries">--</div><div class="sub">data rows</div></div>
-  <div class="stat"><div class="label">Sessions</div><div class="value" id="stat-sessions">--</div><div class="sub">recording sessions</div></div>
-  <div class="stat"><div class="label">Duration</div><div class="value" id="stat-duration">--</div><div class="sub">last session</div></div>
-  <div class="stat"><div class="label">Memory Used</div><div class="value" id="stat-mem">--</div><div class="sub">KB of 15360 KB</div></div>
-</div>
-
-<div class="table-wrap" id="table-wrap">
-  <table id="data-table">
-    <thead id="thead"></thead>
-    <tbody id="tbody"></tbody>
-  </table>
-</div>
-
-<hr>
-
-<!-- Terminal -->
-<div class="section">
-  <div class="section-title" style="display:flex;justify-content:space-between">
-    <span>&#128196; Terminal</span>
-    <button onclick="clearTerminal()" style="flex:none;font-size:11px;padding:3px 8px;min-width:unset">Clear</button>
+  <div class="bat-wrap">
+    <div class="bat-fill" id="bat-fill" style="width:0%"></div>
   </div>
-  <div class="terminal" id="terminal">Terminal output will appear here...</div>
+  <div class="bat-range"><span>3.0V (empty)</span><span>4.2V (full)</span></div>
+  <div class="voltage-pct" id="v-pct">--% charged</div>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat"><div class="s-label">Min</div><div class="s-value" id="s-min">--</div></div>
+  <div class="stat"><div class="s-label">Max</div><div class="s-value" id="s-max">--</div></div>
+  <div class="stat"><div class="s-label">Samples</div><div class="s-value" id="s-count">0</div></div>
+</div>
+
+<!-- Chart -->
+<div class="chart-card">
+  <div class="chart-header">
+    <span class="chart-title">Voltage History</span>
+    <span class="chart-range" id="chart-range">No data</span>
+  </div>
+  <canvas id="chart" height="160"></canvas>
 </div>
 
 <script>
-// ── MicroPython scripts ────────────────────────────────────────────────────
-const SCRIPT_READ_MEMORY = `
-from machine import Pin, SPI
-spi    = SPI(1, baudrate=100000, polarity=0, phase=0, sck=Pin(7), mosi=Pin(9), miso=Pin(8))
-cs_mem = Pin(4, Pin.OUT)
-cs_mag = Pin(2, Pin.OUT)
-cs_mem.value(1)
-cs_mag.value(1)
-LOG_ADDR   = 0x010000
-LOG_MAX    = 0xFF0000
-ENTRY_SIZE = 96
-def mem_read(addr, n):
-    cs_mag.value(1); cs_mem.value(0)
-    spi.write(bytes([0x03,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF]))
-    data = spi.read(n)
-    cs_mem.value(1)
-    return data
-log_ptr = LOG_ADDR
-while log_ptr < LOG_MAX:
-    raw = mem_read(log_ptr, 4)
-    if raw == b'\\xff\\xff\\xff\\xff' or raw == b'\\x00\\x00\\x00\\x00':
-        break
-    log_ptr += ENTRY_SIZE
-total = (log_ptr - LOG_ADDR) // ENTRY_SIZE
-print("MEMSTART")
-print("TOTAL:" + str(total))
-ptr = LOG_ADDR
-while ptr < log_ptr:
-    raw  = mem_read(ptr, ENTRY_SIZE)
-    line = bytes(b for b in raw if 0x20 <= b <= 0x7E).decode()
-    if line:
-        print("D:" + line)
-    ptr += ENTRY_SIZE
-print("MEMEND")
-`;
+const SERVICE_UUID  = '12345678-1234-5678-1234-56789abcdef0';
+const CHAR_UUID     = '12345678-1234-5678-1234-56789abcdef1';
+const MAX_POINTS    = 120;
 
-const SCRIPT_START_RECORDING = `
-from machine import Pin, SPI
-import time
-spi    = SPI(1, baudrate=100000, polarity=0, phase=0, sck=Pin(7), mosi=Pin(9), miso=Pin(8))
-cs_mem = Pin(4, Pin.OUT)
-cs_mag = Pin(2, Pin.OUT)
-cs_mem.value(1); cs_mag.value(1)
-LOG_ADDR=0x010000; LOG_MAX=0xFF0000; ENTRY_SIZE=96
-def mwe():
-    cs_mag.value(1); cs_mem.value(0); spi.write(bytes([0x06])); cs_mem.value(1)
-def mwr():
-    while True:
-        cs_mag.value(1); cs_mem.value(0); spi.write(bytes([0x05])); s=spi.read(1); cs_mem.value(1)
-        if s[0]&1==0: break
-def mw(addr,data):
-    mwe(); cs_mag.value(1); cs_mem.value(0)
-    spi.write(bytes([0x02,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF])+data); cs_mem.value(1); mwr()
-def mr(addr,n):
-    cs_mag.value(1); cs_mem.value(0)
-    spi.write(bytes([0x03,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF])); data=spi.read(n); cs_mem.value(1); return data
-log_ptr=LOG_ADDR
-while log_ptr<LOG_MAX:
-    r=mr(log_ptr,4)
-    if r==b'\\xff\\xff\\xff\\xff' or r==b'\\x00\\x00\\x00\\x00': break
-    log_ptr+=ENTRY_SIZE
-def wl(entry):
-    global log_ptr
-    e=entry.encode()[:ENTRY_SIZE]; p=e+b'\\x00'*(ENTRY_SIZE-len(e)); mw(log_ptr,p); log_ptr+=ENTRY_SIZE
-wl("SESSION_START")
-wl("t,ax,ay,az,gx,gy,gz,press,temp,mx,my,mz,bat_v")
-print("RECORDING_STARTED")
-`;
+let device, server, characteristic;
+let history = [];
+let minV = Infinity, maxV = -Infinity;
 
-const SCRIPT_STOP_RECORDING = `print("RECORDING_STOPPED")`;
-
-const SCRIPT_CLEAR_MEMORY = `
-from machine import Pin, SPI
-spi    = SPI(1, baudrate=100000, polarity=0, phase=0, sck=Pin(7), mosi=Pin(9), miso=Pin(8))
-cs_mem = Pin(4, Pin.OUT)
-cs_mag = Pin(2, Pin.OUT)
-cs_mem.value(1); cs_mag.value(1)
-def mwe():
-    cs_mag.value(1); cs_mem.value(0); spi.write(bytes([0x06])); cs_mem.value(1)
-def mwr():
-    while True:
-        cs_mag.value(1); cs_mem.value(0); spi.write(bytes([0x05])); s=spi.read(1); cs_mem.value(1)
-        if s[0]&1==0: break
-def erase(addr):
-    mwe(); cs_mag.value(1); cs_mem.value(0)
-    spi.write(bytes([0x20,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF])); cs_mem.value(1); mwr()
-print("CLEARING_MEMORY")
-for addr in range(0x00F000, 0x100000, 0x1000):
-    erase(addr)
-print("MEMORY_CLEARED")
-`;
-
-// ── State ──────────────────────────────────────────────────────────────────
-let port, reader, writer;
-let buffer     = '';
-let allEntries = [];
-let headers    = [];
-let readingMem = false;
-let connected  = false;
-let recording  = false;
-
-if (!('serial' in navigator)) {
+// Check support
+if (!navigator.bluetooth) {
   document.getElementById('unsupported').style.display = 'block';
   document.getElementById('btn-connect').disabled = true;
 }
 
-// ── UI helpers ─────────────────────────────────────────────────────────────
 function setStatus(txt, state) {
   document.getElementById('status-txt').textContent = txt;
   const dot = document.getElementById('dot');
   dot.className = 'dot' + (state === 'on' ? ' on' : state === 'rx' ? ' rx' : '');
 }
 
-function setRecStatus(txt, isRecording) {
-  document.getElementById('rec-status-txt').textContent = txt;
-  const dot = document.getElementById('rec-dot');
-  dot.className = 'dot' + (isRecording ? ' rec' : '');
+function voltageColor(v) {
+  if (v >= 3.9) return '#3fb950'; // green - good
+  if (v >= 3.5) return '#d29922'; // yellow - medium
+  return '#f85149';               // red - low
 }
 
-function log(text, cls) {
-  const t = document.getElementById('terminal');
-  const el = document.createElement('span');
-  el.className = cls || '';
-  el.textContent = text + '\n';
-  t.appendChild(el);
-  t.scrollTop = t.scrollHeight;
-  while (t.children.length > 300) t.removeChild(t.firstChild);
+function updateDisplay(voltage) {
+  const pct = Math.max(0, Math.min(100, (voltage - 3.0) / 1.2 * 100));
+  const color = voltageColor(voltage);
+
+  document.getElementById('v-value').textContent = voltage.toFixed(3);
+  document.getElementById('v-value').style.color = color;
+  document.getElementById('v-pct').textContent   = pct.toFixed(1) + '% charged';
+  document.getElementById('bat-fill').style.width      = pct + '%';
+  document.getElementById('bat-fill').style.background = color;
+
+  // Update history
+  history.push({ v: voltage, t: Date.now() });
+  if (history.length > MAX_POINTS) history.shift();
+
+  // Stats
+  minV = Math.min(minV, voltage);
+  maxV = Math.max(maxV, voltage);
+  document.getElementById('s-min').textContent   = minV.toFixed(3);
+  document.getElementById('s-max').textContent   = maxV.toFixed(3);
+  document.getElementById('s-count').textContent = history.length;
+
+  drawChart();
+  setStatus('Connected — ' + new Date().toLocaleTimeString(), 'rx');
+  setTimeout(() => setStatus('Connected — live', 'on'), 500);
 }
 
-function clearTerminal() {
-  document.getElementById('terminal').innerHTML = '';
-}
+function drawChart() {
+  const canvas = document.getElementById('chart');
+  const ctx    = canvas.getContext('2d');
+  const W      = canvas.offsetWidth;
+  const H      = 160;
+  canvas.width  = W;
+  canvas.height = H;
 
-function setControlsEnabled(enabled) {
-  ['btn-rec-start','btn-rec-stop','btn-read','btn-clear','btn-disconnect'].forEach(id => {
-    document.getElementById(id).disabled = !enabled;
+  ctx.clearRect(0, 0, W, H);
+
+  if (history.length < 2) return;
+
+  const pad    = { top: 10, bottom: 24, left: 44, right: 10 };
+  const plotW  = W - pad.left - pad.right;
+  const plotH  = H - pad.top  - pad.bottom;
+
+  const vMin   = Math.min(3.0, minV - 0.05);
+  const vMax   = Math.max(4.3, maxV + 0.05);
+  const vRange = vMax - vMin;
+
+  // Grid
+  ctx.strokeStyle = '#21262d';
+  ctx.lineWidth   = 1;
+  const gridLines = [3.0, 3.3, 3.6, 3.9, 4.2];
+  gridLines.forEach(gv => {
+    const y = pad.top + plotH - ((gv - vMin) / vRange * plotH);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+    ctx.fillStyle = '#8b949e';
+    ctx.font      = '10px monospace';
+    ctx.fillText(gv.toFixed(1), 2, y + 4);
   });
-  document.getElementById('btn-rec-stop').disabled  = true; // off by default
-  document.getElementById('btn-csv').disabled       = true;
+
+  // Time labels
+  const first = history[0].t;
+  const last  = history[history.length-1].t;
+  const tRange = last - first || 1;
+  ctx.fillStyle = '#8b949e';
+  ctx.font      = '10px monospace';
+  ctx.fillText('now', W - pad.right - 20, H - 6);
+  if (history.length > 10) {
+    const elapsed = Math.round(tRange / 1000);
+    ctx.fillText('-' + elapsed + 's', pad.left, H - 6);
+  }
+
+  // Voltage line
+  ctx.beginPath();
+  ctx.lineWidth   = 2;
+  ctx.strokeStyle = '#58a6ff';
+  ctx.lineJoin    = 'round';
+
+  history.forEach((pt, i) => {
+    const x = pad.left + ((pt.t - first) / tRange) * plotW;
+    const y = pad.top  + plotH - ((pt.v - vMin) / vRange * plotH);
+    if (i === 0) ctx.moveTo(x, y);
+    else         ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Fill under line
+  ctx.lineTo(pad.left + plotW, pad.top + plotH);
+  ctx.lineTo(pad.left, pad.top + plotH);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
+  grad.addColorStop(0, 'rgba(88,166,255,0.2)');
+  grad.addColorStop(1, 'rgba(88,166,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Current value dot
+  const last_pt = history[history.length - 1];
+  const cx = pad.left + plotW;
+  const cy = pad.top + plotH - ((last_pt.v - vMin) / vRange * plotH);
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fillStyle   = voltageColor(last_pt.v);
+  ctx.strokeStyle = '#0a0e17';
+  ctx.lineWidth   = 2;
+  ctx.fill();
+  ctx.stroke();
+
+  // Update range label
+  const elapsed = Math.round(tRange / 1000);
+  document.getElementById('chart-range').textContent =
+    history.length + ' samples / ' + elapsed + 's';
 }
 
-// ── Serial ─────────────────────────────────────────────────────────────────
-async function connectSerial() {
+function onNotify(event) {
+  const val     = event.target.value;
+  const decoder = new TextDecoder();
+  const str     = decoder.decode(val).trim();
+  const v       = parseFloat(str);
+  if (!isNaN(v) && v > 0 && v < 10) {
+    updateDisplay(v);
+  }
+}
+
+async function connectBLE() {
   try {
-    port = await navigator.serial.requestPort();
-    await port.open({ baudRate: 115200 });
-    writer = port.writable.getWriter();
-    connected = true;
-    setStatus('Connected', 'on');
-    document.getElementById('btn-connect').disabled = true;
-    setControlsEnabled(true);
-    log('Connected at 115200 baud', 't-pass');
-    readLoop();
-    // Send Ctrl+C to interrupt anything running
-    await sendRaw('\x03');
+    setStatus('Scanning for ESP32-BAT...', '');
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'ESP32-BAT' }],
+      optionalServices: [SERVICE_UUID]
+    });
+
+    setStatus('Connecting...', '');
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+
+    server        = await device.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    characteristic = await service.getCharacteristic(CHAR_UUID);
+
+    // Read initial value
+    const val = await characteristic.readValue();
+    const v   = parseFloat(new TextDecoder().decode(val));
+    if (!isNaN(v)) updateDisplay(v);
+
+    // Subscribe to notifications
+    await characteristic.startNotifications();
+    characteristic.addEventListener('characteristicvaluechanged', onNotify);
+
+    setStatus('Connected to ' + device.name, 'on');
+    document.getElementById('btn-connect').disabled    = true;
+    document.getElementById('btn-disconnect').disabled = false;
+
   } catch(e) {
     setStatus('Failed: ' + e.message, '');
-    log('Error: ' + e.message, 't-fail');
+    console.error(e);
   }
 }
 
-async function disconnectSerial() {
-  try {
-    if (reader) { await reader.cancel(); }
-    if (writer) { writer.releaseLock(); }
-    if (port)   { await port.close(); }
-  } catch(e) {}
-  connected = false;
-  recording = false;
+async function disconnectBLE() {
+  if (device && device.gatt.connected) {
+    await device.gatt.disconnect();
+  }
+}
+
+function onDisconnected() {
   setStatus('Disconnected', '');
-  setRecStatus('Not recording', false);
-  document.getElementById('btn-connect').disabled = false;
-  setControlsEnabled(false);
-  log('Disconnected', 't-muted');
+  document.getElementById('btn-connect').disabled    = false;
+  document.getElementById('btn-disconnect').disabled = true;
 }
 
-async function readLoop() {
-  const decoder = new TextDecoder();
-  try {
-    while (port && port.readable) {
-      reader = port.readable.getReader();
-      try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value);
-          processBuffer();
-        }
-      } finally { reader.releaseLock(); }
-    }
-  } catch(e) {
-    if (e.name !== 'AbortError') log('Read error: ' + e.message, 't-fail');
-  }
+function clearHistory() {
+  history = [];
+  minV = Infinity;
+  maxV = -Infinity;
+  document.getElementById('s-min').textContent   = '--';
+  document.getElementById('s-max').textContent   = '--';
+  document.getElementById('s-count').textContent = '0';
+  document.getElementById('chart-range').textContent = 'No data';
+  const canvas = document.getElementById('chart');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 }
 
-function processBuffer() {
-  const lines = buffer.split('\n');
-  buffer = lines.pop();
-  lines.forEach(line => {
-    const l = line.replace(/\r/g, '').trim();
-    if (!l) return;
-    setStatus('Connected', 'on');
-
-    // Special markers
-    if (l === 'MEMSTART') {
-      readingMem = true;
-      allEntries = []; headers = [];
-      log('Reading memory...', 't-head');
-      document.getElementById('progress').style.display = 'block';
-      document.getElementById('progress-fill').style.width = '0%';
-      return;
-    }
-    if (l === 'MEMEND') {
-      readingMem = false;
-      document.getElementById('progress').style.display = 'none';
-      document.getElementById('progress-fill').style.width = '100%';
-      log('Done! ' + allEntries.filter(e=>e._type==='data').length + ' data entries loaded.', 't-pass');
-      renderTable();
-      document.getElementById('btn-csv').disabled = false;
-      return;
-    }
-    if (l.startsWith('TOTAL:')) {
-      log('Total entries in flash: ' + l.split(':')[1], 't-muted');
-      return;
-    }
-    if (l === 'RECORDING_STARTED') {
-      recording = true;
-      setRecStatus('● Recording...', true);
-      document.getElementById('btn-rec-start').disabled = true;
-      document.getElementById('btn-rec-stop').disabled  = false;
-      log('Recording started!', 't-pass');
-      return;
-    }
-    if (l === 'RECORDING_STOPPED') {
-      recording = false;
-      setRecStatus('Stopped', false);
-      document.getElementById('btn-rec-start').disabled = false;
-      document.getElementById('btn-rec-stop').disabled  = true;
-      log('Recording stopped.', 't-warn');
-      return;
-    }
-    if (l === 'CLEARING_MEMORY') {
-      log('Erasing flash sectors...', 't-warn');
-      return;
-    }
-    if (l === 'MEMORY_CLEARED') {
-      allEntries = []; headers = [];
-      document.getElementById('table-wrap').style.display = 'none';
-      document.getElementById('stats').style.display      = 'none';
-      document.getElementById('btn-csv').disabled         = true;
-      log('Memory cleared!', 't-pass');
-      return;
-    }
-    if (readingMem && l.startsWith('D:')) {
-      parseEntry(l.slice(2));
-      const pct = Math.min(95, allEntries.length / 2);
-      document.getElementById('progress-fill').style.width = pct + '%';
-      return;
-    }
-
-    // Default terminal output
-    const cls = l.includes('Error') || l.includes('Traceback') ? 't-fail'
-              : l.startsWith('===') ? 't-head'
-              : l.startsWith('>>>') ? 't-muted' : '';
-    log(l, cls);
-  });
-}
-
-// ── Script sender ──────────────────────────────────────────────────────────
-async function runScript(script) {
-  if (!connected) return;
-  await sendRaw('\x03'); await sleep(400);
-  await sendRaw('\x03'); await sleep(200);
-  await sendRaw('\x01'); await sleep(300); // raw REPL
-  const encoded = new TextEncoder().encode(script);
-  for (let i = 0; i < encoded.length; i += 128) {
-    await writer.write(encoded.slice(i, i + 128));
-    await sleep(15);
-  }
-  await sendRaw('\x04'); // execute
-}
-
-async function sendRaw(text) {
-  if (!writer) return;
-  await writer.write(new TextEncoder().encode(text));
-}
-
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// ── Actions ────────────────────────────────────────────────────────────────
-async function startRecording() {
-  log('Starting recording...', 't-muted');
-  await runScript(SCRIPT_START_RECORDING);
-}
-
-async function stopRecording() {
-  log('Stopping recording...', 't-muted');
-  await sendRaw('\x03'); // Ctrl+C stops any running loop
-  await sleep(300);
-  recording = false;
-  setRecStatus('Stopped', false);
-  document.getElementById('btn-rec-start').disabled = false;
-  document.getElementById('btn-rec-stop').disabled  = true;
-  log('Recording stopped.', 't-warn');
-}
-
-async function readMemory() {
-  log('Reading flash memory...', 't-muted');
-  document.getElementById('table-wrap').style.display = 'none';
-  document.getElementById('stats').style.display      = 'none';
-  document.getElementById('btn-csv').disabled         = true;
-  await runScript(SCRIPT_READ_MEMORY);
-}
-
-async function clearMemory() {
-  if (!confirm('Clear ALL recorded data from flash? This cannot be undone.')) return;
-  log('Clearing memory...', 't-warn');
-  await runScript(SCRIPT_CLEAR_MEMORY);
-}
-
-// ── Table rendering ────────────────────────────────────────────────────────
-function parseEntry(line) {
-  if (line.startsWith('SESSION_START')) {
-    allEntries.push({ _type: 'session', _raw: line });
-  } else if (line.startsWith('GPS:')) {
-    allEntries.push({ _type: 'gps', _raw: line });
-  } else if (line.startsWith('t,') || line.startsWith('time,')) {
-    if (headers.length === 0) headers = line.split(',');
-    allEntries.push({ _type: 'header', _raw: line });
-  } else {
-    const vals = line.split(',');
-    if (vals.length >= 2) {
-      const obj = { _type: 'data', _raw: line };
-      headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
-      allEntries.push(obj);
-    }
-  }
-}
-
-function renderTable() {
-  const dataRows = allEntries.filter(e => e._type === 'data');
-  const sessions = allEntries.filter(e => e._type === 'session').length;
-  const maxT     = dataRows.length > 0 ? parseFloat(dataRows[dataRows.length-1][headers[0]] || 0) : 0;
-  const memUsed  = Math.round(allEntries.length * 96 / 1024);
-
-  document.getElementById('stat-entries').textContent  = dataRows.length;
-  document.getElementById('stat-sessions').textContent = sessions;
-  document.getElementById('stat-duration').textContent = maxT + 's';
-  document.getElementById('stat-mem').textContent      = memUsed;
-  document.getElementById('stats').style.display       = 'grid';
-
-  const thead = document.getElementById('thead');
-  thead.innerHTML = '';
-  const hr = document.createElement('tr');
-  ['#', ...headers].forEach(h => {
-    const th = document.createElement('th');
-    th.textContent = h;
-    hr.appendChild(th);
-  });
-  thead.appendChild(hr);
-
-  const tbody = document.getElementById('tbody');
-  tbody.innerHTML = '';
-  let rowIdx = 0;
-
-  allEntries.forEach(entry => {
-    const tr = document.createElement('tr');
-    if (entry._type === 'session') {
-      const td = document.createElement('td');
-      td.colSpan = headers.length + 1;
-      td.className = 'session';
-      td.textContent = '▶ ' + entry._raw;
-      tr.appendChild(td);
-    } else if (entry._type === 'gps') {
-      const td = document.createElement('td');
-      td.colSpan = headers.length + 1;
-      td.className = 'gps';
-      td.textContent = '📍 ' + entry._raw;
-      tr.appendChild(td);
-    } else if (entry._type === 'header') {
-      const td = document.createElement('td');
-      td.colSpan = headers.length + 1;
-      td.className = 'header';
-      td.textContent = entry._raw;
-      tr.appendChild(td);
-    } else {
-      const numTd = document.createElement('td');
-      numTd.textContent = rowIdx++;
-      numTd.style.color = 'var(--muted)';
-      tr.appendChild(numTd);
-      headers.forEach(h => {
-        const td = document.createElement('td');
-        td.textContent = entry[h] || '';
-        tr.appendChild(td);
-      });
-    }
-    tbody.appendChild(tr);
-  });
-
-  document.getElementById('table-wrap').style.display = 'block';
-}
-
-function downloadCSV() {
-  const dataRows = allEntries.filter(e => e._type === 'data');
-  if (dataRows.length === 0) { alert('No data to download.'); return; }
-  let csv = '';
-  let sessionLabel = '';
-  allEntries.forEach(entry => {
-    if (entry._type === 'session') sessionLabel = entry._raw;
-    else if (entry._type === 'gps')    csv += '# ' + entry._raw + '\n';
-    else if (entry._type === 'header') csv += '# Session: ' + sessionLabel + '\n' + entry._raw + '\n';
-    else if (entry._type === 'data')   csv += entry._raw + '\n';
-  });
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url;
-  a.download = 'esp32_' + new Date().toISOString().slice(0,10) + '.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-}
+window.addEventListener('resize', () => { if (history.length > 1) drawChart(); });
 </script>
 </body>
 </html>
