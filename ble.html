@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 Battery Monitor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:      #0a0e17;
+    --surface: #161b22;
+    --border:  #30363d;
+    --text:    #c9d1d9;
+    --muted:   #8b949e;
+    --blue:    #58a6ff;
+    --green:   #3fb950;
+    --red:     #f85149;
+    --yellow:  #d29922;
+    --orange:  #e3b341;
+  }
+  body {
+    font-family: 'Courier New', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  h1 { color: var(--blue); font-size: 20px; margin-bottom: 4px; letter-spacing: 2px; }
+  h2 { color: var(--muted); font-size: 12px; margin-bottom: 24px; }
+
+  .status {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--muted); margin-bottom: 20px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+  .dot.on  { background: var(--green); animation: pulse 1.5s infinite; }
+  .dot.rx  { background: var(--blue);  animation: pulse 0.3s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .btn-row { display: flex; gap: 10px; margin-bottom: 24px; }
+  button {
+    flex: 1; padding: 12px; border-radius: 8px;
+    font-family: monospace; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--blue);
+  }
+  button:active  { opacity: 0.7; }
+  button:disabled { opacity: 0.35; cursor: default; }
+  button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  button.danger  { border-color: var(--red); color: var(--red); }
+
+  /* Big voltage display */
+  .voltage-display {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 20px;
+  }
+  .voltage-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+  .voltage-value { font-size: 64px; font-weight: bold; color: var(--blue); line-height: 1; transition: color 0.3s; }
+  .voltage-unit  { font-size: 20px; color: var(--muted); margin-left: 4px; }
+  .voltage-pct   { font-size: 16px; color: var(--muted); margin-top: 8px; }
+
+  /* Battery bar */
+  .bat-wrap { background: #21262d; border-radius: 6px; height: 14px; margin: 14px 0 4px; overflow: hidden; }
+  .bat-fill  { height: 14px; border-radius: 6px; transition: width 0.5s, background 0.5s; }
+  .bat-range { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+
+  /* Chart */
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px; margin-bottom: 20px;
+  }
+  .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .chart-title  { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .chart-range  { font-size: 11px; color: var(--muted); }
+  canvas { width: 100%; display: block; }
+
+  /* Stats row */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+  .stat  { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+  .stat .s-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .stat .s-value { font-size: 18px; font-weight: bold; color: var(--blue); margin-top: 4px; }
+
+  #unsupported { background: #1c1208; border: 1px solid var(--yellow); border-radius: 8px; padding: 14px; color: var(--yellow); font-size: 13px; margin-bottom: 20px; display: none; }
+</style>
+</head>
+<body>
+
+<h1>&#128267; ESP32 Battery Monitor</h1>
+<h2>Live voltage over BLE — no WiFi needed</h2>
+
+<div id="unsupported">&#9888; Web Bluetooth not supported. Use Chrome on Android or desktop (not iOS Safari).</div>
+
+<div class="status">
+  <div class="dot" id="dot"></div>
+  <span id="status-txt">Disconnected — press Connect to start</span>
+</div>
+
+<div class="btn-row">
+  <button class="primary" id="btn-connect"    onclick="connectBLE()">&#128268; Connect BLE</button>
+  <button class="danger"  id="btn-disconnect" onclick="disconnectBLE()" disabled>&#10005; Disconnect</button>
+  <button id="btn-clear" onclick="clearHistory()">&#128465; Clear History</button>
+</div>
+
+<!-- Voltage display -->
+<div class="voltage-display">
+  <div class="voltage-label">Battery Voltage</div>
+  <div>
+    <span class="voltage-value" id="v-value">--</span>
+    <span class="voltage-unit">V</span>
+  </div>
+  <div class="bat-wrap">
+    <div class="bat-fill" id="bat-fill" style="width:0%"></div>
+  </div>
+  <div class="bat-range"><span>3.0V (empty)</span><span>4.2V (full)</span></div>
+  <div class="voltage-pct" id="v-pct">--% charged</div>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat"><div class="s-label">Min</div><div class="s-value" id="s-min">--</div></div>
+  <div class="stat"><div class="s-label">Max</div><div class="s-value" id="s-max">--</div></div>
+  <div class="stat"><div class="s-label">Samples</div><div class="s-value" id="s-count">0</div></div>
+</div>
+
+<!-- Chart -->
+<div class="chart-card">
+  <div class="chart-header">
+    <span class="chart-title">Voltage History</span>
+    <span class="chart-range" id="chart-range">No data</span>
+  </div>
+  <canvas id="chart" height="160"></canvas>
+</div>
+
+<script>
+const SERVICE_UUID  = '12345678-1234-5678-1234-56789abcdef0';
+const CHAR_UUID     = '12345678-1234-5678-1234-56789abcdef1';
+const MAX_POINTS    = 120;
+
+let device, server, characteristic;
+let history = [];
+let minV = Infinity, maxV = -Infinity;
+
+// Check support
+if (!navigator.bluetooth) {
+  document.getElementById('unsupported').style.display = 'block';
+  document.getElementById('btn-connect').disabled = true;
+}
+
+function setStatus(txt, state) {
+  document.getElementById('status-txt').textContent = txt;
+  const dot = document.getElementById('dot');
+  dot.className = 'dot' + (state === 'on' ? ' on' : state === 'rx' ? ' rx' : '');
+}
+
+function voltageColor(v) {
+  if (v >= 3.9) return '#3fb950'; // green - good
+  if (v >= 3.5) return '#d29922'; // yellow - medium
+  return '#f85149';               // red - low
+}
+
+function updateDisplay(voltage) {
+  const pct = Math.max(0, Math.min(100, (voltage - 3.0) / 1.2 * 100));
+  const color = voltageColor(voltage);
+
+  document.getElementById('v-value').textContent = voltage.toFixed(3);
+  document.getElementById('v-value').style.color = color;
+  document.getElementById('v-pct').textContent   = pct.toFixed(1) + '% charged';
+  document.getElementById('bat-fill').style.width      = pct + '%';
+  document.getElementById('bat-fill').style.background = color;
+
+  // Update history
+  history.push({ v: voltage, t: Date.now() });
+  if (history.length > MAX_POINTS) history.shift();
+
+  // Stats
+  minV = Math.min(minV, voltage);
+  maxV = Math.max(maxV, voltage);
+  document.getElementById('s-min').textContent   = minV.toFixed(3);
+  document.getElementById('s-max').textContent   = maxV.toFixed(3);
+  document.getElementById('s-count').textContent = history.length;
+
+  drawChart();
+  setStatus('Connected — ' + new Date().toLocaleTimeString(), 'rx');
+  setTimeout(() => setStatus('Connected — live', 'on'), 500);
+}
+
+function drawChart() {
+  const canvas = document.getElementById('chart');
+  const ctx    = canvas.getContext('2d');
+  const W      = canvas.offsetWidth;
+  const H      = 160;
+  canvas.width  = W;
+  canvas.height = H;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (history.length < 2) return;
+
+  const pad    = { top: 10, bottom: 24, left: 44, right: 10 };
+  const plotW  = W - pad.left - pad.right;
+  const plotH  = H - pad.top  - pad.bottom;
+
+  const vMin   = Math.min(3.0, minV - 0.05);
+  const vMax   = Math.max(4.3, maxV + 0.05);
+  const vRange = vMax - vMin;
+
+  // Grid
+  ctx.strokeStyle = '#21262d';
+  ctx.lineWidth   = 1;
+  const gridLines = [3.0, 3.3, 3.6, 3.9, 4.2];
+  gridLines.forEach(gv => {
+    const y = pad.top + plotH - ((gv - vMin) / vRange * plotH);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+    ctx.fillStyle = '#8b949e';
+    ctx.font      = '10px monospace';
+    ctx.fillText(gv.toFixed(1), 2, y + 4);
+  });
+
+  // Time labels
+  const first = history[0].t;
+  const last  = history[history.length-1].t;
+  const tRange = last - first || 1;
+  ctx.fillStyle = '#8b949e';
+  ctx.font      = '10px monospace';
+  ctx.fillText('now', W - pad.right - 20, H - 6);
+  if (history.length > 10) {
+    const elapsed = Math.round(tRange / 1000);
+    ctx.fillText('-' + elapsed + 's', pad.left, H - 6);
+  }
+
+  // Voltage line
+  ctx.beginPath();
+  ctx.lineWidth   = 2;
+  ctx.strokeStyle = '#58a6ff';
+  ctx.lineJoin    = 'round';
+
+  history.forEach((pt, i) => {
+    const x = pad.left + ((pt.t - first) / tRange) * plotW;
+    const y = pad.top  + plotH - ((pt.v - vMin) / vRange * plotH);
+    if (i === 0) ctx.moveTo(x, y);
+    else         ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Fill under line
+  ctx.lineTo(pad.left + plotW, pad.top + plotH);
+  ctx.lineTo(pad.left, pad.top + plotH);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
+  grad.addColorStop(0, 'rgba(88,166,255,0.2)');
+  grad.addColorStop(1, 'rgba(88,166,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Current value dot
+  const last_pt = history[history.length - 1];
+  const cx = pad.left + plotW;
+  const cy = pad.top + plotH - ((last_pt.v - vMin) / vRange * plotH);
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fillStyle   = voltageColor(last_pt.v);
+  ctx.strokeStyle = '#0a0e17';
+  ctx.lineWidth   = 2;
+  ctx.fill();
+  ctx.stroke();
+
+  // Update range label
+  const elapsed = Math.round(tRange / 1000);
+  document.getElementById('chart-range').textContent =
+    history.length + ' samples / ' + elapsed + 's';
+}
+
+function onNotify(event) {
+  const val     = event.target.value;
+  const decoder = new TextDecoder();
+  const str     = decoder.decode(val).trim();
+  const v       = parseFloat(str);
+  if (!isNaN(v) && v > 0 && v < 10) {
+    updateDisplay(v);
+  }
+}
+
+async function connectBLE() {
+  try {
+    setStatus('Scanning for ESP32-BAT...', '');
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'ESP32-BAT' }],
+      optionalServices: [SERVICE_UUID]
+    });
+
+    setStatus('Connecting...', '');
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+
+    server        = await device.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    characteristic = await service.getCharacteristic(CHAR_UUID);
+
+    // Read initial value
+    const val = await characteristic.readValue();
+    const v   = parseFloat(new TextDecoder().decode(val));
+    if (!isNaN(v)) updateDisplay(v);
+
+    // Subscribe to notifications
+    await characteristic.startNotifications();
+    characteristic.addEventListener('characteristicvaluechanged', onNotify);
+
+    setStatus('Connected to ' + device.name, 'on');
+    document.getElementById('btn-connect').disabled    = true;
+    document.getElementById('btn-disconnect').disabled = false;
+
+  } catch(e) {
+    setStatus('Failed: ' + e.message, '');
+    console.error(e);
+  }
+}
+
+async function disconnectBLE() {
+  if (device && device.gatt.connected) {
+    await device.gatt.disconnect();
+  }
+}
+
+function onDisconnected() {
+  setStatus('Disconnected', '');
+  document.getElementById('btn-connect').disabled    = false;
+  document.getElementById('btn-disconnect').disabled = true;
+}
+
+function clearHistory() {
+  history = [];
+  minV = Infinity;
+  maxV = -Infinity;
+  document.getElementById('s-min').textContent   = '--';
+  document.getElementById('s-max').textContent   = '--';
+  document.getElementById('s-count').textContent = '0';
+  document.getElementById('chart-range').textContent = 'No data';
+  const canvas = document.getElementById('chart');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+}
+
+window.addEventListener('resize', () => { if (history.length > 1) drawChart(); });
+</script>
+</body>
+</html>
