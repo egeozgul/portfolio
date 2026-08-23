@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BoreLogger icon builder</title>
+<style>
+  :root{
+    --bg:#10151b; --panel:#171f27; --card:#1b242e; --rule:#2a3743;
+    --ink:#e8eff5; --dim:#7c8fa0; --link:#4cc9f0; --ok:#a3e635; --warn:#ffb020;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --face:"Roboto Condensed","Arial Narrow",Inter,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);font-family:var(--face);
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    padding:16px 20px;background:var(--panel);border-bottom:1px solid var(--rule);
+    display:flex;align-items:baseline;gap:12px;
+  }
+  h1{margin:0;font-size:19px;letter-spacing:.06em;text-transform:uppercase}
+  header span{font-family:var(--mono);font-size:11px;color:var(--dim)}
+  main{padding:20px;max-width:1100px}
+  .lbl{
+    font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--dim);font-weight:600;
+  }
+  .drop{
+    border:1px dashed var(--rule);border-radius:4px;background:var(--card);
+    padding:30px 20px;text-align:center;cursor:pointer;transition:border-color .15s;
+  }
+  .drop.over{border-color:var(--link);background:#20303c}
+  .drop p{margin:8px 0 0;font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .grid{
+    display:grid;gap:14px;margin-top:18px;
+    grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  }
+  .tile{
+    background:var(--card);border:1px solid var(--rule);border-radius:4px;padding:12px;
+  }
+  .tile canvas{
+    display:block;width:100%;height:auto;image-rendering:auto;
+    background:#0e141a;border-radius:3px;margin:9px 0;
+  }
+  .tile .meta{font-family:var(--mono);font-size:10.5px;color:var(--dim);line-height:1.5}
+  button{
+    font-family:var(--face);font-size:10.5px;font-weight:600;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--ink);background:#202a34;
+    border:1px solid var(--rule);border-radius:3px;padding:8px 12px;cursor:pointer;
+    margin-top:8px;
+  }
+  button:hover{border-color:#3f5364;background:#26323d}
+  button.primary{background:#20303c;border-color:#3a5666;color:#cdeaf7}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px}
+  .note{
+    margin-top:18px;font-family:var(--mono);font-size:11.5px;color:var(--dim);
+    line-height:1.65;border-left:2px solid var(--rule);padding-left:12px;
+  }
+  .note b{color:var(--warn);font-weight:500}
+  code{color:var(--ok)}
+  .maskring{position:relative}
+  .maskring::after{
+    content:'';position:absolute;inset:9px 0 0 0;height:calc(100% - 9px);
+    border-radius:50%;box-shadow:0 0 0 999px rgba(16,21,27,.55);pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Icon builder</h1>
+  <span>BoreLogger PWA · runs entirely in this page</span>
+</header>
+
+<main>
+  <div class="lbl" style="margin-bottom:8px">Source image</div>
+  <div class="drop" id="drop">
+    <div class="lbl" style="color:var(--link)">Choose borelogger_logo.png</div>
+    <p>or drag it here — nothing is uploaded, it never leaves your machine</p>
+    <input id="file" type="file" accept="image/*" hidden>
+  </div>
+
+  <div class="grid" id="out" hidden></div>
+
+  <div class="bar" id="bar" hidden>
+    <button class="primary" id="all">Download all four</button>
+    <span class="meta" style="font-family:var(--mono);font-size:11px;color:var(--dim)">
+      Chrome asks once to allow multiple downloads — say yes
+    </span>
+  </div>
+
+  <div class="note" id="note" hidden>
+    Put all four in <code>logger/icons/</code>, keeping these exact filenames —
+    <code>manifest.json</code> and the page's <code>&lt;head&gt;</code> refer to them by name.<br>
+    <b>The maskable one is inset on purpose.</b> Android crops icons to a circle
+    or squircle and trims roughly 20% off each edge; the circle drawn over the
+    preview is what actually survives. Anything outside it gets cut.
+  </div>
+</main>
+
+<script>
+'use strict';
+const BG = '#141a21';            // matches theme_color in manifest.json
+
+const SPECS = [
+  {name:'icon-192.png', size:192, inset:1.0, flat:false,
+   why:'Android · manifest'},
+  {name:'icon-512.png', size:512, inset:1.0, flat:false,
+   why:'Android · splash and store listing'},
+  {name:'icon-180.png', size:180, inset:1.0, flat:true,
+   why:'iOS home screen · flattened, iOS shows transparency as grey'},
+  {name:'icon-maskable-512.png', size:512, inset:0.60, flat:true,
+   why:'Android adaptive · logo inset to survive the crop', mask:true}
+];
+
+const blobs = new Map();
+
+function render(img, spec){
+  const c = document.createElement('canvas');
+  c.width = c.height = spec.size;
+  const g = c.getContext('2d');
+
+  if(spec.flat || spec.mask){ g.fillStyle = BG; g.fillRect(0,0,spec.size,spec.size); }
+
+  // fit inside without distorting: scale by the limiting dimension
+  const box = spec.size * spec.inset;
+  const k = Math.min(box/img.width, box/img.height);
+  const w = img.width*k, h = img.height*k;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(img, (spec.size-w)/2, (spec.size-h)/2, w, h);
+  return c;
+}
+
+function show(img){
+  const out = document.getElementById('out');
+  out.innerHTML = '';
+  blobs.clear();
+
+  for(const spec of SPECS){
+    const c = render(img, spec);
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.innerHTML = `<div class="lbl">${spec.name}</div>`;
+    const holder = document.createElement('div');
+    if(spec.mask) holder.className = 'maskring';
+    holder.appendChild(c);
+    tile.appendChild(holder);
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = `${spec.size}×${spec.size} · ${spec.why}`;
+    tile.appendChild(meta);
+    const b = document.createElement('button');
+    b.textContent = 'Download';
+    b.onclick = () => save(spec.name);
+    tile.appendChild(b);
+    out.appendChild(tile);
+
+    c.toBlob(bl => blobs.set(spec.name, bl), 'image/png');
+  }
+  out.hidden = false;
+  document.getElementById('bar').hidden = false;
+  document.getElementById('note').hidden = false;
+}
+
+function save(name){
+  const bl = blobs.get(name);
+  if(!bl) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(bl);
+  a.download = name;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+
+document.getElementById('all').onclick = () => {
+  // spaced out, or the browser drops all but the first
+  SPECS.forEach((s,i) => setTimeout(()=>save(s.name), i*350));
+};
+
+function load(file){
+  if(!file || !file.type.startsWith('image/')) return;
+  const img = new Image();
+  img.onload = () => show(img);
+  img.src = URL.createObjectURL(file);
+}
+
+const drop = document.getElementById('drop');
+const input = document.getElementById('file');
+drop.onclick = () => input.click();
+input.onchange = e => load(e.target.files[0]);
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('over');
+  load(e.dataTransfer.files[0]);
+});
+</script>
+</body>
+</html>
