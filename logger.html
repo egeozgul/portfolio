@@ -416,6 +416,7 @@
         <span>Records <b id="useRecs">—</b></span>
         <span>Utilisation <b id="usePct">—</b></span>
         <span>Time left <b id="useTime">—</b></span>
+        <span>Sessions <b id="useSess">—</b></span>
         <span id="useNote"></span>
       </div>
     </div>
@@ -787,6 +788,9 @@ function decodeStatus(f){
   recording=!!(flags&1);
   storedRecords=stored;
   capacityKb=capKb;
+  // straight from the status frame, so it distinguishes "the board has no
+  // sessions" from "the index transfer is not arriving"
+  el('useSess').textContent=sessN;
   if(recording!==wasRec){ memPages.clear(); memPending.clear(); }
   // only mark it seen if the request actually went out, otherwise a refresh
   // skipped during a dump would never be retried
