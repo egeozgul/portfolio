@@ -1,5 +1,5 @@
 {
-  "name": "BoreLogger — ESP32 telemetry",
+  "name": "BoreLogger \u2014 ESP32 telemetry",
   "short_name": "BoreLogger",
   "description": "Live telemetry, calibration and on-board memory management for the ESP32 BLE data logger.",
   "start_url": ".",
@@ -8,7 +8,10 @@
   "orientation": "any",
   "background_color": "#10151b",
   "theme_color": "#141a21",
-  "categories": ["utilities", "productivity"],
+  "categories": [
+    "utilities",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -21,6 +24,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "icons/icon-maskable-512.png",
