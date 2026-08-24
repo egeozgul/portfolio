@@ -379,7 +379,7 @@
       </div>
       <div class="ctlrow">
         <div class="ratefield">
-          <input id="inpRate" type="number" min="0.02" max="100" step="1"
+          <input id="inpRate" type="number" min="0.02" max="100" step="any"
                  value="4" inputmode="decimal" aria-label="Sample rate in hertz" disabled>
           <span class="hz">Hz</span>
         </div>
@@ -401,13 +401,13 @@
       </div>
       <div class="ctlrow">
         <div class="ratefield">
-          <input id="inpStream" type="number" min="0.02" max="50" step="1"
+          <input id="inpStream" type="number" min="1" max="50" step="any"
                  value="4" inputmode="decimal" aria-label="BLE stream rate in hertz" disabled>
           <span class="hz">Hz</span>
         </div>
         <button id="btnStreamRate" disabled>Apply</button>
       </div>
-      <div class="ctlhint">Reachable rates are the sample rate divided by a whole number</div>
+      <div class="ctlhint" id="streamHint">Connect to see reachable rates.</div>
     </div>
 
     <div class="ctlcard">
@@ -471,6 +471,7 @@
       <div class="membtns">
         <button id="btnSessRefresh" disabled>Refresh</button>
         <button id="btnSessCsv" disabled>Save index CSV</button>
+        <button id="btnExportAll" disabled>Export everything (ZIP)</button>
       </div>
     </div>
     <div class="sesswrap">
@@ -610,6 +611,7 @@ const DATA_START = 0x000000;           // records begin at address zero
 const HDR_ADDR = 0xFFF000;             // header owns the final sector
 const REC_SIZE = 36;
 const MIN_HZ = 1000/60000, MAX_HZ = 100;  // must match MIN/MAX_PERIOD_MS
+const MIN_STREAM_HZ = 1;                  // anything slower is a display choice
 const MAX_STREAM_HZ = 50;                 // BLE cannot carry more than this
 const NOTE_LEN = 32;                      // bytes, must match the firmware
 
@@ -686,9 +688,10 @@ function handle(f){
   else if(type===0x20 && f.length>=REC_SIZE+1){ dumped.push(decodeRec(f,1)); }
   else if(type===0x21){
     dumpActive=false;
-    log(`Read finished — ${dumped.length.toLocaleString()} records.`,'ok');
     setButtons();
-    showDataset();
+    if(dumpResolve){ const r=dumpResolve; dumpResolve=null; r(); }
+    else { log(`Read finished — ${dumped.length.toLocaleString()} records.`,'ok');
+           showDataset(); }
   }
   else if(type===0x50 && f.length>=63){
     const dv=new DataView(f.buffer,f.byteOffset,f.byteLength);
@@ -710,6 +713,7 @@ function handle(f){
   else if(type===0x51){
     renderSessions();
     el('btnSessCsv').disabled=sessionsList.length===0;
+    el('btnExportAll').disabled=sessionsList.length===0;
     const cal=sessionsList.filter(x=>x.kind).length;
     log(sessionsList.length
       ? `Session index: ${sessionsList.length} session(s), ${cal} calibration.`
@@ -812,6 +816,7 @@ function decodeStatus(f){
   const sessN=dv.getUint16(22,true);
   const actualMs=dv.getUint16(24,true);
   devicePeriodMs=periodMs;
+  if(typeof updateStreamHint==='function') updateStreamHint();
   const wasRec=recording;
   recording=!!(flags&1);
   storedRecords=stored;
@@ -1084,11 +1089,38 @@ el('btnRate').onclick=applyRate;
 function applyStream(on){
   const hz=parseFloat(el('inpStream').value);
   if(!isFinite(hz)||hz<=0){ log('Enter a stream rate in hertz.','err'); return; }
+  if(hz<MIN_STREAM_HZ||hz>MAX_STREAM_HZ){
+    log(`Stream rate must be between ${MIN_STREAM_HZ} and ${MAX_STREAM_HZ} Hz.`,'err');
+    return;
+  }
   const ms=Math.max(Math.round(1000/MAX_STREAM_HZ),Math.min(60000,Math.round(1000/hz)));
   streamAsked=hz;
   send(CMD.STREAM, on?1:0, ms&0xFF, (ms>>8)&0xFF);
   log(`Requested BLE streaming ${on?'on':'off'} at ${hz} Hz.`);
 }
+/* Frames leave only on sample instants, so the reachable stream rates are
+   sample_rate / N. Rather than state that as a rule, show what the number in
+   the box will actually produce. */
+function updateStreamHint(){
+  const box=el('streamHint');
+  if(!devicePeriodMs){ box.textContent='Connect to see reachable rates.'; return; }
+  const sampleHz=1000/devicePeriodMs;
+  const hz=parseFloat(el('inpStream').value);
+  if(!isFinite(hz)||hz<=0){ box.textContent=`Sampling at ${sampleHz.toFixed(1)} Hz.`; return; }
+  if(hz>sampleHz+0.01){
+    box.textContent=`Sampling is ${sampleHz.toFixed(1)} Hz, so ${hz} Hz is not `+
+      `possible — there are no samples in between. Raise the sample rate first.`;
+    return;
+  }
+  const div=Math.max(1, Math.round(sampleHz/hz));
+  const eff=sampleHz/div;
+  box.textContent = Math.abs(eff-hz)/hz < 0.005
+    ? `→ ${eff.toFixed(2)} Hz, every ${div===1?'':div+(div===2?'nd ':'th ')}sample.`
+    : `→ nearest reachable is ${eff.toFixed(2)} Hz (every ${div}${div===2?'nd':'th'} `+
+      `sample of ${sampleHz.toFixed(1)} Hz).`;
+}
+el('inpStream').addEventListener('input', updateStreamHint);
+
 el('btnStream').onclick=()=>applyStream(!streamOn);
 el('btnStreamRate').onclick=()=>applyStream(streamOn);
 el('inpStream').addEventListener('keydown',e=>{ if(e.key==='Enter') applyStream(streamOn); });
@@ -1349,6 +1381,190 @@ function readSession(i){
   send(CMD.DUMPRANGE, a&0xFF,(a>>8)&0xFF,(a>>16)&0xFF,(a>>>24)&0xFF,
        c&0xFF,(c>>8)&0xFF,(c>>16)&0xFF,(c>>>24)&0xFF);
 }
+/* ── export everything ───────────────────────────────────────────────
+   Flash addresses are meaningless once the data is off the board, so the
+   link between a session and its rows is carried three ways: the filename,
+   a header block inside each file, and a session column on every row. Any
+   one of them is enough to reattach a stray file to its index entry. */
+
+const CRC_TAB=(()=>{const t=new Uint32Array(256);
+  for(let i=0;i<256;i++){let c=i;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[i]=c>>>0;}
+  return t;})();
+function zipCrc(b){let c=0xFFFFFFFF;
+  for(let i=0;i<b.length;i++)c=CRC_TAB[(c^b[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;}
+
+function makeZip(files){
+  const enc=new TextEncoder(), parts=[], central=[];
+  let offset=0;
+  const d=new Date();
+  const dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF;
+  const dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+  for(const f of files){
+    const name=enc.encode(f.name), data=enc.encode(f.text), crc=zipCrc(data);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true);
+    lh.setUint16(10,dt,true); lh.setUint16(12,dd,true);
+    lh.setUint32(14,crc,true); lh.setUint32(18,data.length,true);
+    lh.setUint32(22,data.length,true); lh.setUint16(26,name.length,true);
+    parts.push(new Uint8Array(lh.buffer), name, data);
+    const cd=new DataView(new ArrayBuffer(46));
+    cd.setUint32(0,0x02014b50,true); cd.setUint16(4,20,true); cd.setUint16(6,20,true);
+    cd.setUint16(12,dt,true); cd.setUint16(14,dd,true); cd.setUint32(16,crc,true);
+    cd.setUint32(20,data.length,true); cd.setUint32(24,data.length,true);
+    cd.setUint16(28,name.length,true); cd.setUint32(42,offset,true);
+    central.push(new Uint8Array(cd.buffer), name);
+    offset += 30 + name.length + data.length;
+  }
+  let cdSize=0; for(const c of central) cdSize+=c.length;
+  const eo=new DataView(new ArrayBuffer(22));
+  eo.setUint32(0,0x06054b50,true);
+  eo.setUint16(8,files.length,true); eo.setUint16(10,files.length,true);
+  eo.setUint32(12,cdSize,true); eo.setUint32(16,offset,true);
+  const all=[...parts,...central,new Uint8Array(eo.buffer)];
+  let total=0; for(const a of all) total+=a.length;
+  const out=new Uint8Array(total); let o=0;
+  for(const a of all){ out.set(a,o); o+=a.length; }
+  return out;
+}
+
+const pad2=n=>String(n).padStart(2,'0');
+
+/* Filenames use LOCAL time, so they match what the sessions table shows and
+   what you remember doing. Machine-readable fields keep UTC, which is
+   unambiguous. ZIP entry timestamps are local too, because the ZIP format
+   has no timezone field and every tool assumes local. */
+function localStamp(d, withSeconds){
+  return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+
+         '_'+pad2(d.getHours())+pad2(d.getMinutes())+
+         (withSeconds?pad2(d.getSeconds()):'');
+}
+function tzSuffix(d){
+  const off=-d.getTimezoneOffset();
+  const sign=off<0?'-':'+';
+  return `UTC${sign}${pad2(Math.floor(Math.abs(off)/60))}${pad2(Math.abs(off)%60)}`;
+}
+function sessionSlug(s){
+  const stamp = s.epoch ? localStamp(new Date(s.epoch*1000), true) : 'no-clock';
+  return `session-${pad2(s.seq+1)}_${stamp}_${s.kind?'calibration':'measurement'}`;
+}
+
+let dumpResolve=null;
+function readSessionAsync(s){
+  return new Promise((resolve,reject)=>{
+    dumped=[]; dumpActive=true; dataSession=s; setButtons();
+    dumpResolve=resolve;
+    const to=setTimeout(()=>{ dumpResolve=null; reject(new Error('timed out')); },
+                        60000 + s.count*40);
+    const wrapped=()=>{ clearTimeout(to); resolve(); };
+    dumpResolve=wrapped;
+    const a=s.start, c=s.count;
+    send(CMD.DUMPRANGE, a&0xFF,(a>>8)&0xFF,(a>>16)&0xFF,(a>>>24)&0xFF,
+         c&0xFF,(c>>8)&0xFF,(c>>16)&0xFF,(c>>>24)&0xFF);
+  });
+}
+
+function sessionCsv(s, rows){
+  const iso = s.epoch ? new Date(s.epoch*1000).toISOString() : '';
+  const head = [
+    `# session=${s.seq+1}`,
+    `# type=${s.kind?'calibration':'measurement'}`,
+    `# note=${(s.note||'').replace(/[\r\n]/g,' ')}`,
+    `# started_iso=${iso}`,
+    `# started_local=${s.epoch?new Date(s.epoch*1000).toLocaleString('sv-SE'):''}`,
+    `# utc_offset_min=${s.tz}`,
+    `# latitude=${s.gps?s.lat.toFixed(7):''}`,
+    `# longitude=${s.gps?s.lon.toFixed(7):''}`,
+    `# gps_accuracy_m=${s.gps?s.acc:''}`,
+    `# sample_hz=${s.sampleMs?(1000/s.sampleMs).toFixed(3):''}`,
+    `# records=${rows.length}`,
+    `# flash_start_address=0x${s.start.toString(16).toUpperCase().padStart(6,'0')}`,
+    'session,t_s,'+CSV_KEYS.join(',')
+  ].join('\n');
+  const body = rows.map(r =>
+    (s.seq+1)+','+r.t.toFixed(3)+','+CSV_KEYS.map(k=>r[k].toFixed(4)).join(',')
+  ).join('\n');
+  return head+'\n'+body+'\n';
+}
+
+async function exportAll(){
+  if(!sessionsList.length){ log('No sessions to export.','err'); return; }
+  const withData = sessionsList.filter(s=>s.count>0);
+  if(!withData.length){ log('Every session is empty.','err'); return; }
+  const total = withData.reduce((a,s)=>a+s.count,0);
+  if(!confirm(`Read ${total.toLocaleString()} records across ${withData.length} `+
+              `session(s) over Bluetooth?\n\nAt roughly 200 records a second this `+
+              `will take about ${Math.ceil(total/200/60)} minute(s).`)) return;
+
+  const now = new Date();
+  const root = `borelogger-export_${localStamp(now,false)}_${tzSuffix(now)}`;
+  const files = [];
+  const idxRows = [];
+
+  try{
+    for(let i=0;i<withData.length;i++){
+      const s = withData[i];
+      log(`Exporting session ${s.seq+1} (${i+1} of ${withData.length}) — `+
+          `${s.count.toLocaleString()} records…`);
+      await readSessionAsync(s);
+      const rel = `sessions/${sessionSlug(s)}.csv`;
+      files.push({name:`${root}/${rel}`, text:sessionCsv(s, dumped)});
+      idxRows.push([
+        s.seq+1,
+        s.kind?'calibration':'measurement',
+        '"'+(s.note||'').replace(/"/g,'""')+'"',
+        s.epoch?new Date(s.epoch*1000).toISOString():'',
+        s.epoch?new Date(s.epoch*1000).toLocaleString('sv-SE'):'',
+        s.tz,
+        s.gps?s.lat.toFixed(7):'',
+        s.gps?s.lon.toFixed(7):'',
+        s.gps?s.acc:'',
+        '0x'+s.start.toString(16).toUpperCase().padStart(6,'0'),
+        dumped.length,
+        s.sampleMs?(1000/s.sampleMs).toFixed(3):'',
+        rel
+      ].join(','));
+    }
+  }catch(e){
+    log('Export stopped: '+e.message,'err');
+    dumpActive=false; setButtons();
+    return;
+  }
+
+  files.unshift({name:`${root}/index.csv`,
+    text:'session,type,note,started_iso,started_local,utc_offset_min,latitude,'+
+         'longitude,gps_accuracy_m,flash_start_address,records,sample_hz,file\n'+
+         idxRows.join('\n')+'\n'});
+  files.push({name:`${root}/README.txt`, text:
+    'BoreLogger export\n'+
+    '=================\n\n'+
+    'index.csv lists every recording session. Its "file" column names the\n'+
+    'CSV holding that session\'s samples.\n\n'+
+    'Each session CSV repeats the same metadata as # comment lines, and\n'+
+    'carries a "session" column on every row, so a file that gets separated\n'+
+    'from the index can still be identified on its own.\n\n'+
+    'The flash_start_address column is where the session lived on the board.\n'+
+    'It is kept for reference only and stops being meaningful once the\n'+
+    'memory is erased.\n\n'+
+    'Times: started_iso is UTC. started_local is the same instant in the\n'+
+    'timezone of the machine that did the recording, and utc_offset_min says\n'+
+    'which. Filenames and ZIP timestamps use local time so they match what\n'+
+    'you saw on screen.\n\n'+
+    'Columns: t_s is seconds since the board booted, not wall clock. Add it\n'+
+    'to started_iso for absolute time.\n'+
+    '  ax ay az   g\n  gx gy gz   deg/s\n  press      hPa\n  temp       degC\n'+
+    '  mx my mz   microtesla\n  vbat       volts\n'});
+
+  const blob = new Blob([makeZip(files)], {type:'application/zip'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=`${root}.zip`; a.click();
+  URL.revokeObjectURL(url);
+  log(`Exported ${files.length-2} session file(s), `+
+      `${total.toLocaleString()} records, ${(blob.size/1024).toFixed(0)} kB.`,'ok');
+}
+el('btnExportAll').onclick=exportAll;
+
 el('btnSessRefresh').onclick=requestIndex;
 el('btnSessCsv').onclick=()=>{
   if(!sessionsList.length) return;
