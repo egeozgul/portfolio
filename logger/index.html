@@ -189,8 +189,8 @@
   }
   .thead,.trow{
     display:grid;
-    grid-template-columns:62px 92px 74px repeat(12,minmax(64px,1fr));
-    min-width:1180px;
+    grid-template-columns:62px 92px 74px repeat(13,minmax(64px,1fr));
+    min-width:1270px;
     font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums;
   }
   .thead{
@@ -203,7 +203,7 @@
      body's width and let .thscroll be the only horizontal scroller. */
   .tscroll{
     position:relative;height:360px;overflow-y:auto;overflow-x:hidden;
-    min-width:1180px;background:#0e141a;
+    min-width:1270px;background:#0e141a;
   }
   .hexhead{
     display:flex;justify-content:space-between;align-items:center;gap:10px;
@@ -531,7 +531,8 @@
           <span>ax (g)</span><span>ay (g)</span><span>az (g)</span>
           <span>gx °/s</span><span>gy °/s</span><span>gz °/s</span>
           <span>P (hPa)</span><span>T (°C)</span>
-          <span>mx µT</span><span>my µT</span><span>mz µT</span><span>Vbat</span>
+          <span>mx µT</span><span>my µT</span><span>mz µT</span>
+          <span>Tdie °C</span><span>Vbat</span>
         </div>
         <div class="tscroll" id="tScroll"><div id="tSpacer"></div><div id="tRows"></div></div>
       </div>
@@ -635,7 +636,7 @@ let hexCols = 64;                      // bytes per row, depends on view mode
 let hexMode = 'ascii';                 // 'both' | 'ascii' | 'hex'
 const DATA_START = 0x000000;           // records begin at address zero
 const HDR_ADDR = 0xFFF000;             // header owns the final sector
-const REC_SIZE = 36;
+const REC_SIZE = 32;
 const MIN_HZ = 1000/60000, MAX_HZ = 100;  // must match MIN/MAX_PERIOD_MS
 const MIN_STREAM_HZ = 1;                  // anything slower is a display choice
 const MAX_STREAM_HZ = 50;                 // BLE cannot carry more than this
@@ -646,13 +647,15 @@ const GYRO_DPS_LSB  = 0.00875; // +/-245 dps
 const MAG_LSB_PER_UT = 75;     // RM3100, cycle count 200
 const PRESS_DIV = 100;         // raw -> hPa
 const TEMP_DIV  = 100;         // raw -> degC
+const IMU_TEMP_LSB = 256;      // LSB per degC, zero at 25 C
 
 /* ── channels ────────────────────────────────────────────────────── */
 const CH = {
   ax:{n:'Ax',c:'--x'}, ay:{n:'Ay',c:'--y'}, az:{n:'Az',c:'--z'},
   gx:{n:'Gx',c:'--x'}, gy:{n:'Gy',c:'--y'}, gz:{n:'Gz',c:'--z'},
   mx:{n:'Mx',c:'--x'}, my:{n:'My',c:'--y'}, mz:{n:'Mz',c:'--z'},
-  press:{n:'P',c:'--p'}, temp:{n:'T',c:'--tmp'}, vbat:{n:'Vbat',c:'--bat'}
+  press:{n:'P',c:'--p'}, temp:{n:'T',c:'--tmp'},
+  itemp:{n:'Tdie',c:'--tmp'}, vbat:{n:'Vbat',c:'--bat'}
 };
 const GROUPS = [
   {title:'Acceleration', unit:'g',   keys:['ax','ay','az'], dp:3},
@@ -660,9 +663,11 @@ const GROUPS = [
   {title:'Magnetic field', unit:'µT', keys:['mx','my','mz'], dp:2},
   {title:'Pressure', unit:'hPa', keys:['press'], dp:2},
   {title:'Temperature', unit:'°C', keys:['temp'], dp:2},
+  {title:'IMU die temp', unit:'°C', keys:['itemp'], dp:2},
   {title:'Battery', unit:'V', keys:['vbat'], dp:3}
 ];
-const CSV_KEYS = ['ax','ay','az','gx','gy','gz','press','temp','mx','my','mz','vbat'];
+const CSV_KEYS = ['ax','ay','az','gx','gy','gz','press','temp',
+                  'mx','my','mz','itemp','vbat'];
 
 /* ── state ───────────────────────────────────────────────────────── */
 let device=null, chData=null, chCtrl=null, chStat=null;
@@ -837,10 +842,12 @@ function decodeRec(f,off){
     gz: dv.getInt16(14,true)*GYRO_DPS_LSB,
     press: dv.getInt32(16,true)/PRESS_DIV,
     temp : dv.getInt16(20,true)/TEMP_DIV,
-    mx: dv.getInt32(22,true)/MAG_LSB_PER_UT,
-    my: dv.getInt32(26,true)/MAG_LSB_PER_UT,
-    mz: dv.getInt32(30,true)/MAG_LSB_PER_UT,
-    vbat: dv.getUint16(34,true)/1000
+    // magnetometer narrowed to int16: +/-32767 counts is +/-437 uT
+    mx: dv.getInt16(22,true)/MAG_LSB_PER_UT,
+    my: dv.getInt16(24,true)/MAG_LSB_PER_UT,
+    mz: dv.getInt16(26,true)/MAG_LSB_PER_UT,
+    itemp: 25 + dv.getInt16(28,true)/IMU_TEMP_LSB,
+    vbat: dv.getUint16(30,true)/1000
   };
 }
 
@@ -1413,7 +1420,7 @@ function renderTable(){
        r.gx.toFixed(2),r.gy.toFixed(2),r.gz.toFixed(2),
        r.press.toFixed(2),r.temp.toFixed(2),
        r.mx.toFixed(1),r.my.toFixed(1),r.mz.toFixed(1),
-       r.vbat.toFixed(3)].map(v=>'<span>'+v+'</span>').join('');
+       r.itemp.toFixed(2),r.vbat.toFixed(3)].map(v=>'<span>'+v+'</span>').join('');
     frag.appendChild(d);
   }
   rows.replaceChildren(frag);
@@ -1710,7 +1717,9 @@ async function exportAll(){
     'Columns: t_s is seconds since the board booted, not wall clock. Add it\n'+
     'to started_iso for absolute time.\n'+
     '  ax ay az   g\n  gx gy gz   deg/s\n  press      hPa\n  temp       degC\n'+
-    '  mx my mz   microtesla\n  vbat       volts\n'});
+    '  mx my mz   microtesla\n'+
+    '  itemp      degC, IMU die -- what gyro bias tracks\n'+
+    '  vbat       volts\n'});
 
   const blob = new Blob([makeZip(files)], {type:'application/zip'});
   const url = URL.createObjectURL(blob);
