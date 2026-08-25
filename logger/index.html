@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -827,7 +828,10 @@ function decodeStatus(f){
   if(recording!==wasRec){ memPages.clear(); memPending.clear(); }
   // only mark it seen if the request actually went out, otherwise a refresh
   // skipped during a dump would never be retried
-  if(sessN!==sessionCount && requestIndex()) sessionCount=sessN;
+  // Refreshing the index costs the board a long burst of notifications, and
+  // the count changes at exactly the moment recording starts. Wait for the
+  // session to finish rather than stalling its first second.
+  if(sessN!==sessionCount && !recording && requestIndex()) sessionCount=sessN;
   dumpActive=!!(flags&2);
   logForeign=!!(flags&4);
   streamOn=!!(flags&8);
@@ -869,7 +873,10 @@ function decodeStatus(f){
     } else if(real && Math.abs(real-hz)/hz<=0.1){ rateWarned=false; }
   }
   el('lampRec').classList.toggle('on',recording);
-  if(recording!==wasRec) log(recording?'Recording to flash.':'Recording stopped.','ok');
+  if(recording!==wasRec){
+    log(recording?'Recording to flash.':'Recording stopped.','ok');
+    if(!recording) requestIndex();      // catch up now that the loop is free
+  }
   setButtons();
 }
 
@@ -1320,7 +1327,7 @@ el('btnDumpCsv').onclick=()=>saveCsv(dumped,'esp32-log.csv');
 
 /* ── session index ───────────────────────────────────────────────── */
 function requestIndex(){
-  if(!chCtrl||dumpActive) return false;
+  if(!chCtrl||dumpActive||recording) return false;
   sessionsList=[];
   send(CMD.INDEX);
   return true;
