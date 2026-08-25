@@ -121,6 +121,20 @@
   .lamp.gps i{width:8px;height:8px}
   .lamp.gps.on i{background:var(--p);box-shadow:0 0 8px var(--p)}
   .lamp.gps.bad i{background:var(--rec)}
+  .battnow{display:flex;align-items:baseline;gap:10px;margin-top:9px}
+  .battnow b{
+    font-family:var(--mono);font-size:22px;font-weight:500;color:var(--ink);
+    font-variant-numeric:tabular-nums;
+  }
+  .battnow span{font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .battproj{
+    margin-top:9px;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;
+    font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums;
+  }
+  .battproj i{color:var(--dim);font-style:normal}
+  .battproj b{color:var(--ink);font-weight:500}
+  .battproj b.low{color:var(--warn)}
+  .battproj b.dead{color:var(--rec)}
   .ctlhint{
     margin-top:10px;font-size:10.5px;line-height:1.45;color:#5f7180;
   }
@@ -414,6 +428,15 @@
     </div>
 
     <div class="ctlcard">
+      <div class="lbl">Battery</div>
+      <div class="battnow"><b id="battV">—</b><span id="battRate">collecting…</span></div>
+      <div class="battproj" id="battProj"></div>
+      <div class="ctlhint">Least squares over the last 60 s. The projections are
+        a straight-line extrapolation; a lithium cell holds a plateau and then
+        falls away, so they read optimistic near the end.</div>
+    </div>
+
+    <div class="ctlcard">
       <div class="lbl">Plots</div>
       <div class="ctlrow">
         <button id="btnSplit">Split channels</button>
@@ -649,7 +672,7 @@ let logForeign=false, streamOn=true, verifying=false;
 let erasing=false, erasePct=0, streamAsked=null, storedRecords=0;
 let sessionsList=[], sessionCount=0, dataSession=null, devicePeriodMs=0;
 let lastDumpSent=0;
-let rateWarned=false, capacityKb=0;
+let rateWarned=false, capacityKb=0, lastSampleAt=0;
 let hexOn=false, memPages=new Map(), memPending=new Set(), memAsk=null;
 let rateT0=0, rateN=0;
 const MAX_SAMPLES = 100000;
@@ -900,6 +923,7 @@ function decodeStatus(f){
 
 function addSample(s){
   samples.push(s);
+  lastSampleAt = Date.now();
   pushMag(s.mx,s.my,s.mz);
   updateAttitude(s);
   if(samples.length===1) setButtons();
@@ -1230,6 +1254,89 @@ function saveCsv(rows,name){
   URL.revokeObjectURL(url);
   log('Saved '+name+' ('+rows.length+' rows).','ok');
 }
+
+/* ── battery trend ───────────────────────────────────────────────────
+   Least squares over the last minute of streamed samples. One ADC count is
+   1.7 mV and the scatter is around 5 mV, while a minute of discharge moves
+   the voltage only a couple of millivolts -- so the fit needs the whole
+   window, and its uncertainty is worth showing alongside the answer. */
+const BATT_WINDOW = 60;          // seconds
+const BATT_EMPTY = 3.30;         // where a lithium cell is effectively done
+const BATT_MARKS = [10, 20, 30, 45, 60];   // minutes
+
+function batteryTrend(){
+  if(!samples.length) return null;
+  const now = samples[samples.length-1].t;
+  let i = samples.length;
+  while(i > 0 && now - samples[i-1].t <= BATT_WINDOW) i--;
+  const win = samples.slice(i);
+  const span = win.length ? now - win[0].t : 0;
+  if(win.length < 40 || span < 20) return {short:true, n:win.length, span};
+
+  // ordinary least squares, with time centred so the intercept is "now"
+  let st=0, sv=0;
+  for(const r of win){ st += r.t; sv += r.vbat; }
+  const mt = st/win.length, mv = sv/win.length;
+  let num=0, den=0;
+  for(const r of win){ const d=r.t-mt; num += d*(r.vbat-mv); den += d*d; }
+  if(den <= 0) return {short:true, n:win.length, span};
+  const slope = num/den;                       // volts per second
+
+  let ss=0;
+  for(const r of win){
+    const e = r.vbat - (mv + slope*(r.t-mt));
+    ss += e*e;
+  }
+  const sigma = Math.sqrt(ss/Math.max(1,win.length-2));
+  const se = sigma/Math.sqrt(den);             // standard error of the slope
+  const vnow = mv + slope*(now-mt);
+  return {slope, se, vnow, n:win.length, span};
+}
+
+function showBattery(){
+  const box = el('battProj');
+  const t = batteryTrend();
+  const fresh = samples.length &&
+                (Date.now() - (lastSampleAt||0)) < 10000;
+
+  if(!t || !fresh){
+    el('battV').textContent = samples.length
+      ? samples[samples.length-1].vbat.toFixed(3)+' V' : '—';
+    el('battRate').textContent = samples.length ? 'stream is off' : 'no data yet';
+    box.innerHTML=''; return;
+  }
+  if(t.short){
+    el('battRate').textContent =
+      `collecting… ${t.span.toFixed(0)} s of ${BATT_WINDOW}`;
+    box.innerHTML=''; return;
+  }
+
+  const perHour = t.slope*3600, sePerHour = t.se*3600;
+  el('battV').textContent = t.vnow.toFixed(3)+' V';
+  el('battRate').textContent =
+    `${(t.slope*60000).toFixed(1)} mV/min · ${perHour.toFixed(3)} `+
+    `±${sePerHour.toFixed(3)} V/h`;
+
+  // a rising or flat trend cannot be extrapolated to an empty battery
+  if(perHour > -0.005){
+    box.innerHTML = '<i>trend</i><b>flat or charging — no projection</b>';
+    return;
+  }
+  let html='';
+  for(const min of BATT_MARKS){
+    const v = t.vnow + t.slope*min*60;
+    const cls = v <= BATT_EMPTY ? 'dead' : (v <= 3.45 ? 'low' : '');
+    html += `<i>+${min} min</i><b class="${cls}">${v.toFixed(3)} V`+
+            `${v<=BATT_EMPTY?'  (empty)':''}</b>`;
+  }
+  const toEmpty = (t.vnow - BATT_EMPTY)/(-t.slope)/60;
+  if(isFinite(toEmpty) && toEmpty > 0)
+    html += `<i>to ${BATT_EMPTY.toFixed(2)} V</i><b>${
+      toEmpty < 60 ? toEmpty.toFixed(0)+' min'
+                   : (toEmpty/60).toFixed(1)+' h'}</b>`;
+  box.innerHTML = html;
+}
+setInterval(showBattery, 2000);
 
 /* ── on-board memory ─────────────────────────────────────────────── */
 function fmtSpan(sec){
