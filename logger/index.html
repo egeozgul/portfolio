@@ -409,6 +409,8 @@
         <button id="btnStreamRate" disabled>Apply</button>
       </div>
       <div class="ctlhint" id="streamHint">Connect to see reachable rates.</div>
+      <div class="ctlhint">Record calibration turns this on at the sample rate;
+        Record measurement turns it off. Both are just starting points.</div>
     </div>
 
     <div class="ctlcard">
@@ -1062,7 +1064,7 @@ function decodeNote(bytes){
   catch(e){ return ''; }
 }
 
-function startRecording(kind){
+async function startRecording(kind){
   // the board has no real-time clock, so the wall clock comes from here and
   // is written into the session index alongside the start address
   const epoch=Math.floor(Date.now()/1000);
@@ -1077,16 +1079,33 @@ function startRecording(kind){
              lon&0xFF,(lon>>8)&0xFF,(lon>>16)&0xFF,(lon>>>24)&0xFF,
              acc&0xFF,(acc>>8)&0xFF, st.ok?1:0,
              ...encodeNote(el('inpNote').value)];
-  send(...pkt);
+  // awaited, not fired and forgotten: two overlapping GATT writes throw
+  await send(...pkt);
+  log(`Recording ${kind?'CALIBRATION':'measurement'} — `+
+      (st.ok ? `at ${lastFix.lat.toFixed(5)}, ${lastFix.lon.toFixed(5)} ±${Math.round(lastFix.acc)} m`
+             : `GPS ${gpsError||st.why}, logging without coordinates`));
+
+  // A calibration sweep is worth watching live -- the point cloud and the
+  // coverage figure are how you know when to stop turning. A measurement run
+  // is not, and a quiet link is one less thing competing with the sample
+  // loop. Either way this is only a starting point; the toggle still works.
+  const period = devicePeriodMs || 38;
+  if(kind){
+    await send(CMD.STREAM, 1, period&0xFF, (period>>8)&0xFF);
+    el('inpStream').value = +(1000/period).toFixed(3);
+    log(`Live stream on at ${(1000/period).toFixed(2)} Hz, matching the `+
+        `sample rate, so the cloud fills as you sweep.`);
+  } else {
+    await send(CMD.STREAM, 0, period&0xFF, (period>>8)&0xFF);
+    log('Live stream off. Toggle it back on if you want to watch.');
+  }
+
   // the board can still refuse; check that it actually started rather than
   // assuming the command took effect
   setTimeout(()=>{
     if(!recording) log('The board did not start recording. Check the memory '+
                        'panel — the log probably needs erasing.','err');
   }, 2000);
-  log(`Recording ${kind?'CALIBRATION':'measurement'} — `+
-      (st.ok ? `at ${lastFix.lat.toFixed(5)}, ${lastFix.lon.toFixed(5)} ±${Math.round(lastFix.acc)} m`
-             : `GPS ${gpsError||st.why}, logging without coordinates`));
 }
 el('btnRecMeas').onclick=()=>startRecording(0);
 el('btnRecCal').onclick=()=>startRecording(1);
