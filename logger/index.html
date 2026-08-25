@@ -646,6 +646,7 @@ let recording=false, windowSec=60, split=false;
 let logForeign=false, streamOn=true, verifying=false;
 let erasing=false, erasePct=0, streamAsked=null, storedRecords=0;
 let sessionsList=[], sessionCount=0, dataSession=null, devicePeriodMs=0;
+let lastDumpSent=0;
 let rateWarned=false, capacityKb=0;
 let hexOn=false, memPages=new Map(), memPending=new Set(), memAsk=null;
 let rateT0=0, rateN=0;
@@ -688,11 +689,26 @@ function handle(f){
   if(type===0x01 && f.length>=REC_SIZE+1){ addSample(decodeRec(f,1)); }
   else if(type===0x20 && f.length>=REC_SIZE+1){ dumped.push(decodeRec(f,1)); }
   else if(type===0x21){
+    // the board reports how many records it actually sent; a mismatch means
+    // the transfer was truncated, which used to be silent
+    lastDumpSent = f.length>=5
+      ? new DataView(f.buffer,f.byteOffset,f.byteLength).getUint32(1,true)
+      : dumped.length;
+    if(lastDumpSent!==dumped.length)
+      log(`Board sent ${lastDumpSent} records but ${dumped.length} arrived — `+
+          `${lastDumpSent-dumped.length} lost in transit.`,'err');
     dumpActive=false;
     setButtons();
     if(dumpResolve){ const r=dumpResolve; dumpResolve=null; r(); }
-    else { log(`Read finished — ${dumped.length.toLocaleString()} records.`,'ok');
-           showDataset(); }
+    else {
+      const s2=dataSession;
+      if(s2 && dumped.length!==s2.count)
+        log(`Read ${dumped.length.toLocaleString()} of ${s2.count.toLocaleString()} `+
+            `records — the transfer was cut short.`,'err');
+      else
+        log(`Read finished — ${dumped.length.toLocaleString()} records.`,'ok');
+      showDataset();
+    }
   }
   else if(type===0x50 && f.length>=63){
     const dv=new DataView(f.buffer,f.byteOffset,f.byteLength);
@@ -1485,6 +1501,8 @@ function sessionCsv(s, rows){
     `# gps_accuracy_m=${s.gps?s.acc:''}`,
     `# sample_hz=${s.sampleMs?(1000/s.sampleMs).toFixed(3):''}`,
     `# records=${rows.length}`,
+    `# records_expected=${s.count}`,
+    `# complete=${rows.length===s.count}`,
     `# flash_start_address=0x${s.start.toString(16).toUpperCase().padStart(6,'0')}`,
     'session,t_s,'+CSV_KEYS.join(',')
   ].join('\n');
@@ -1507,6 +1525,7 @@ async function exportAll(){
   const root = `borelogger-export_${localStamp(now,false)}_${tzSuffix(now)}`;
   const files = [];
   const idxRows = [];
+  let short = 0;
 
   try{
     for(let i=0;i<withData.length;i++){
@@ -1514,6 +1533,11 @@ async function exportAll(){
       log(`Exporting session ${s.seq+1} (${i+1} of ${withData.length}) — `+
           `${s.count.toLocaleString()} records…`);
       await readSessionAsync(s);
+      if(dumped.length !== s.count){
+        log(`Session ${s.seq+1}: expected ${s.count.toLocaleString()} records, `+
+            `got ${dumped.length.toLocaleString()}. The file is marked incomplete.`,'err');
+        short++;
+      }
       const rel = `sessions/${sessionSlug(s)}.csv`;
       files.push({name:`${root}/${rel}`, text:sessionCsv(s, dumped)});
       idxRows.push([
@@ -1567,8 +1591,12 @@ async function exportAll(){
   const a = document.createElement('a');
   a.href=url; a.download=`${root}.zip`; a.click();
   URL.revokeObjectURL(url);
-  log(`Exported ${files.length-2} session file(s), `+
-      `${total.toLocaleString()} records, ${(blob.size/1024).toFixed(0)} kB.`,'ok');
+  if(short)
+    log(`Export finished, but ${short} file(s) are INCOMPLETE — check the `+
+        `complete= line in each. Re-run the export to try again.`,'err');
+  else
+    log(`Exported ${files.length-2} session file(s), `+
+        `${total.toLocaleString()} records, ${(blob.size/1024).toFixed(0)} kB.`,'ok');
 }
 el('btnExportAll').onclick=exportAll;
 
