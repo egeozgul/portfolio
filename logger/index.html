@@ -270,6 +270,28 @@
   .trow .hok{color:#3d4d5c;font-family:var(--mono)}
   .trow .hbad{color:#ff8080;font-family:var(--mono);font-weight:600}
 
+  .expprog{margin-top:11px}
+  .expbar{
+    height:6px;border-radius:3px;background:#1b242e;overflow:hidden;
+  }
+  .expfill{
+    height:100%;width:0%;border-radius:3px;
+    background:linear-gradient(90deg,#3d7dd8,#57c2a8);
+    transition:width .18s linear;
+  }
+  .expinfo{
+    display:flex;align-items:center;gap:12px;margin-top:6px;
+    font-family:var(--mono);font-size:11px;color:var(--dim);
+    font-variant-numeric:tabular-nums;
+  }
+  .expinfo #expPct{color:var(--ink);font-size:13px;min-width:44px}
+  .expinfo #expWhat{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .expcancel{
+    padding:3px 10px;font-size:11px;border-radius:5px;
+    background:#2a1a1e;border:1px solid #5a2b33;color:#ff9b9b;cursor:pointer;
+  }
+  .expcancel:hover{background:#3a2126}
+
   .healthcv{display:block;width:100%;height:96px;margin-top:10px}
 
   .stages{display:grid;gap:14px;margin-bottom:14px}
@@ -523,6 +545,16 @@
         <button id="btnExportAll" disabled>Export everything (ZIP)</button>
       </div>
     </div>
+    <div class="expprog" id="expProg" hidden>
+      <div class="expbar"><div class="expfill" id="expFill"></div></div>
+      <div class="expinfo">
+        <span id="expPct">0%</span>
+        <span id="expWhat">preparing…</span>
+        <span id="expEta"></span>
+        <button id="btnExportCancel" class="expcancel">Cancel</button>
+      </div>
+      </div>
+    </div>
     <div class="sesswrap">
       <div class="sesshead">
         <span>#</span><span>Type</span><span>Started</span><span>Location</span>
@@ -709,6 +741,10 @@ let erasing=false, erasePct=0, streamAsked=null, storedRecords=0;
 let sessionsList=[], sessionCount=0, dataSession=null, devicePeriodMs=0;
 let lastDumpSent=0;
 let rateWarned=false, capacityKb=0, lastSampleAt=0;
+// declared here rather than beside makeProgress(): the frame handler
+// references it, and a `let` below that point sits in the temporal
+// dead zone as far as any reader is concerned
+let exportProg = null;
 // health arrives with the status frame, not with samples, so it needs its
 // own timeline. Kept as {t, mask} transitions rather than one entry per
 // status frame -- a subsystem that stays up for an hour costs one record.
@@ -758,7 +794,12 @@ function handle(f){
     // omits it, in which case the 5 s status frame still supplies it
     if(f.length>=REC_SIZE+2) noteHealth(f[REC_SIZE+1]);
   }
-  else if(type===0x20 && f.length>=REC_SIZE+1){ dumped.push(decodeRec(f,1)); }
+  else if(type===0x20 && f.length>=REC_SIZE+1){
+    dumped.push(decodeRec(f,1));
+    // counted per record, not per session: one session can be tens of
+    // thousands of records and a session-level bar would sit still
+    if(exportProg) exportProg.onRecord();
+  }
   else if(type===0x21){
     // the board reports how many records it actually sent; a mismatch means
     // the transfer was truncated, which used to be silent
@@ -1721,6 +1762,83 @@ function sessionCsv(s, rows){
   return head+'\n'+body+'\n';
 }
 
+/* ── export progress ─────────────────────────────────────────────────
+   Records arrive one BLE notification at a time, so progress is counted
+   at the record level rather than the session level -- a single session
+   can be tens of thousands of records and a per-session bar would sit
+   still for minutes. The rate is measured over the last few seconds
+   rather than the whole run, so the estimate reacts when the link slows
+   down instead of averaging the stall away. */
+function makeProgress(totalRecords, sessionCount){
+  const t0 = Date.now();
+  let done = 0, base = 0, cancelled = false;
+  let recent = [];                 // [ms, count] samples for the rate
+  let lastPaint = 0;
+
+  el('expProg').hidden = false;
+  el('expFill').style.width = '0%';
+  el('expPct').textContent = '0%';
+  el('expEta').textContent = '';
+  el('btnExportCancel').disabled = false;
+
+  function paint(force){
+    const now = Date.now();
+    if(!force && now - lastPaint < 120) return;   // ~8 fps is plenty
+    lastPaint = now;
+    const n = base + done;
+    const pct = totalRecords ? Math.min(100, n * 100 / totalRecords) : 0;
+    el('expFill').style.width = pct.toFixed(1) + '%';
+    el('expPct').textContent = pct.toFixed(0) + '%';
+
+    // rate over the last 5 s only
+    recent.push([now, n]);
+    while(recent.length > 2 && now - recent[0][0] > 5000) recent.shift();
+    let eta = '';
+    if(recent.length >= 2){
+      const dt = (now - recent[0][0]) / 1000;
+      const dn = n - recent[0][1];
+      if(dt > 0.5 && dn > 0){
+        const rate = dn / dt;
+        const left = Math.max(0, totalRecords - n);
+        const secs = left / rate;
+        eta = rate.toFixed(0) + ' rec/s · ' +
+              (secs < 90 ? Math.ceil(secs) + ' s left'
+                         : Math.ceil(secs / 60) + ' min left');
+      }
+    }
+    el('expEta').textContent = eta;
+  }
+
+  return {
+    onRecord(){ done++; paint(false); },
+    session(i, s){
+      el('expWhat').textContent =
+        `session ${s.seq+1} of ${sessionCount} — ${s.count.toLocaleString()} records`;
+      paint(true);
+    },
+    finishSession(actual){ base += actual; done = 0; paint(true); },
+    stage(text){ el('expWhat').textContent = text; paint(true); },
+    get cancelled(){ return cancelled; },
+    cancel(){ cancelled = true; },
+    done(){
+      el('expFill').style.width = '100%';
+      el('expPct').textContent = '100%';
+      el('expEta').textContent =
+        ((Date.now() - t0) / 1000).toFixed(0) + ' s total';
+      setTimeout(()=>{ el('expProg').hidden = true; }, 2500);
+    },
+    abort(){ el('expProg').hidden = true; }
+  };
+}
+
+el('btnExportCancel').onclick = ()=>{
+  if(exportProg){
+    exportProg.cancel();
+    exportProg.stage('cancelling…');
+    send(CMD.ABORT);
+  }
+};
+
 async function exportAll(){
   if(!sessionsList.length){ log('No sessions to export.','err'); return; }
   const withData = sessionsList.filter(s=>s.count>0);
@@ -1736,12 +1854,17 @@ async function exportAll(){
   const idxRows = [];
   let short = 0;
 
+  exportProg = makeProgress(total, withData.length);
+
   try{
     for(let i=0;i<withData.length;i++){
+      if(exportProg.cancelled) throw new Error('cancelled');
       const s = withData[i];
+      exportProg.session(i, s);
       log(`Exporting session ${s.seq+1} (${i+1} of ${withData.length}) — `+
           `${s.count.toLocaleString()} records…`);
       await readSessionAsync(s);
+      exportProg.finishSession(dumped.length);
       if(dumped.length !== s.count){
         log(`Session ${s.seq+1}: expected ${s.count.toLocaleString()} records, `+
             `got ${dumped.length.toLocaleString()}. The file is marked incomplete.`,'err');
@@ -1766,11 +1889,14 @@ async function exportAll(){
       ].join(','));
     }
   }catch(e){
-    log('Export stopped: '+e.message,'err');
+    log(e.message==='cancelled' ? 'Export cancelled.' : 'Export stopped: '+e.message,
+        e.message==='cancelled' ? '' : 'err');
+    if(exportProg){ exportProg.abort(); exportProg=null; }
     dumpActive=false; setButtons();
     return;
   }
 
+  exportProg.stage('building the archive…');
   files.unshift({name:`${root}/index.csv`,
     text:'session,type,note,started_iso,started_local,utc_offset_min,latitude,'+
          'longitude,gps_accuracy_m,flash_start_address,records,sample_hz,file\n'+
