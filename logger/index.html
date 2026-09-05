@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -189,8 +188,8 @@
   }
   .thead,.trow{
     display:grid;
-    grid-template-columns:62px 92px 74px repeat(13,minmax(64px,1fr));
-    min-width:1270px;
+    grid-template-columns:62px 92px 74px repeat(14,minmax(64px,1fr));
+    min-width:1340px;
     font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums;
   }
   .thead{
@@ -203,7 +202,7 @@
      body's width and let .thscroll be the only horizontal scroller. */
   .tscroll{
     position:relative;height:360px;overflow-y:auto;overflow-x:hidden;
-    min-width:1270px;background:#0e141a;
+    min-width:1340px;background:#0e141a;
   }
   .hexhead{
     display:flex;justify-content:space-between;align-items:center;gap:10px;
@@ -259,6 +258,19 @@
   .kind.cal{background:#3a2f16;color:#ffd479;border:1px solid #5c4a1f}
   .kind.meas{background:#1b2b33;color:#8fd2e8;border:1px solid #2b4653}
   .sessempty{padding:16px 10px;color:var(--dim);font-family:var(--mono);font-size:11.5px}
+
+  /* all-ok is the overwhelmingly common case, so it is dimmed -- a failed
+     sample should be the thing your eye lands on when scrolling. */
+  .hlegend{margin-top:3px;font-size:10px;opacity:.75}
+  .hlegend b{color:var(--ink);font-weight:600}
+  .thead .hkey{
+    font-style:normal;font-family:var(--mono);font-size:9px;
+    letter-spacing:1px;opacity:.55;
+  }
+  .trow .hok{color:#3d4d5c;font-family:var(--mono)}
+  .trow .hbad{color:#ff8080;font-family:var(--mono);font-weight:600}
+
+  .healthcv{display:block;width:100%;height:96px;margin-top:10px}
 
   .stages{display:grid;gap:14px;margin-bottom:14px}
   @media (min-width:1180px){.stages{grid-template-columns:1fr 1fr}}
@@ -368,6 +380,7 @@
   <span>Free <b id="sFree">—</b></span>
   <span>Battery <b id="sBat">—</b></span>
   <span>Errors <b id="sErr">0</b></span>
+  <span>Sensors <b id="sHealth">—</b></span>
 </div>
 
 <main>
@@ -377,6 +390,16 @@
     <p>Web Bluetooth runs in Chrome and Edge on desktop and Android. If the button does
     nothing, open this file over <code>http://localhost</code> instead of double-clicking it.</p>
   </div>
+  <section class="mem" id="healthBlock">
+    <div class="memhead">
+      <div>
+        <div class="lbl">Sensor health</div>
+        <div class="datainfo" id="healthInfo">waiting for the board…</div>
+      </div>
+    </div>
+    <canvas id="healthCv" class="healthcv"></canvas>
+  </section>
+
   <section class="controls">
     <div class="ctlcard">
       <div class="lbl">Acquisition</div>
@@ -517,6 +540,9 @@
       <div>
         <div class="lbl">Dataset</div>
         <div class="datainfo" id="dataInfo">—</div>
+        <div class="datainfo hlegend">health digits: <b>I</b>MU
+          <b>B</b>arometer <b>M</b>agnetometer <b>F</b>lash
+          <b>V</b>bat &nbsp;·&nbsp; 1 = working, 0 = down</div>
       </div>
       <div class="membtns">
         <button id="btnDumpCsv" disabled>Save CSV</button>
@@ -533,6 +559,7 @@
           <span>P (hPa)</span><span>T (°C)</span>
           <span>mx µT</span><span>my µT</span><span>mz µT</span>
           <span>Tdie °C</span><span>Vbat</span>
+          <span title="One digit per subsystem, in this order:&#10;I = IMU&#10;B = Barometer&#10;M = Magnetometer&#10;F = Flash&#10;V = Battery ADC&#10;&#10;1 = working, 0 = down for that sample">health <i class="hkey">IBMFV</i></span>
         </div>
         <div class="tscroll" id="tScroll"><div id="tSpacer"></div><div id="tRows"></div></div>
       </div>
@@ -668,6 +695,10 @@ const GROUPS = [
 ];
 const CSV_KEYS = ['ax','ay','az','gx','gy','gz','press','temp',
                   'mx','my','mz','itemp','vbat'];
+// written as a column but not a number, so it is formatted separately
+// the column name carries the bit order, so an exported file explains
+// itself without needing the README alongside it
+const CSV_EXTRA = ['health_IBMFV'];
 
 /* ── state ───────────────────────────────────────────────────────── */
 let device=null, chData=null, chCtrl=null, chStat=null;
@@ -678,6 +709,11 @@ let erasing=false, erasePct=0, streamAsked=null, storedRecords=0;
 let sessionsList=[], sessionCount=0, dataSession=null, devicePeriodMs=0;
 let lastDumpSent=0;
 let rateWarned=false, capacityKb=0, lastSampleAt=0;
+// health arrives with the status frame, not with samples, so it needs its
+// own timeline. Kept as {t, mask} transitions rather than one entry per
+// status frame -- a subsystem that stays up for an hour costs one record.
+const HEALTH_BITS=[[1,'IMU'],[2,'Baro'],[4,'Mag'],[8,'Flash'],[16,'Vbat']];
+let healthLog=[], lastHealthMask=-1, healthSeenAt=0;
 let hexOn=false, memPages=new Map(), memPending=new Set(), memAsk=null;
 let rateT0=0, rateN=0;
 const MAX_SAMPLES = 100000;
@@ -716,7 +752,12 @@ function finishFrag(g){
 
 function handle(f){
   const type=f[0];
-  if(type===0x01 && f.length>=REC_SIZE+1){ addSample(decodeRec(f,1)); }
+  if(type===0x01 && f.length>=REC_SIZE+1){
+    addSample(decodeRec(f,1));
+    // a trailing byte carries health at the sample rate; older firmware
+    // omits it, in which case the 5 s status frame still supplies it
+    if(f.length>=REC_SIZE+2) noteHealth(f[REC_SIZE+1]);
+  }
   else if(type===0x20 && f.length>=REC_SIZE+1){ dumped.push(decodeRec(f,1)); }
   else if(type===0x21){
     // the board reports how many records it actually sent; a mismatch means
@@ -830,6 +871,13 @@ function handle(f){
   else if(type===0x10 && f.length>=14){ decodeStatus(f); }
 }
 
+// "11011" -> "Magnetometer down". Saves counting digits against a legend.
+const HEALTH_ORDER = ['IMU','Barometer','Magnetometer','Flash','Battery ADC'];
+function healthWhy(str){
+  const down = HEALTH_ORDER.filter((n,i)=>str[i]==='0');
+  return down.length ? down.join(' down, ')+' down' : 'all subsystems working';
+}
+
 function decodeRec(f,off){
   const dv=new DataView(f.buffer,f.byteOffset+off,REC_SIZE);
   return {
@@ -847,12 +895,25 @@ function decodeRec(f,off){
     my: dv.getInt16(24,true)/MAG_LSB_PER_UT,
     mz: dv.getInt16(26,true)/MAG_LSB_PER_UT,
     itemp: 25 + dv.getInt16(28,true)/IMU_TEMP_LSB,
-    vbat: dv.getUint16(30,true)/1000
+    vbat: dv.getUint16(30,true)/1000,
+    // The firmware writes an unreachable sentinel into every channel of a
+    // sensor that is down, so per-sample health is already in the log and
+    // only needs decoding -- no stored byte, no format change, no erase.
+    // Compared against the RAW integers, where the sentinel is exact;
+    // the scaled floats above would need tolerance comparisons.
+    // Order matches the board's bitmask: IMU, Baro, Mag, Flash, Vbat.
+    // Flash is always 1: a record that exists was successfully written.
+    health:
+      (dv.getInt16(10,true) === -32768 ? '0' : '1') +
+      (dv.getInt32(16,true) === -1     ? '0' : '1') +
+      (dv.getInt16(22,true) === -32768 ? '0' : '1') +
+      '1' +
+      (dv.getUint16(30,true) === 0     ? '0' : '1')
   };
 }
 
 function decodeStatus(f){
-  if(f.byteLength<26) return;
+  if(f.byteLength<27) return;
   const dv=new DataView(f.buffer,f.byteOffset,f.byteLength);
   const flags=dv.getUint8(1);
   const stored=dv.getUint32(2,true);
@@ -864,6 +925,7 @@ function decodeStatus(f){
   const streamMs=dv.getUint16(20,true);
   const sessN=dv.getUint16(22,true);
   const actualMs=dv.getUint16(24,true);
+  const health=dv.getUint8(26);
   devicePeriodMs=periodMs;
   if(typeof updateStreamHint==='function') updateStreamHint();
   const wasRec=recording;
@@ -890,6 +952,13 @@ function decodeStatus(f){
   el('sFree').textContent=capKb?((capKb-usedKb)/1024).toFixed(1)+' MB':'—';
   el('sBat').textContent=(mv/1000).toFixed(3)+' V';
   el('sErr').textContent=errs;
+  // one letter per subsystem: present means working, dash means down.
+  // The board keeps running and keeps retrying whatever is dashed.
+  const HB=[[1,'IMU'],[2,'Baro'],[4,'Mag'],[8,'Flash'],[16,'Vbat']];
+  const down=HB.filter(([b])=>!(health&b)).map(([,n])=>n);
+  el('sHealth').textContent = down.length ? down.join(', ')+' down' : 'all ok';
+  el('sHealth').style.color = down.length ? '#ff8080' : '';
+  noteHealth(health);
   el('btnStream').textContent=streamOn?'Stream on':'Stream off';
   el('btnStream').classList.toggle('active',streamOn);
   if(streamMs){
@@ -1251,9 +1320,9 @@ function log(msg,cls){
 
 function saveCsv(rows,name){
   if(!rows.length){ log('Nothing to save yet.','err'); return; }
-  const head='t_s,'+CSV_KEYS.join(',')+'\n';
+  const head='t_s,'+CSV_KEYS.join(',')+','+CSV_EXTRA.join(',')+'\n';
   const body=rows.map(r=>
-    [r.t.toFixed(3),...CSV_KEYS.map(k=>r[k].toFixed(4))].join(',')
+    [r.t.toFixed(3),...CSV_KEYS.map(k=>r[k].toFixed(4)),r.health].join(',')
   ).join('\n');
   const url=URL.createObjectURL(new Blob([head+body],{type:'text/csv'}));
   const a=document.createElement('a');
@@ -1344,6 +1413,9 @@ function showBattery(){
   box.innerHTML = html;
 }
 setInterval(showBattery, 2000);
+// the health strip is driven by status frames, which keep arriving even when
+// streaming is off -- so mark dirty on a timer rather than on sample arrival
+setInterval(()=>{ if(healthLog.length) dirty=true; }, 1000);
 
 /* ── on-board memory ─────────────────────────────────────────────── */
 function fmtSpan(sec){
@@ -1420,7 +1492,10 @@ function renderTable(){
        r.gx.toFixed(2),r.gy.toFixed(2),r.gz.toFixed(2),
        r.press.toFixed(2),r.temp.toFixed(2),
        r.mx.toFixed(1),r.my.toFixed(1),r.mz.toFixed(1),
-       r.itemp.toFixed(2),r.vbat.toFixed(3)].map(v=>'<span>'+v+'</span>').join('');
+       r.itemp.toFixed(2),r.vbat.toFixed(3)].map(v=>'<span>'+v+'</span>').join('')
+       + (r.health==='11111'
+            ? '<span class="hok" title="all subsystems working">'+r.health+'</span>'
+            : '<span class="hbad" title="'+healthWhy(r.health)+'">'+r.health+'</span>');
     frag.appendChild(d);
   }
   rows.replaceChildren(frag);
@@ -1637,10 +1712,11 @@ function sessionCsv(s, rows){
     `# records_expected=${s.count}`,
     `# complete=${rows.length===s.count}`,
     `# flash_start_address=0x${s.start.toString(16).toUpperCase().padStart(6,'0')}`,
-    'session,t_s,'+CSV_KEYS.join(',')
+    'session,t_s,'+CSV_KEYS.join(',')+','+CSV_EXTRA.join(',')
   ].join('\n');
   const body = rows.map(r =>
-    (s.seq+1)+','+r.t.toFixed(3)+','+CSV_KEYS.map(k=>r[k].toFixed(4)).join(',')
+    (s.seq+1)+','+r.t.toFixed(3)+','+
+    CSV_KEYS.map(k=>r[k].toFixed(4)).join(',')+','+r.health
   ).join('\n');
   return head+'\n'+body+'\n';
 }
@@ -1719,7 +1795,9 @@ async function exportAll(){
     '  ax ay az   g\n  gx gy gz   deg/s\n  press      hPa\n  temp       degC\n'+
     '  mx my mz   microtesla\n'+
     '  itemp      degC, IMU die -- what gyro bias tracks\n'+
-    '  vbat       volts\n'});
+    '  vbat       volts\n'+
+    '  health     IMU/Baro/Mag/Flash/Vbat, 1=working 0=down\n'+
+    '             derived from sentinels in the channels themselves\n'});
 
   const blob = new Blob([makeZip(files)], {type:'application/zip'});
   const url = URL.createObjectURL(blob);
@@ -2982,6 +3060,89 @@ function buildPlots(){
   dirty=true;
 }
 
+/* ── sensor health timeline ──────────────────────────────────────────
+   Five binary rows rather than one line: the mask is categorical, so a
+   value of 21 is not "more" than 9 and a line between them would imply a
+   continuum that does not exist. Filled means up, gapped means down --
+   which makes an intermittent fault look like what it is, a row of gaps,
+   instead of hiding in a single "now" readout. */
+function noteHealth(mask){
+  const nowS = Date.now()/1000;
+  if(mask!==lastHealthMask){
+    healthLog.push({t:nowS, mask});
+    lastHealthMask=mask;
+  }
+  healthSeenAt = nowS;
+  const cut = nowS - 1800;
+  while(healthLog.length>1 && healthLog[1].t < cut) healthLog.shift();
+  dirty=true;
+}
+
+function drawHealth(){
+  const cv=el('healthCv'), dpr=devicePixelRatio||1;
+  const w=cv.clientWidth, h=cv.clientHeight;
+  if(!w||!h) return;
+  if(cv.width!==w*dpr||cv.height!==h*dpr){ cv.width=w*dpr; cv.height=h*dpr; }
+  const g=cv.getContext('2d');
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,w,h);
+
+  const padL=52, padR=6, padT=4, padB=13;
+  const pw=w-padL-padR, ph=h-padT-padB;
+  const rowH=ph/HEALTH_BITS.length;
+
+  const tEnd = healthSeenAt || Date.now()/1000;
+  const tStart = tEnd - windowSec;
+  const X=t=>padL+Math.max(0,Math.min(1,(t-tStart)/windowSec))*pw;
+
+  g.font='10px '+css('--mono');
+
+  HEALTH_BITS.forEach(([bit,name],i)=>{
+    const y=padT+i*rowH, bh=Math.max(6,rowH-4);
+    g.fillStyle=css('--dim');
+    g.textAlign='right';
+    g.fillText(name,padL-8,y+bh*0.78);
+
+    // empty track, so a row with no data reads as unknown rather than down
+    g.fillStyle='#141c24';
+    g.fillRect(padL,y,pw,bh);
+
+    for(let k=0;k<healthLog.length;k++){
+      const seg=healthLog[k];
+      const segEnd = (k+1<healthLog.length) ? healthLog[k+1].t : tEnd;
+      if(segEnd<tStart) continue;
+      const x0=X(Math.max(seg.t,tStart)), x1=X(segEnd);
+      if(x1<=x0) continue;
+      const up=!!(seg.mask&bit);
+      g.fillStyle = up ? '#2f6b3a' : '#7a2530';
+      g.fillRect(x0,y,x1-x0,bh);
+    }
+  });
+
+  g.fillStyle=css('--dim');
+  g.textAlign='left';
+  g.fillText('-'+windowSec+'s',padL,h-3);
+  g.textAlign='right';
+  g.fillText('now',padL+pw,h-3);
+
+  // summary line: what has dropped out at all within the window
+  const seen={};
+  for(let k=0;k<healthLog.length;k++){
+    const seg=healthLog[k];
+    const segEnd=(k+1<healthLog.length)?healthLog[k+1].t:tEnd;
+    if(segEnd<tStart) continue;
+    for(const [bit,name] of HEALTH_BITS)
+      if(!(seg.mask&bit)) seen[name]=(seen[name]||0)+1;
+  }
+  const names=Object.keys(seen);
+  el('healthInfo').textContent = !healthLog.length
+    ? 'waiting for the board…'
+    : (names.length
+        ? names.map(n=>n+' dropped out '+seen[n]+'x').join(' · ')
+        : 'all subsystems up for the whole window');
+  el('healthInfo').style.color = names.length ? '#ff8080' : 'var(--dim)';
+}
+
 function drawPlot(p){
   const cv=p.canvas, dpr=devicePixelRatio||1;
   const w=cv.clientWidth, h=cv.clientHeight;
@@ -3052,6 +3213,7 @@ function tick(ts){
   if(spinning){ yaw+=0.006; dirty=true; }
   if(dirty && ts-lastDraw>70){
     plots.forEach(drawPlot);
+    drawHealth();
     drawScene();
     drawAttitude();
     lastDraw=ts; dirty=false;
