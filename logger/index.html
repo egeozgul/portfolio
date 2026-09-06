@@ -795,10 +795,22 @@ function handle(f){
     if(f.length>=REC_SIZE+2) noteHealth(f[REC_SIZE+1]);
   }
   else if(type===0x20 && f.length>=REC_SIZE+1){
+    // single-record frame, kept so older firmware still works
     dumped.push(decodeRec(f,1));
-    // counted per record, not per session: one session can be tens of
-    // thousands of records and a session-level bar would sit still
     if(exportProg) exportProg.onRecord();
+  }
+  else if(type===0x22 && f.length>=2){
+    // batched: [0x22][count][record * count]. One notification carries up
+    // to 7 records at MTU 247 instead of 1, which is where the speed comes
+    // from -- the link is limited by packets per second, not bytes.
+    const n = f[1];
+    if(f.length >= 2 + n*REC_SIZE){
+      for(let k=0;k<n;k++) dumped.push(decodeRec(f, 2 + k*REC_SIZE));
+      if(exportProg) for(let k=0;k<n;k++) exportProg.onRecord();
+    } else {
+      log(`Short batch frame: said ${n} records, carried `+
+          `${Math.floor((f.length-2)/REC_SIZE)}.`,'err');
+    }
   }
   else if(type===0x21){
     // the board reports how many records it actually sent; a mismatch means
