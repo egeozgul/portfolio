@@ -72,6 +72,28 @@
   .pair{display:grid;grid-template-columns:1fr 300px;gap:10px}
   @media(max-width:820px){.pair{grid-template-columns:1fr}}
 
+  .issues{margin-top:9px;display:grid;gap:6px}
+  .iss{
+    display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:start;
+    padding:8px 10px;border-radius:7px;background:#111a22;
+    border-left:3px solid var(--edge);font-size:12px;
+  }
+  .iss.err{border-left-color:var(--bad)}
+  .iss.warn{border-left-color:var(--warn)}
+  .iss.info{border-left-color:#3d7dd8}
+  .iss.ok{border-left-color:#3d8b5a}
+  .iss .sev{
+    font-family:var(--mono);font-size:9px;letter-spacing:.08em;
+    text-transform:uppercase;padding-top:2px;
+  }
+  .iss.err .sev{color:var(--bad)}
+  .iss.warn .sev{color:var(--warn)}
+  .iss.info .sev{color:#7fb3ec}
+  .iss.ok .sev{color:#6cc48d}
+  .iss b{font-weight:600}
+  .iss .det{color:var(--dim);font-size:11px;margin-top:2px;line-height:1.55}
+  .iss button{padding:3px 9px;font-size:10px}
+
   .hint{font-size:11px;color:var(--dim);margin-top:7px;line-height:1.6}
   .stats{
     font-family:var(--mono);font-size:10px;color:var(--dim);
@@ -116,6 +138,11 @@
     value range · double-click to reset. The histogram shows only what is
     inside the current time window, so zooming the trace re-bins it.
   </div>
+</div>
+
+<div class="card" id="issuesCard" hidden>
+  <div class="lbl">Data checks <span id="issueCount"></span></div>
+  <div class="issues" id="issues"></div>
 </div>
 
 <div class="plots" id="plots"></div>
@@ -296,6 +323,319 @@ function labelFor(name,meta,n){
   return `${s}${kind}${note} · ${n.toLocaleString()} rows`;
 }
 
+/* ── error detection ───────────────────────────────────────────────────
+   Every check here exists because the fault it looks for actually happened
+   during this project and cost real time to find. A check that has never
+   caught anything is noise; these have all caught something.               */
+
+function median(a){
+  if(!a.length) return 0;
+  const s=a.slice().sort((x,y)=>x-y);
+  return s[s.length>>1];
+}
+function robustSd(a){
+  const m=median(a);
+  return 1.4826*median(a.map(v=>Math.abs(v-m)));
+}
+
+function runChecks(s){
+  const out=[];
+  const add=(sev,title,detail,t0,t1)=>out.push({sev,title,detail,t0,t1});
+  const n=s.t.length;
+  const has=k=>!!s.ch[k];
+
+  /* --- export completeness ------------------------------------------ */
+  if(s.meta.complete==='false'){
+    add('err','Export is incomplete',
+      `The header says ${s.meta.records} of ${s.meta.records_expected} `+
+      `records arrived. Everything below describes only what was received.`);
+  }
+  if(s.malformed){
+    add('warn','Unparsable lines',
+      `${s.malformed} line(s) could not be read and were skipped.`);
+  }
+
+  /* --- timing -------------------------------------------------------- */
+  const dt=[];
+  for(let i=1;i<n;i++) dt.push(s.t[i]-s.t[i-1]);
+  const md=median(dt);
+  if(md>0){
+    const back=[];
+    for(let i=0;i<dt.length;i++) if(dt[i]<=0) back.push(i);
+    if(back.length)
+      add('err','Time goes backwards',
+        `${back.length} sample(s) are not later than the one before. `+
+        `Timestamps should be monotonic.`,
+        s.t[back[0]], s.t[Math.min(n-1,back[0]+1)]);
+
+    // a gap is a missing sample, not jitter: 1.8x the median period
+    const gaps=[];
+    for(let i=0;i<dt.length;i++) if(dt[i]>md*1.8) gaps.push(i);
+    if(gaps.length){
+      const worst=gaps.reduce((a,b)=>dt[b]>dt[a]?b:a,gaps[0]);
+      const missed=gaps.reduce((acc,i)=>acc+Math.round(dt[i]/md)-1,0);
+      add(gaps.length>n*0.01?'err':'warn','Gaps in the sample stream',
+        `${gaps.length} interval(s) longer than 1.8x the median of `+
+        `${(md*1000).toFixed(1)} ms, about ${missed} missing sample(s). `+
+        `Worst is ${(dt[worst]*1000).toFixed(0)} ms at t=${s.t[worst].toFixed(2)}s.`,
+        s.t[worst]-md*5, s.t[worst+1]+md*5);
+    }
+    const jitter=robustSd(dt)*1000;
+    if(jitter>md*1000*0.25)
+      add('warn','High timing jitter',
+        `Interval scatter is ${jitter.toFixed(1)} ms against a `+
+        `${(md*1000).toFixed(1)} ms period.`);
+  }
+
+  /* --- frozen channels ------------------------------------------------
+     The magnetometer once repeated one value for an entire 26,586-sample
+     session because read_mag returned None every time and the caller kept
+     the last good reading. Nothing raised, and the numbers looked real. */
+  for(const k in s.ch){
+    const v=s.ch[k];
+    let run=1, best=1, bestAt=0;
+    for(let i=1;i<n;i++){
+      if(v[i]===v[i-1]){ run++; if(run>best){best=run;bestAt=i-run+1;} }
+      else run=1;
+    }
+    // pressure and temperature legitimately repeat: the barometer updates
+    // at half or a third of the sample rate in stepped mode
+    const expected=(k==='press'||k==='temp')?4:1;
+    if(best>Math.max(expected*3, 12)){
+      add(best>n*0.2?'err':'warn',`${k} is frozen`,
+        `${best} identical consecutive values starting at `+
+        `t=${s.t[bestAt].toFixed(2)}s (${(best*100/n).toFixed(1)}% of the file). `+
+        (k==='press'||k==='temp'
+          ? 'Some repetition is normal for the barometer, but not this much.'
+          : 'A sensor that stops updating keeps its last value here rather '+
+            'than reporting an error.'),
+        s.t[bestAt], s.t[Math.min(n-1,bestAt+best)]);
+    }
+  }
+
+  /* --- barometer repeat factor, reported not judged ------------------- */
+  if(has('press')){
+    let runs=[], run=1;
+    for(let i=1;i<n;i++){
+      if(s.ch.press[i]===s.ch.press[i-1]) run++;
+      else { runs.push(run); run=1; }
+    }
+    runs.push(run);
+    const rf=median(runs);
+    if(rf>=2)
+      add('info','Barometer updates slower than the sample rate',
+        `Each pressure value repeats about ${rf.toFixed(0)}x. That is the `+
+        `stepped conversion mode working as designed — pressure is fresh `+
+        `every ${rf.toFixed(0)} samples.`);
+  }
+
+  /* --- sensor-down sentinels ----------------------------------------- */
+  for(const k in s.ch){
+    const v=s.ch[k];
+    let cnt=0, first=-1, longest=0, run=0;
+    for(let i=0;i<n;i++){
+      if(isBad(k,v[i])){
+        cnt++; run++; if(first<0)first=i;
+        if(run>longest) longest=run;
+      } else run=0;
+    }
+    if(cnt)
+      add(cnt>n*0.1?'err':'warn',`${k} reports sensor-down`,
+        `${cnt} sample(s), ${(cnt*100/n).toFixed(1)}% of the file, longest `+
+        `run ${longest}. The firmware writes an unreachable value when a `+
+        `sensor fails, so these are not readings.`,
+        s.t[first], s.t[Math.min(n-1,first+longest)]);
+  }
+
+  /* --- health column agreement --------------------------------------- */
+  if(s.health.some(h=>h)){
+    const MAPS=[['IMU',['gx','gy','gz','ax','ay','az','itemp']],
+                ['Baro',['press','temp']],['Mag',['mx','my','mz']],
+                ['Flash',[]],['Vbat',['vbat']]];
+    let mismatch=0, firstAt=-1;
+    for(let i=0;i<n;i++){
+      const h=s.health[i]; if(!h||h.length<5) continue;
+      MAPS.forEach(([nm,keys],bit)=>{
+        const down=h[bit]==='0';
+        const anyBad=keys.some(k=>s.ch[k]&&isBad(k,s.ch[k][i]));
+        if(keys.length && down!==anyBad){ mismatch++; if(firstAt<0)firstAt=i; }
+      });
+    }
+    if(mismatch)
+      add('warn','Health column disagrees with the data',
+        `${mismatch} case(s) where the health string says a subsystem is up `+
+        `while its channels hold sentinels, or the reverse. First at `+
+        `t=${s.t[firstAt].toFixed(2)}s.`, s.t[firstAt], s.t[Math.min(n-1,firstAt+50)]);
+  }
+
+  /* --- pressure scale -------------------------------------------------
+     PRESS_DIV was 100 when it should have been 10, so every pressure read
+     a tenth of reality and depth came out ten times too shallow. */
+  if(has('press')){
+    const good=s.ch.press.filter(v=>!isBad('press',v));
+    if(good.length){
+      const m=median(good);
+      if(m>300&&m<1200){
+        add('ok','Pressure looks like real hPa',
+          `Median ${m.toFixed(1)} hPa, in the range of atmospheric pressure.`);
+      }else if(m>30&&m<120){
+        add('err','Pressure is about 10x too low',
+          `Median reads ${m.toFixed(2)}, but sea level is near 1013 hPa. `+
+          `This is the PRESS_DIV scaling bug: dividing by 100 instead of 10. `+
+          `Any depth computed from these values is a tenth of reality.`);
+      }else{
+        add('warn','Pressure is outside the expected range',
+          `Median ${m.toFixed(2)}. Atmospheric pressure is around 1013 hPa.`);
+      }
+    }
+  }
+
+  /* --- magnetic field magnitude --------------------------------------- */
+  if(has('mx')&&has('my')&&has('mz')){
+    const mag=[];
+    for(let i=0;i<n;i++){
+      if(isBad('mx',s.ch.mx[i])) continue;
+      mag.push(Math.hypot(s.ch.mx[i],s.ch.my[i],s.ch.mz[i]));
+    }
+    if(mag.length){
+      const m=median(mag);
+      if(m>=40&&m<=65){
+        add('ok','Magnetic field magnitude is plausible',
+          `|m| median ${m.toFixed(1)} µT, close to Earth's ~50 µT.`);
+      }else{
+        add('warn','Magnetic field is far from Earth\u2019s',
+          `|m| median ${m.toFixed(1)} µT, ${(m/52).toFixed(1)}x the ~52 µT `+
+          `expected. Something ferrous or electrically noisy was nearby. A `+
+          `calibration fitted here will not transfer, and heading from it `+
+          `will be wrong.`);
+      }
+      const sd=robustSd(mag);
+      if(sd>m*0.05)
+        add('warn','Magnetic field magnitude is unstable',
+          `Robust scatter ${sd.toFixed(2)} µT on a median of ${m.toFixed(1)}. `+
+          `|m| should barely move unless the field itself is changing.`);
+    }
+    // single-axis excursions: one axis jumps while the others hold still
+    let exc=0, firstAt=-1;
+    const axes=['mx','my','mz'];
+    const meds={}, sds={};
+    for(const k of axes){
+      const g=s.ch[k].filter(v=>!isBad(k,v));
+      meds[k]=median(g); sds[k]=Math.max(robustSd(g),1e-6);
+    }
+    for(let i=0;i<n;i++){
+      if(isBad('mx',s.ch.mx[i])) continue;
+      const z=axes.map(k=>Math.abs(s.ch[k][i]-meds[k])/sds[k]);
+      const hi=z.filter(v=>v>6).length;
+      if(hi===1){ exc++; if(firstAt<0)firstAt=i; }
+    }
+    if(exc>n*0.005)
+      add('warn','Single-axis magnetometer excursions',
+        `${exc} sample(s), ${(exc*100/n).toFixed(1)}%, where one axis jumps `+
+        `more than 6 robust sd while the other two stay put. A real field `+
+        `change moves all three together, so these are disturbances rather `+
+        `than motion.`, s.t[firstAt], s.t[Math.min(n-1,firstAt+100)]);
+  }
+
+  /* --- accelerometer magnitude ---------------------------------------- */
+  if(has('ax')&&has('ay')&&has('az')&&has('gx')){
+    const still=[], all=[];
+    for(let i=0;i<n;i++){
+      if(isBad('ax',s.ch.ax[i])) continue;
+      const a=Math.hypot(s.ch.ax[i],s.ch.ay[i],s.ch.az[i]);
+      all.push(a);
+      const w=Math.hypot(s.ch.gx[i],s.ch.gy[i],s.ch.gz[i]);
+      if(w<2) still.push(a);           // deg/s: essentially stationary
+    }
+    if(still.length>n*0.2){
+      const m=median(still);
+      if(Math.abs(m-1)>0.05)
+        add('warn','Accelerometer magnitude is off',
+          `|a| median ${m.toFixed(4)} g while stationary, ${((m-1)*1000).toFixed(0)} `+
+          `mg from 1 g. That is a scale or bias error, and six-position `+
+          `calibration is what fixes it.`);
+      else
+        add('ok','Accelerometer magnitude is good',
+          `|a| median ${m.toFixed(4)} g while stationary, `+
+          `${(robustSd(still)*1000).toFixed(2)} mg scatter.`);
+    }
+  }
+
+  /* --- saturation ------------------------------------------------------ */
+  const LIMIT={ax:2,ay:2,az:2,gx:245,gy:245,gz:245};
+  for(const k in LIMIT){
+    if(!has(k)) continue;
+    let c=0,first=-1;
+    for(let i=0;i<n;i++){
+      const v=s.ch[k][i];
+      if(isBad(k,v)) continue;
+      if(Math.abs(v)>=LIMIT[k]*0.995){ c++; if(first<0)first=i; }
+    }
+    if(c)
+      add(c>n*0.01?'err':'warn',`${k} is saturating`,
+        `${c} sample(s) at or beyond the ±${LIMIT[k]} full scale. The sensor `+
+        `cannot report what actually happened here; the range needs raising.`,
+        s.t[first], s.t[Math.min(n-1,first+50)]);
+  }
+
+  /* --- battery --------------------------------------------------------- */
+  if(has('vbat')){
+    const g=[];
+    for(let i=0;i<n;i++) if(!isBad('vbat',s.ch.vbat[i])) g.push({t:s.t[i],v:s.ch.vbat[i]});
+    if(g.length>10){
+      const lo=Math.min(...g.map(x=>x.v));
+      if(lo<3.4)
+        add(lo<3.2?'err':'warn','Battery ran low',
+          `Minimum ${lo.toFixed(3)} V. Below about 3.4 V a lithium cell is `+
+          `nearly empty, and under 3.0 V it is being damaged.`);
+      let jumps=0, firstAt=-1;
+      for(let i=1;i<g.length;i++){
+        if(Math.abs(g[i].v-g[i-1].v)>0.15){ jumps++; if(firstAt<0)firstAt=i; }
+      }
+      if(jumps)
+        add('warn','Battery voltage jumps',
+          `${jumps} step(s) larger than 150 mV between consecutive samples. `+
+          `A cell does not move that fast; suspect the divider or the ADC.`,
+          g[firstAt].t-1, g[firstAt].t+1);
+    }
+  }
+
+  if(!out.some(o=>o.sev==='err'||o.sev==='warn'))
+    add('ok','No problems found','Every check passed on this file.');
+  const rank={err:0,warn:1,info:2,ok:3};
+  out.sort((a,b)=>rank[a.sev]-rank[b.sev]);
+  return out;
+}
+
+function renderIssues(list){
+  const box=$('issues'); box.innerHTML='';
+  const e=list.filter(i=>i.sev==='err').length;
+  const w=list.filter(i=>i.sev==='warn').length;
+  $('issueCount').textContent =
+    e||w ? `— ${e} error${e===1?'':'s'}, ${w} warning${w===1?'':'s'}` : '— all clear';
+  $('issueCount').style.color = e? 'var(--bad)' : (w? 'var(--warn)' : '');
+  for(const i of list){
+    const d=document.createElement('div');
+    d.className='iss '+i.sev;
+    d.innerHTML=`<div class="sev">${i.sev}</div>
+      <div><b>${i.title}</b><div class="det">${i.detail||''}</div></div><div></div>`;
+    if(i.t0!==undefined){
+      const b=document.createElement('button');
+      b.textContent='show';
+      b.onclick=()=>{
+        const pad=Math.max((i.t1-i.t0)*0.3, 0.5);
+        view={t0:Math.max(full.t0,i.t0-pad), t1:Math.min(full.t1,i.t1+pad)};
+        if(view.t1<=view.t0) view={...full};
+        draw();
+        $('plots').scrollIntoView({behavior:'smooth',block:'start'});
+      };
+      d.lastElementChild.appendChild(b);
+    }
+    box.appendChild(d);
+  }
+  $('issuesCard').hidden=false;
+}
+
 /* ── display ───────────────────────────────────────────────────────── */
 function meta(msg,cls){
   $('meta').innerHTML = cls? `<span class="${cls}">${msg}</span>` : msg;
@@ -338,6 +678,7 @@ function show(s){
 
   buildChips();
   $('ctlCard').hidden=false;
+  renderIssues(runChecks(s));
   buildPlots();
 }
 
