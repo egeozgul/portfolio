@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Logger data viewer</title>
+<style>
+  :root{
+    --bg:#0e141a; --panel:#141c24; --edge:#2a3743;
+    --ink:#e8eff5; --dim:#7c8fa0; --warn:#ffb020; --bad:#ff8080;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:16px;background:var(--bg);color:var(--ink);
+    font-family:var(--sans);font-size:13px;
+  }
+  h1{font-size:16px;font-weight:600;margin:0 0 3px}
+  .sub{color:var(--dim);font-size:12px;margin-bottom:14px}
+
+  .card{
+    background:var(--panel);border:1px solid var(--edge);border-radius:9px;
+    padding:13px;margin-bottom:13px;
+  }
+  .lbl{
+    font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--dim);font-weight:600;
+  }
+  .row{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:9px}
+
+  button,select,input[type=text]{
+    padding:6px 12px;border-radius:6px;border:1px solid var(--edge);
+    background:#1b242e;color:var(--ink);font-size:12px;cursor:pointer;
+    font-family:inherit;
+  }
+  button:hover:not(:disabled){background:#22303c}
+  button:disabled{opacity:.4;cursor:default}
+  button.on{background:#1d3a52;border-color:#2f6b93}
+  input[type=file]{display:none}
+  .drop{
+    border:1.5px dashed var(--edge);border-radius:9px;padding:26px;
+    text-align:center;color:var(--dim);cursor:pointer;transition:.15s;
+  }
+  .drop:hover,.drop.over{border-color:#3d7dd8;background:#131c26;color:var(--ink)}
+
+  .meta{
+    font-family:var(--mono);font-size:11px;color:var(--dim);
+    margin-top:9px;line-height:1.65;white-space:pre-wrap;
+  }
+  .warn{color:var(--warn)} .bad{color:var(--bad)}
+
+  .chans{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .chip{
+    padding:4px 10px;border-radius:20px;border:1px solid var(--edge);
+    background:#1b242e;font-family:var(--mono);font-size:11px;cursor:pointer;
+    user-select:none;
+  }
+  .chip.on{background:#1d3a52;border-color:#3d7dd8;color:#cfe6ff}
+
+  .plots{display:grid;gap:11px}
+  .plot{
+    background:var(--panel);border:1px solid var(--edge);border-radius:9px;
+    padding:10px;
+  }
+  .ptitle{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:12px;font-weight:600;
+  }
+  .ptitle span{font-family:var(--mono);font-size:10px;color:var(--dim)}
+  canvas{display:block;width:100%;cursor:crosshair}
+  .tseries{height:150px}
+  .hist{height:150px}
+  .pair{display:grid;grid-template-columns:1fr 300px;gap:10px}
+  @media(max-width:820px){.pair{grid-template-columns:1fr}}
+
+  .hint{font-size:11px;color:var(--dim);margin-top:7px;line-height:1.6}
+  .stats{
+    font-family:var(--mono);font-size:10px;color:var(--dim);
+    margin-top:6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));
+    gap:2px 10px;
+  }
+  .stats b{color:var(--ink);font-weight:500}
+</style>
+
+<h1>Logger data viewer</h1>
+<div class="sub">Drop a CSV or a ZIP export. Everything runs locally in the browser.</div>
+
+<div class="card">
+  <div class="lbl">File</div>
+  <div class="drop" id="drop">
+    <div><b>Click to choose</b>, or drop a file here</div>
+    <div style="margin-top:5px;font-size:11px">
+      a session CSV, a plain CSV, or the whole ZIP export
+    </div>
+  </div>
+  <input type="file" id="file" accept=".csv,.zip,.txt">
+  <div class="row" id="sessRow" hidden>
+    <span class="lbl">Session</span>
+    <select id="sessSel"></select>
+  </div>
+  <div class="meta" id="meta"></div>
+</div>
+
+<div class="card" id="ctlCard" hidden>
+  <div class="lbl">Channels</div>
+  <div class="chans" id="chans"></div>
+  <div class="row">
+    <button id="btnAll">All</button>
+    <button id="btnNone">None</button>
+    <button id="btnReset">Reset zoom</button>
+    <button id="btnLink" class="on">Linked X</button>
+    <button id="btnRaw">Show excluded</button>
+    <span class="lbl" id="rangeLbl"></span>
+  </div>
+  <div class="hint">
+    Drag to pan · wheel or pinch to zoom · drag on the histogram to select a
+    value range · double-click to reset. The histogram shows only what is
+    inside the current time window, so zooming the trace re-bins it.
+  </div>
+</div>
+
+<div class="plots" id="plots"></div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+
+/* ── channel definitions ───────────────────────────────────────────────
+   Units come from the logger's own CSV columns. health is categorical,
+   not numeric, so it is handled separately rather than plotted. */
+const CHAN=[
+  {k:'ax',u:'g',c:'#ff6b6b'},   {k:'ay',u:'g',c:'#51cf66'},   {k:'az',u:'g',c:'#4dabf7'},
+  {k:'gx',u:'°/s',c:'#ffa94d'}, {k:'gy',u:'°/s',c:'#a9e34b'}, {k:'gz',u:'°/s',c:'#66d9e8'},
+  {k:'press',u:'hPa',c:'#c084fc'}, {k:'temp',u:'°C',c:'#ffd43b'},
+  {k:'mx',u:'µT',c:'#f783ac'}, {k:'my',u:'µT',c:'#38d9a9'}, {k:'mz',u:'µT',c:'#748ffc'},
+  {k:'itemp',u:'°C',c:'#ffc078'}, {k:'vbat',u:'V',c:'#8ce99a'},
+];
+const BY_KEY=Object.fromEntries(CHAN.map(c=>[c.k,c]));
+
+/* Sentinels the firmware writes when a sensor is down. Plotting them would
+   drag every axis to -32768/75 and hide the real data, so they are excluded
+   from the traces and the statistics by default -- but counted and reported,
+   because silently dropping data is how you end up trusting a bad export. */
+const SENTINEL={
+  ax:-2, ay:-2, az:-2,                    // -32768/16384
+  gx:-286.72, gy:-286.72, gz:-286.72,     // -32768*0.00875
+  mx:-436.9, my:-436.9, mz:-436.9,        // -32768/75
+  itemp:-103, temp:-327.68, press:-0.01, vbat:0,
+};
+function isBad(k,v){
+  if(!isFinite(v)) return true;
+  const s=SENTINEL[k];
+  if(s===undefined) return false;
+  if(k==='vbat') return v===0;
+  if(k==='press') return v<0;
+  return Math.abs(v-s)<Math.abs(s)*0.001+1e-6;
+}
+
+let data=null;          // {t:[], ch:{k:[]}, meta:{}, health:[]}
+let sessions=[];        // parsed sessions from a zip
+let active=new Set(['ax','ay','az','gx','gy','gz']);
+let view=null;          // {t0,t1} current x window
+let full=null;          // full extent
+let linked=true, showBad=false;
+let valSel={};          // per-channel value-range selection from the histogram
+
+/* ── file loading ──────────────────────────────────────────────────── */
+$('drop').onclick=()=>$('file').click();
+$('file').onchange=e=>{ if(e.target.files[0]) load(e.target.files[0]); };
+['dragover','dragenter'].forEach(ev=>$('drop').addEventListener(ev,e=>{
+  e.preventDefault(); $('drop').classList.add('over');
+}));
+['dragleave','drop'].forEach(ev=>$('drop').addEventListener(ev,e=>{
+  e.preventDefault(); $('drop').classList.remove('over');
+}));
+$('drop').addEventListener('drop',e=>{
+  const f=e.dataTransfer.files[0]; if(f) load(f);
+});
+
+async function load(file){
+  meta('Reading '+file.name+' …');
+  try{
+    if(/\.zip$/i.test(file.name)){
+      sessions=await readZip(file);
+      if(!sessions.length){ meta('No session CSVs found in that ZIP.','bad'); return; }
+      $('sessRow').hidden=false;
+      $('sessSel').innerHTML=sessions.map((s,i)=>
+        `<option value="${i}">${s.label}</option>`).join('');
+      $('sessSel').onchange=()=>show(sessions[+$('sessSel').value]);
+      show(sessions[0]);
+    }else{
+      const txt=await file.text();
+      const s=parseCsv(txt, file.name);
+      if(!s){ meta('Could not find a data table in that file.','bad'); return; }
+      sessions=[s]; $('sessRow').hidden=true;
+      show(s);
+    }
+  }catch(err){
+    meta('Failed: '+err.message,'bad');
+  }
+}
+
+/* Minimal ZIP reader: central directory walk, STORE and DEFLATE only.
+   DEFLATE is handed to DecompressionStream, which every current browser
+   has -- no library, no CDN, works offline. */
+async function readZip(file){
+  const buf=new Uint8Array(await file.arrayBuffer());
+  const dv=new DataView(buf.buffer);
+  // find End Of Central Directory, scanning back from the tail
+  let eocd=-1;
+  for(let i=buf.length-22;i>=Math.max(0,buf.length-66000);i--){
+    if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; }
+  }
+  if(eocd<0) throw new Error('not a ZIP file (no end-of-central-directory)');
+  const count=dv.getUint16(eocd+10,true);
+  let p=dv.getUint32(eocd+16,true);
+  const out=[];
+  for(let i=0;i<count;i++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true);
+    const csize=dv.getUint32(p+20,true);
+    const nlen=dv.getUint16(p+28,true);
+    const elen=dv.getUint16(p+30,true);
+    const clen=dv.getUint16(p+32,true);
+    const lho=dv.getUint32(p+42,true);
+    const name=new TextDecoder().decode(buf.subarray(p+46,p+46+nlen));
+    p+=46+nlen+elen+clen;
+    if(!/\.csv$/i.test(name)) continue;
+    // local header tells us where the payload really starts
+    const ln=dv.getUint16(lho+26,true), le=dv.getUint16(lho+28,true);
+    const start=lho+30+ln+le;
+    const raw=buf.subarray(start,start+csize);
+    let text;
+    if(method===0){
+      text=new TextDecoder().decode(raw);
+    }else if(method===8){
+      const ds=new DecompressionStream('deflate-raw');
+      const ab=await new Response(new Blob([raw]).stream().pipeThrough(ds)).arrayBuffer();
+      text=new TextDecoder().decode(ab);
+    }else{
+      continue;                       // unsupported compression, skip quietly
+    }
+    const s=parseCsv(text,name);
+    if(s) out.push(s);
+  }
+  // index.csv has no t_s column so parseCsv rejects it; sessions sort naturally
+  out.sort((a,b)=>a.name.localeCompare(b.name));
+  return out;
+}
+
+/* ── CSV parsing ───────────────────────────────────────────────────── */
+function parseCsv(text,name){
+  const lines=text.split(/\r?\n/);
+  const meta={};
+  let hi=-1;
+  for(let i=0;i<lines.length;i++){
+    const l=lines[i];
+    if(l.startsWith('#')){
+      const m=l.slice(1).trim().match(/^([^=]+)=(.*)$/);
+      if(m) meta[m[1].trim()]=m[2].trim();
+      continue;
+    }
+    if(l.trim()==='') continue;
+    hi=i; break;                       // first non-comment line is the header
+  }
+  if(hi<0) return null;
+  const cols=lines[hi].split(',').map(s=>s.trim());
+  const ti=cols.indexOf('t_s');
+  if(ti<0) return null;                // not a data table (index.csv lands here)
+
+  const idx={}, ch={};
+  cols.forEach((c,i)=>{
+    if(BY_KEY[c]){ idx[c]=i; ch[c]=[]; }
+  });
+  const hIdx=cols.findIndex(c=>c==='health_IBMFV'||c==='health');
+  const t=[], health=[];
+  let bad=0;
+  for(let i=hi+1;i<lines.length;i++){
+    const l=lines[i];
+    if(!l || l[0]==='#') continue;
+    const p=l.split(',');
+    const tv=parseFloat(p[ti]);
+    if(!isFinite(tv)){ bad++; continue; }
+    t.push(tv);
+    for(const k in idx) ch[k].push(parseFloat(p[idx[k]]));
+    health.push(hIdx>=0 ? (p[hIdx]||'').trim() : '');
+  }
+  if(!t.length) return null;
+  return {name, label:labelFor(name,meta,t.length), meta, t, ch, health,
+          malformed:bad};
+}
+
+function labelFor(name,meta,n){
+  const s=meta.session? 'Session '+meta.session : name.replace(/^.*\//,'');
+  const note=meta.note? ' — '+meta.note : '';
+  const kind=meta.type? ' ('+meta.type+')' : '';
+  return `${s}${kind}${note} · ${n.toLocaleString()} rows`;
+}
+
+/* ── display ───────────────────────────────────────────────────────── */
+function meta(msg,cls){
+  $('meta').innerHTML = cls? `<span class="${cls}">${msg}</span>` : msg;
+}
+
+function show(s){
+  data=s;
+  full={t0:s.t[0], t1:s.t[s.t.length-1]};
+  view={...full};
+  valSel={};
+
+  const dur=full.t1-full.t0;
+  const hz=s.t.length>1 ? (s.t.length-1)/dur : 0;
+  const lines=[];
+  lines.push(`${s.t.length.toLocaleString()} rows · ${dur.toFixed(1)} s · `+
+             `${hz.toFixed(2)} Hz mean`);
+  if(s.meta.started_local) lines.push('started '+s.meta.started_local);
+  if(s.meta.complete==='false')
+    lines.push(`<span class="bad">INCOMPLETE: ${s.meta.records} of `+
+               `${s.meta.records_expected} records</span>`);
+  if(s.malformed)
+    lines.push(`<span class="warn">${s.malformed} unparsable line(s) skipped</span>`);
+
+  // sentinel census, per channel
+  const nbad={}; let anyBad=false;
+  for(const k in s.ch){
+    let n=0; for(const v of s.ch[k]) if(isBad(k,v)) n++;
+    if(n){ nbad[k]=n; anyBad=true; }
+  }
+  if(anyBad){
+    lines.push('<span class="warn">sensor-down samples excluded: '+
+      Object.entries(nbad).map(([k,n])=>
+        `${k} ${n} (${(n*100/s.t.length).toFixed(1)}%)`).join(', ')+'</span>');
+  }
+  // health column, if present
+  const hbad=s.health.filter(h=>h && h!=='11111').length;
+  if(hbad) lines.push(`<span class="warn">health column: ${hbad} row(s) `+
+                      `not 11111</span>`);
+  meta(lines.join('\n'));
+
+  buildChips();
+  $('ctlCard').hidden=false;
+  buildPlots();
+}
+
+function buildChips(){
+  const box=$('chans'); box.innerHTML='';
+  for(const c of CHAN){
+    if(!data.ch[c.k]) continue;
+    const d=document.createElement('div');
+    d.className='chip'+(active.has(c.k)?' on':'');
+    d.style.borderColor=active.has(c.k)?c.c:'';
+    d.textContent=c.k;
+    d.onclick=()=>{
+      active.has(c.k)?active.delete(c.k):active.add(c.k);
+      buildChips(); buildPlots();
+    };
+    box.appendChild(d);
+  }
+}
+$('btnAll').onclick=()=>{ active=new Set(Object.keys(data.ch)); buildChips(); buildPlots(); };
+$('btnNone').onclick=()=>{ active.clear(); buildChips(); buildPlots(); };
+$('btnReset').onclick=()=>{ view={...full}; valSel={}; draw(); };
+$('btnLink').onclick=()=>{ linked=!linked; $('btnLink').classList.toggle('on',linked); };
+$('btnRaw').onclick=()=>{ showBad=!showBad; $('btnRaw').classList.toggle('on',showBad); draw(); };
+
+/* ── plot construction ─────────────────────────────────────────────── */
+let plots=[];
+function buildPlots(){
+  const host=$('plots'); host.innerHTML=''; plots=[];
+  for(const c of CHAN){
+    if(!active.has(c.k) || !data.ch[c.k]) continue;
+    const card=document.createElement('div');
+    card.className='plot';
+    card.innerHTML=
+      `<div class="ptitle"><div>${c.k}<span> ${c.u}</span></div>
+         <span id="rd_${c.k}"></span></div>
+       <div class="pair">
+         <canvas class="tseries" id="ts_${c.k}"></canvas>
+         <canvas class="hist" id="hs_${c.k}"></canvas>
+       </div>
+       <div class="stats" id="st_${c.k}"></div>`;
+    host.appendChild(card);
+    plots.push(c.k);
+    wire(c.k);
+  }
+  draw();
+}
+
+/* ── interaction ───────────────────────────────────────────────────── */
+function wire(k){
+  const ts=$('ts_'+k), hs=$('hs_'+k);
+
+  // time series: drag to pan, wheel to zoom, double-click to reset
+  let drag=null;
+  ts.addEventListener('pointerdown',e=>{
+    ts.setPointerCapture(e.pointerId);
+    drag={x:e.offsetX, t0:view.t0, t1:view.t1};
+  });
+  ts.addEventListener('pointermove',e=>{
+    const box=plotBox(ts);
+    if(drag){
+      const span=drag.t1-drag.t0;
+      const dt=-(e.offsetX-drag.x)/box.w*span;
+      let a=drag.t0+dt, b=drag.t1+dt;
+      if(a<full.t0){ b+=full.t0-a; a=full.t0; }
+      if(b>full.t1){ a-=b-full.t1; b=full.t1; }
+      view={t0:Math.max(full.t0,a), t1:Math.min(full.t1,b)};
+      draw();
+    }else{
+      readout(k,e.offsetX,box);
+    }
+  });
+  ts.addEventListener('pointerup',e=>{ drag=null; });
+  ts.addEventListener('pointerleave',()=>{ $('rd_'+k).textContent=''; });
+  ts.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const box=plotBox(ts);
+    const frac=Math.min(1,Math.max(0,(e.offsetX-box.l)/box.w));
+    const span=view.t1-view.t0;
+    const f=e.deltaY>0?1.25:0.8;
+    let ns=Math.min(full.t1-full.t0, Math.max(span*f, 1e-3));
+    const anchor=view.t0+frac*span;
+    let a=anchor-frac*ns, b=a+ns;
+    if(a<full.t0){ a=full.t0; b=a+ns; }
+    if(b>full.t1){ b=full.t1; a=b-ns; }
+    view={t0:Math.max(full.t0,a), t1:Math.min(full.t1,b)};
+    draw();
+  },{passive:false});
+  ts.addEventListener('dblclick',()=>{ view={...full}; draw(); });
+
+  // histogram: drag a value range, double-click to clear
+  let hdrag=null;
+  hs.addEventListener('pointerdown',e=>{
+    hs.setPointerCapture(e.pointerId);
+    hdrag={x0:e.offsetX};
+  });
+  hs.addEventListener('pointermove',e=>{
+    if(!hdrag) return;
+    hdrag.x1=e.offsetX; drawHist(k);
+  });
+  hs.addEventListener('pointerup',e=>{
+    if(hdrag && hdrag.x1!==undefined && Math.abs(hdrag.x1-hdrag.x0)>4){
+      const box=plotBox(hs), st=chanStats(k);
+      const f0=Math.min(hdrag.x0,hdrag.x1), f1=Math.max(hdrag.x0,hdrag.x1);
+      const v0=st.min+(f0-box.l)/box.w*(st.max-st.min);
+      const v1=st.min+(f1-box.l)/box.w*(st.max-st.min);
+      valSel[k]={v0,v1};
+    }
+    hdrag=null; draw();
+  });
+  hs.addEventListener('dblclick',()=>{ delete valSel[k]; draw(); });
+}
+
+function plotBox(cv){
+  const dpr=devicePixelRatio||1;
+  const w=cv.clientWidth,h=cv.clientHeight;
+  const l=46,r=6,tp=8,b=18;
+  return {l,r,tp,b,w:w-l-r,h:h-tp-b,W:w,H:h,dpr};
+}
+
+function readout(k,x,box){
+  const st=slice(k);
+  if(!st.n) return;
+  const frac=(x-box.l)/box.w;
+  const t=view.t0+frac*(view.t1-view.t0);
+  let best=0,bd=Infinity;
+  for(let i=0;i<st.t.length;i++){
+    const d=Math.abs(st.t[i]-t);
+    if(d<bd){bd=d;best=i;}
+  }
+  $('rd_'+k).textContent=`t=${st.t[best].toFixed(3)}s  ${st.v[best].toFixed(4)}`;
+}
+
+/* ── data slicing ──────────────────────────────────────────────────── */
+function slice(k){
+  const T=data.t, V=data.ch[k];
+  const t=[],v=[];
+  const sel=valSel[k];
+  for(let i=0;i<T.length;i++){
+    if(T[i]<view.t0||T[i]>view.t1) continue;
+    const val=V[i];
+    const bad=isBad(k,val);
+    if(bad && !showBad) continue;
+    if(sel && (val<sel.v0||val>sel.v1)) continue;
+    t.push(T[i]); v.push(val);
+  }
+  return {t,v,n:v.length};
+}
+
+function chanStats(k){
+  const s=slice(k);
+  if(!s.n) return {n:0,min:0,max:1,mean:0,sd:0,med:0};
+  let mn=Infinity,mx=-Infinity,sum=0;
+  for(const x of s.v){ if(x<mn)mn=x; if(x>mx)mx=x; sum+=x; }
+  const mean=sum/s.n;
+  let ss=0; for(const x of s.v) ss+=(x-mean)*(x-mean);
+  const sd=Math.sqrt(ss/Math.max(1,s.n-1));
+  const sorted=s.v.slice().sort((a,b)=>a-b);
+  const med=sorted[sorted.length>>1];
+  if(mx===mn){ mx=mn+1e-6; }
+  return {n:s.n,min:mn,max:mx,mean,sd,med,sorted,slice:s};
+}
+
+/* ── drawing ───────────────────────────────────────────────────────── */
+function draw(){
+  $('rangeLbl').textContent=
+    `${view.t0.toFixed(2)} – ${view.t1.toFixed(2)} s  `+
+    `(${(view.t1-view.t0).toFixed(2)} s of ${(full.t1-full.t0).toFixed(1)})`;
+  for(const k of plots){ drawSeries(k); drawHist(k); drawStats(k); }
+}
+
+function prep(cv){
+  const box=plotBox(cv);
+  if(cv.width!==box.W*box.dpr||cv.height!==box.H*box.dpr){
+    cv.width=box.W*box.dpr; cv.height=box.H*box.dpr;
+  }
+  const g=cv.getContext('2d');
+  g.setTransform(box.dpr,0,0,box.dpr,0,0);
+  g.clearRect(0,0,box.W,box.H);
+  return {g,box};
+}
+
+function grid(g,box,x0,x1,y0,y1,xf,yf){
+  g.strokeStyle='#22303c'; g.lineWidth=1;
+  g.fillStyle='#7c8fa0'; g.font='9px '+getComputedStyle(document.body).getPropertyValue('--mono');
+  for(let i=0;i<=4;i++){
+    const y=box.tp+box.h*i/4;
+    g.beginPath(); g.moveTo(box.l,y); g.lineTo(box.l+box.w,y); g.stroke();
+    g.textAlign='right'; g.textBaseline='middle';
+    g.fillText(yf(y1-(y1-y0)*i/4), box.l-5, y);
+  }
+  for(let i=0;i<=4;i++){
+    const x=box.l+box.w*i/4;
+    g.beginPath(); g.moveTo(x,box.tp); g.lineTo(x,box.tp+box.h); g.stroke();
+    g.textAlign=i===0?'left':(i===4?'right':'center'); g.textBaseline='top';
+    g.fillText(xf(x0+(x1-x0)*i/4), x, box.tp+box.h+4);
+  }
+}
+
+function drawSeries(k){
+  const cv=$('ts_'+k); if(!cv) return;
+  const {g,box}=prep(cv);
+  const st=chanStats(k);
+  if(!st.n){
+    g.fillStyle='#7c8fa0'; g.textAlign='center'; g.textBaseline='middle';
+    g.fillText('no data in this window',box.W/2,box.H/2); return;
+  }
+  const pad=(st.max-st.min)*0.08||1;
+  const y0=st.min-pad, y1=st.max+pad;
+  grid(g,box,view.t0,view.t1,y0,y1,
+       v=>v.toFixed(v>=100?0:2)+'s', v=>fmt(v));
+
+  const X=t=>box.l+(t-view.t0)/(view.t1-view.t0)*box.w;
+  const Y=v=>box.tp+(y1-v)/(y1-y0)*box.h;
+  const c=BY_KEY[k].c;
+
+  // decimate: never draw more than ~2 points per pixel column
+  const s=st.slice;
+  const budget=Math.max(1,Math.floor(s.n/(box.w*2)));
+  g.strokeStyle=c; g.lineWidth=1.1; g.beginPath();
+  let started=false;
+  for(let i=0;i<s.n;i+=budget){
+    // within each bucket keep the extremes, so spikes survive decimation
+    let lo=s.v[i],hi=s.v[i],li=i,hii=i;
+    for(let j=i;j<Math.min(s.n,i+budget);j++){
+      if(s.v[j]<lo){lo=s.v[j];li=j;}
+      if(s.v[j]>hi){hi=s.v[j];hii=j;}
+    }
+    const a=Math.min(li,hii), b=Math.max(li,hii);
+    for(const idx of (a===b?[a]:[a,b])){
+      const x=X(s.t[idx]), y=Y(s.v[idx]);
+      started? g.lineTo(x,y) : (g.moveTo(x,y), started=true);
+    }
+  }
+  g.stroke();
+
+  if(s.n<=box.w/3){
+    g.fillStyle=c;
+    for(let i=0;i<s.n;i++) g.fillRect(X(s.t[i])-1.2,Y(s.v[i])-1.2,2.4,2.4);
+  }
+  if(valSel[k]){
+    g.fillStyle='rgba(61,125,216,.10)';
+    g.fillRect(box.l,box.tp,box.w,box.h);
+  }
+}
+
+/* Histogram of the values currently in view. The individual samples are
+   drawn as a rug along the bottom, so you can see the actual points that
+   make up each bar rather than only the bar. */
+function drawHist(k){
+  const cv=$('hs_'+k); if(!cv) return;
+  const {g,box}=prep(cv);
+  const st=chanStats(k);
+  if(!st.n){
+    g.fillStyle='#7c8fa0'; g.textAlign='center'; g.textBaseline='middle';
+    g.fillText('—',box.W/2,box.H/2); return;
+  }
+  // Freedman-Diaconis where possible: robust to the outliers this data has
+  const q=p=>st.sorted[Math.min(st.sorted.length-1,Math.floor(p*st.sorted.length))];
+  const iqr=q(0.75)-q(0.25);
+  let bins = iqr>0
+    ? Math.ceil((st.max-st.min)/(2*iqr/Math.cbrt(st.n)))
+    : Math.ceil(Math.sqrt(st.n));
+  bins=Math.max(6,Math.min(60,bins||10));
+
+  const w=(st.max-st.min)/bins;
+  const h=new Array(bins).fill(0);
+  for(const v of st.slice.v){
+    let b=Math.floor((v-st.min)/w);
+    if(b<0)b=0; if(b>=bins)b=bins-1;
+    h[b]++;
+  }
+  const peak=Math.max(...h);
+  grid(g,box,st.min,st.max,0,peak,v=>fmt(v),v=>Math.round(v));
+
+  const c=BY_KEY[k].c;
+  const X=v=>box.l+(v-st.min)/(st.max-st.min)*box.w;
+  const bw=box.w/bins;
+  for(let i=0;i<bins;i++){
+    const x=box.l+i*bw, hh=h[i]/peak*box.h;
+    g.fillStyle=c+'55';
+    g.fillRect(x+0.5,box.tp+box.h-hh,Math.max(1,bw-1),hh);
+    g.strokeStyle=c+'aa'; g.lineWidth=1;
+    g.strokeRect(x+0.5,box.tp+box.h-hh,Math.max(1,bw-1),hh);
+  }
+
+  // rug: one tick per sample, so the individual data points are visible
+  g.strokeStyle=c+'40'; g.lineWidth=1;
+  const step=Math.max(1,Math.floor(st.n/1200));
+  g.beginPath();
+  for(let i=0;i<st.n;i+=step){
+    const x=X(st.slice.v[i]);
+    g.moveTo(x,box.tp+box.h); g.lineTo(x,box.tp+box.h-5);
+  }
+  g.stroke();
+
+  // mean and ±1 sd
+  const mx=X(st.mean);
+  g.strokeStyle='#ffffff88'; g.lineWidth=1.2;
+  g.beginPath(); g.moveTo(mx,box.tp); g.lineTo(mx,box.tp+box.h); g.stroke();
+  g.strokeStyle='#ffffff33'; g.setLineDash([3,3]);
+  for(const s of [-1,1]){
+    const x=X(st.mean+s*st.sd);
+    if(x>box.l&&x<box.l+box.w){
+      g.beginPath(); g.moveTo(x,box.tp); g.lineTo(x,box.tp+box.h); g.stroke();
+    }
+  }
+  g.setLineDash([]);
+
+  // live selection rectangle
+  const cvEl=$('hs_'+k);
+  if(valSel[k]){
+    const a=X(valSel[k].v0), b=X(valSel[k].v1);
+    g.fillStyle='rgba(61,125,216,.14)';
+    g.fillRect(Math.min(a,b),box.tp,Math.abs(b-a),box.h);
+    g.strokeStyle='#3d7dd8'; g.strokeRect(Math.min(a,b),box.tp,Math.abs(b-a),box.h);
+  }
+}
+
+function drawStats(k){
+  const st=chanStats(k);
+  const u=BY_KEY[k].u;
+  const el=$('st_'+k); if(!el) return;
+  if(!st.n){ el.innerHTML='<span>no samples in view</span>'; return; }
+  const parts=[
+    ['n',st.n.toLocaleString()],
+    ['mean',fmt(st.mean)+' '+u],
+    ['median',fmt(st.med)+' '+u],
+    ['sd',fmt(st.sd)+' '+u],
+    ['min',fmt(st.min)+' '+u],
+    ['max',fmt(st.max)+' '+u],
+    ['range',fmt(st.max-st.min)+' '+u],
+  ];
+  if(valSel[k]) parts.push(['filter',fmt(valSel[k].v0)+'…'+fmt(valSel[k].v1)]);
+  el.innerHTML=parts.map(([a,b])=>`<span>${a} <b>${b}</b></span>`).join('');
+}
+
+function fmt(v){
+  const a=Math.abs(v);
+  if(a===0) return '0';
+  if(a>=1000) return v.toFixed(0);
+  if(a>=10) return v.toFixed(2);
+  if(a>=0.1) return v.toFixed(3);
+  return v.toPrecision(3);
+}
+
+addEventListener('resize',()=>{ if(data) draw(); });
+</script>
