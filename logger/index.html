@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -740,6 +739,12 @@ let recording=false, windowSec=60, split=false;
 let logForeign=false, streamOn=true, verifying=false;
 let erasing=false, erasePct=0, streamAsked=null, storedRecords=0;
 let sessionsList=[], sessionCount=0, dataSession=null, devicePeriodMs=0;
+// The index arrives as a burst of 0x50 frames terminated by 0x51. It is
+// accumulated here and only published to sessionsList on the terminator, so
+// a second request cannot wipe a transfer that is still arriving -- which is
+// exactly what happened on connect, where requestIndex() and the first
+// status frame both fired one and the two transfers interleaved.
+let sessionsPending=null, indexTimer=null;
 let lastDumpSent=0;
 let rateWarned=false, capacityKb=0, lastSampleAt=0;
 // declared here rather than beside makeProgress(): the frame handler
@@ -801,6 +806,23 @@ function handle(f){
     // thousands of records and a session-level bar would sit still
     if(exportProg) exportProg.onRecord();
   }
+  // Batched dump: [0x22][count][record * count]. The firmware fills the MTU
+  // rather than sending one record per notification -- BLE is limited by
+  // packets per second, not bytes -- so this is the frame a dump actually
+  // arrives in. 0x20 above is the old one-record form, kept so older
+  // firmware still reads.
+  else if(type===0x22 && f.length>=2){
+    const want=f[1];
+    const have=Math.floor((f.length-2)/REC_SIZE);
+    const n=Math.min(want,have);
+    // a truncated frame would otherwise decode past the end of the buffer
+    if(n<want)
+      log(`Short dump frame: header claims ${want} records, ${n} present.`,'err');
+    for(let i=0;i<n;i++){
+      dumped.push(decodeRec(f,2+i*REC_SIZE));
+      if(exportProg) exportProg.onRecord();
+    }
+  }
   else if(type===0x21){
     // the board reports how many records it actually sent; a mismatch means
     // the transfer was truncated, which used to be silent
@@ -824,8 +846,11 @@ function handle(f){
     }
   }
   else if(type===0x50 && f.length>=63){
+    // a 0x50 with no transfer open belongs to a request that was abandoned
+    // or timed out; taking it would rebuild a list nothing is going to close
+    if(!sessionsPending) return;
     const dv=new DataView(f.buffer,f.byteOffset,f.byteLength);
-    sessionsList.push({
+    sessionsPending.push({
       seq:dv.getUint16(1,true),
       start:dv.getUint32(3,true),
       epoch:dv.getUint32(7,true),
@@ -841,6 +866,12 @@ function handle(f){
     });
   }
   else if(type===0x51){
+    if(!sessionsPending) return;        // terminator with no transfer open
+    clearTimeout(indexTimer);
+    sessionsList=sessionsPending;
+    sessionsPending=null;
+    // so the next status frame does not immediately ask for it again
+    sessionCount=sessionsList.length;
     renderSessions();
     el('btnSessCsv').disabled=sessionsList.length===0;
     el('btnExportAll').disabled=sessionsList.length===0;
@@ -1109,6 +1140,9 @@ function onDisconnect(){
   el('mtu').textContent='—';
   chData=chCtrl=chStat=null;
   frag.data.buf=null; frag.stat.buf=null;
+  // an index transfer cannot finish across a dropped link; leaving it open
+  // would block every later request
+  sessionsPending=null; clearTimeout(indexTimer);
   memPending.clear();
   recording=false; dumpActive=false;
   resetAttitude();
@@ -1199,10 +1233,17 @@ function encodeNote(text){
   buf.set(raw.subarray(0,n));
   return Array.from(buf);
 }
+/* The firmware pads with NULs, but an index entry written by a layout that
+   predates the note field was never programmed at all and reads back as
+   erased flash. 0xFF is not legal anywhere in a UTF-8 sequence, so a
+   non-fatal decoder turned all 32 bytes into replacement characters. Strip
+   both padders, and decode strictly so anything that is not text is dropped
+   rather than rendered as a row of question marks. */
 function decodeNote(bytes){
   let end=bytes.length;
-  while(end>0 && bytes[end-1]===0) end--;
-  try{ return new TextDecoder().decode(bytes.subarray(0,end)); }
+  while(end>0 && (bytes[end-1]===0 || bytes[end-1]===0xFF)) end--;
+  if(!end) return '';
+  try{ return new TextDecoder('utf-8',{fatal:true}).decode(bytes.subarray(0,end)); }
   catch(e){ return ''; }
 }
 
@@ -1591,11 +1632,25 @@ el('btnDataClear').onclick=()=>{
 };
 el('btnDumpCsv').onclick=()=>saveCsv(dumped,'esp32-log.csv');
 
-/* ── session index ───────────────────────────────────────────────── */
+/* ── session index ───────────────────────────────────────────────────
+   One transfer at a time. sessionsList is only replaced when the 0x51
+   terminator arrives, so a request that fires while another is in flight is
+   refused rather than clearing a half-delivered list -- which is what made
+   sessions go missing on connect, where requestIndex() and the first status
+   frame each started one. */
 function requestIndex(){
-  if(!chCtrl||dumpActive||recording) return false;
-  sessionsList=[];
+  if(!chCtrl||dumpActive||recording||sessionsPending) return false;
+  sessionsPending=[];
   send(CMD.INDEX);
+  // the terminator can be lost on a busy link; without this Refresh would
+  // stay wedged for the rest of the session
+  clearTimeout(indexTimer);
+  indexTimer=setTimeout(()=>{
+    if(sessionsPending){
+      sessionsPending=null;
+      log('Session index request timed out — press Refresh.','err');
+    }
+  }, 15000);
   return true;
 }
 function fmtDur(sec){
