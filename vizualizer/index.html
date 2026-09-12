@@ -93,6 +93,7 @@
   .hb.part .fill{background:var(--warn)}
   .hb .sub{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:5px}
   .healthtl{height:132px;margin-top:12px;cursor:crosshair}
+  .tcv{height:158px;margin-top:12px}
 
   .issues{margin-top:9px;display:grid;gap:6px}
   .iss{
@@ -176,6 +177,18 @@
     red means down for that sample. Click a row to zoom the plots to its
     first failure; drag on the strip to zoom to any span.
   </div>
+</div>
+
+<div class="card" id="timingCard" hidden>
+  <div class="lbl">Sample timing <span id="timingHead"></span></div>
+  <div class="row">
+    <button id="btnLogCount">Log counts</button>
+    <button id="btnClip" class="on">Clip outliers</button>
+  </div>
+  <canvas id="tmTime" class="tcv"></canvas>
+  <canvas id="tmDt" class="tcv"></canvas>
+  <canvas id="tmHist" class="tcv"></canvas>
+  <div class="hint" id="timingHint"></div>
 </div>
 
 <div class="card" id="issuesCard" hidden>
@@ -967,6 +980,7 @@ function show(s){
   buildChips();
   $('ctlCard').hidden=false;
   renderHealth(s);
+  drawTiming();
   renderIssues(runChecks(s));
   buildPlots();
 }
@@ -1151,6 +1165,7 @@ function draw(){
         `(${Math.round(view.t1-view.t0)} of ${Math.round(full.t1-full.t0)})`;
   for(const k of plots){ drawSeries(k); drawHist(k); drawStats(k); }
   drawHealthTL();          // keeps the view bracket following the plots
+  drawTiming();            // whole-file, but canvases need redrawing on resize
 }
 
 function prep(cv){
@@ -1328,6 +1343,234 @@ function fmt(v){
   if(a>=0.1) return v.toFixed(3);
   return v.toPrecision(3);
 }
+
+/* ── sample timing ─────────────────────────────────────────────────────
+   Three views of the same thing, because each answers a question the
+   others cannot:
+
+     1. timestamp vs sample number — the shape of the recording as a whole.
+        A straight line is a steady rate; a kink is a rate change, a flat
+        stretch is a stall, and a vertical drop is a timestamp reversal,
+        which means records from a different recording are in this range.
+
+     2. interval vs sample number — WHERE the loop lost time. A gap that
+        is one sample long and a stall that is six seconds long look the
+        same in a histogram and completely different here.
+
+     3. count vs interval — HOW the intervals are distributed. A healthy
+        logger is one narrow spike at the set period. A second spike at
+        exactly twice the period means dropped samples; a long tail means
+        something in the loop occasionally overruns.
+
+   All three cover the whole file, not the current zoom window: the point
+   is to see the recording's behaviour end to end. */
+
+let logCounts=false, clipOutliers=true;
+
+function pctOf(sorted,p){
+  if(!sorted.length) return 0;
+  const i=Math.min(sorted.length-1,Math.max(0,Math.floor(p*sorted.length)));
+  return sorted[i];
+}
+
+function timingStats(){
+  const t=data.t, n=t.length;
+  if(n<2) return null;
+  const dt=new Float64Array(n-1);
+  for(let i=1;i<n;i++) dt[i-1]=(t[i]-t[i-1])*1000;      // ms
+  const sorted=Array.from(dt).sort((a,b)=>a-b);
+  const med=pctOf(sorted,0.5);
+  let neg=0, gaps=0, missed=0;
+  for(const v of dt){
+    if(v<=0) neg++;
+    else if(med>0 && v>med*1.8){ gaps++; missed+=Math.round(v/med)-1; }
+  }
+  return {dt, n, med, sorted, neg, gaps, missed,
+          p01:pctOf(sorted,0.01), p99:pctOf(sorted,0.99),
+          min:sorted[0], max:sorted[sorted.length-1]};
+}
+
+function drawTiming(){
+  const ts=timingStats();
+  if(!ts){ $('timingCard').hidden=true; return; }
+  $('timingCard').hidden=false;
+
+  const hz=ts.med>0?1000/ts.med:0;
+  $('timingHead').innerHTML =
+    `— median ${ts.med.toFixed(2)} ms (${hz.toFixed(3)} Hz)`+
+    (ts.neg?`, <span style="color:var(--bad)">${ts.neg} reversal(s)</span>`:'')+
+    (ts.gaps?`, <span style="color:var(--warn)">${ts.gaps} gap(s) `+
+             `≈ ${ts.missed} missing sample(s)</span>`:'');
+  $('timingHint').textContent =
+    `Whole file, not the zoom window. Intervals span ${ts.min.toFixed(1)} to `+
+    `${ts.max.toFixed(1)} ms. `+
+    (clipOutliers
+      ? 'The interval axis is clipped to the 1st–99th percentile so the bulk '+
+        'is readable; points outside it are drawn on the edge in orange.'
+      : 'The interval axis covers the full range, so one long stall can '+
+        'flatten everything else.');
+
+  drawTimeline(ts);
+  drawIntervals(ts);
+  drawIntervalHist(ts);
+}
+
+/* 1. timestamp vs sample number */
+function drawTimeline(ts){
+  const cv=$('tmTime'); if(!cv) return;
+  const {g,box}=prep(cv);
+  const t=data.t, n=t.length;
+  const e=extentOf(t);
+  grid(g,box,0,n-1,e.t0,e.t1,
+       v=>Math.round(v).toString(), v=>v.toFixed(v>=100?0:1)+'s');
+  const X=i=>box.l+(i/(n-1||1))*box.w;
+  const Y=v=>box.tp+(e.t1-v)/((e.t1-e.t0)||1)*box.h;
+
+  g.strokeStyle='#4dabf7'; g.lineWidth=1.2;
+  g.beginPath();
+  const step=Math.max(1,Math.floor(n/(box.w*2)));
+  let started=false;
+  for(let i=0;i<n;i+=step){
+    const x=X(i), y=Y(t[i]);
+    started? g.lineTo(x,y) : (g.moveTo(x,y), started=true);
+  }
+  g.stroke();
+
+  // mark every reversal: these are the joins between unrelated recordings
+  g.strokeStyle='#ff8080'; g.lineWidth=1;
+  for(let i=1;i<n;i++){
+    if(t[i]<t[i-1]){
+      const x=X(i);
+      g.beginPath(); g.moveTo(x,box.tp); g.lineTo(x,box.tp+box.h); g.stroke();
+    }
+  }
+  label(g,box,'timestamp vs sample number','s');
+}
+
+/* 2. interval vs sample number */
+function drawIntervals(ts){
+  const cv=$('tmDt'); if(!cv) return;
+  const {g,box}=prep(cv);
+  const dt=ts.dt, n=dt.length;
+  let lo = clipOutliers ? Math.min(0,ts.p01) : Math.min(0,ts.min);
+  let hi = clipOutliers ? Math.max(ts.p99*1.25, ts.med*2.2) : ts.max;
+  if(hi<=lo) hi=lo+1;
+  grid(g,box,0,n-1,lo,hi,v=>Math.round(v).toString(),v=>v.toFixed(1));
+
+  const X=i=>box.l+(i/(n-1||1))*box.w;
+  const Y=v=>box.tp+(hi-v)/(hi-lo)*box.h;
+
+  // the set period, so overruns are obvious against it
+  g.strokeStyle='#ffffff30'; g.setLineDash([4,3]); g.lineWidth=1;
+  const my=Y(ts.med);
+  if(my>box.tp&&my<box.tp+box.h){
+    g.beginPath(); g.moveTo(box.l,my); g.lineTo(box.l+box.w,my); g.stroke();
+  }
+  g.setLineDash([]);
+
+  // one column per pixel, keeping both extremes, so a single slow sample
+  // in a hundred thousand still shows up
+  const per=Math.max(1,Math.floor(n/box.w));
+  for(let px=0;px*per<n;px++){
+    const a=px*per, b=Math.min(n,a+per);
+    let mn=Infinity,mx=-Infinity,over=false,under=false;
+    for(let i=a;i<b;i++){
+      const v=dt[i];
+      if(v<mn)mn=v; if(v>mx)mx=v;
+      if(v>hi) over=true;
+      if(v<lo) under=true;
+    }
+    const x=box.l+(a/(n-1||1))*box.w;
+    const y0=Y(Math.max(lo,Math.min(hi,mn)));
+    const y1=Y(Math.max(lo,Math.min(hi,mx)));
+    g.strokeStyle= (over||under) ? '#ffb020' : '#a9e34b';
+    g.lineWidth=1;
+    g.beginPath();
+    g.moveTo(x,Math.min(y0,y1)); g.lineTo(x,Math.max(y0,y1)+0.8);
+    g.stroke();
+  }
+
+  // reversals sit below zero and are the one thing that must not be missed
+  if(ts.neg){
+    g.fillStyle='#ff8080';
+    for(let i=0;i<n;i++){
+      if(dt[i]>0) continue;
+      g.fillRect(box.l+(i/(n-1||1))*box.w-1, box.tp+box.h-3, 2, 3);
+    }
+  }
+  label(g,box,'interval vs sample number','ms');
+}
+
+/* 3. count vs interval */
+function drawIntervalHist(ts){
+  const cv=$('tmHist'); if(!cv) return;
+  const {g,box}=prep(cv);
+  const lo = clipOutliers ? Math.max(0,ts.p01*0.9) : Math.max(0,ts.min);
+  const hi = clipOutliers ? Math.max(ts.p99*1.25, ts.med*2.2) : ts.max;
+  const span=(hi-lo)||1;
+  const bins=Math.max(20,Math.min(160,Math.round(box.w/5)));
+  const h=new Array(bins).fill(0);
+  let outside=0;
+  for(const v of ts.dt){
+    if(v<lo||v>hi){ outside++; continue; }
+    let b=Math.floor((v-lo)/span*bins);
+    if(b<0)b=0; if(b>=bins)b=bins-1;
+    h[b]++;
+  }
+  const peak=Math.max(...h,1);
+  const scale=v=>logCounts?Math.log10(1+v)/Math.log10(1+peak):v/peak;
+  grid(g,box,lo,hi,0,peak,v=>v.toFixed(v<10?1:0),
+       v=>logCounts?'':Math.round(v).toString());
+
+  const bw=box.w/bins;
+  for(let i=0;i<bins;i++){
+    if(!h[i]) continue;
+    const x=box.l+i*bw, hh=scale(h[i])*box.h;
+    g.fillStyle='#c084fc55';
+    g.fillRect(x+0.5,box.tp+box.h-hh,Math.max(1,bw-1),hh);
+    g.strokeStyle='#c084fcaa'; g.lineWidth=1;
+    g.strokeRect(x+0.5,box.tp+box.h-hh,Math.max(1,bw-1),hh);
+  }
+
+  // the median, and 2x it: a second spike on that line is dropped samples
+  const X=v=>box.l+(v-lo)/span*box.w;
+  for(const [v,col,txt] of [[ts.med,'#ffffff88','median'],
+                            [ts.med*2,'#ffb02088','2x']]){
+    const x=X(v);
+    if(x>box.l&&x<box.l+box.w){
+      g.strokeStyle=col; g.lineWidth=1.2; g.setLineDash([3,3]);
+      g.beginPath(); g.moveTo(x,box.tp); g.lineTo(x,box.tp+box.h); g.stroke();
+      g.setLineDash([]);
+      g.fillStyle=col; g.textAlign='center'; g.textBaseline='top';
+      g.font='9px '+getComputedStyle(document.body).getPropertyValue('--mono');
+      g.fillText(txt,x,box.tp+1);
+    }
+  }
+  label(g,box,
+    'count vs interval'+(outside?`  (${outside} outside the axis)`:''),
+    logCounts?'log count':'count');
+}
+
+function label(g,box,txt,unit){
+  g.fillStyle='#7c8fa0'; g.textAlign='left'; g.textBaseline='top';
+  g.font='10px '+getComputedStyle(document.body).getPropertyValue('--sans');
+  g.fillText(txt,box.l+2,box.tp+2);
+  if(unit){
+    g.textAlign='right';
+    g.fillText(unit,box.l+box.w-2,box.tp+2);
+  }
+}
+
+$('btnLogCount').onclick=()=>{
+  logCounts=!logCounts;
+  $('btnLogCount').classList.toggle('on',logCounts);
+  if(data) drawTiming();
+};
+$('btnClip').onclick=()=>{
+  clipOutliers=!clipOutliers;
+  $('btnClip').classList.toggle('on',clipOutliers);
+  if(data) drawTiming();
+};
 
 addEventListener('resize',()=>{ if(data) draw(); });
 </script>
