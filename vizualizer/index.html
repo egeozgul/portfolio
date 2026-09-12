@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -152,12 +153,17 @@
     <button id="btnReset">Reset zoom</button>
     <button id="btnLink" class="on">Linked X</button>
     <button id="btnRaw">Show excluded</button>
+    <button id="btnX">X: time</button>
     <span class="lbl" id="rangeLbl"></span>
   </div>
   <div class="hint">
     Drag to pan · wheel or pinch to zoom · drag on the histogram to select a
     value range · double-click to reset. The histogram shows only what is
-    inside the current time window, so zooming the trace re-bins it.
+    inside the current window, so zooming the trace re-bins it.
+    <b>X: time</b> switches between plotting against the timestamp column and
+    against row number — row number is the readable one when the timestamps
+    are not monotonic, since rows after a jump would otherwise overlay
+    earlier ones.
   </div>
 </div>
 
@@ -217,10 +223,27 @@ function isBad(k,v){
 let data=null;          // {t:[], ch:{k:[]}, meta:{}, health:[]}
 let sessions=[];        // parsed sessions from a zip
 let active=new Set(['ax','ay','az','gx','gy','gz']);
-let view=null;          // {t0,t1} current x window
-let full=null;          // full extent
+let view=null;          // {t0,t1} current x window, in the CURRENT x units
+let full=null;          // full extent, same units
 let linked=true, showBad=false;
 let valSel={};          // per-channel value-range selection from the histogram
+
+/* X axis source. 'time' plots against the t_s column, 'row' against the row
+   index. Row mode exists because a file whose timestamps jump backwards --
+   which happens when part of a log has been overwritten -- cannot be plotted
+   against time at all: rows after the jump land on top of earlier ones and
+   any window covers two unrelated stretches of the recording. */
+let xMode='time';
+const xArr=()=> xMode==='time' ? data.t : data.t.map((_,i)=>i);
+const xUnit=()=> xMode==='time' ? 's' : '';
+
+function extentOf(arr){
+  let lo=Infinity, hi=-Infinity;
+  for(const v of arr){ if(v<lo)lo=v; if(v>hi)hi=v; }
+  if(!isFinite(lo)){ lo=0; hi=1; }
+  if(hi===lo) hi=lo+1e-6;
+  return {t0:lo, t1:hi};
+}
 
 /* ── file loading ──────────────────────────────────────────────────── */
 $('drop').onclick=()=>$('file').click();
@@ -439,20 +462,30 @@ function renderHealth(s){
            : 'no failures'
        }</div>`;
     if(o.fails){
-      d.onclick=()=>{
-        const a=s.t[o.first];
-        const b=s.t[Math.min(n-1,o.first+o.longest)];
-        const pad=Math.max((b-a)*0.5,1);
-        view={t0:Math.max(full.t0,a-pad), t1:Math.min(full.t1,b+pad)};
-        draw(); drawHealthTL();
-        $('plots').scrollIntoView({behavior:'smooth',block:'start'});
-      };
+      // zoom by ROW index and convert, so this works in either x mode
+      d.onclick=()=>zoomToRows(o.first, o.first+o.longest);
     }
     box.appendChild(d);
   }
   $('healthCard').hidden=false;
   drawHealthTL();
   wireHealthTL();
+}
+
+/* Row indices are the stable way to refer to a span: they mean the same
+   thing whichever axis is on screen, and they survive a file whose
+   timestamps repeat or run backwards. */
+function zoomToRows(i0,i1){
+  const a=xArr();
+  const lo=Math.max(0,Math.min(a.length-1,i0));
+  const hi=Math.max(0,Math.min(a.length-1,i1));
+  let t0=a[lo], t1=a[hi];
+  if(t1<t0){ const s=t0; t0=t1; t1=s; }
+  const pad=Math.max((t1-t0)*0.3, xMode==='time'?0.5:2);
+  view={t0:Math.max(full.t0,t0-pad), t1:Math.min(full.t1,t1+pad)};
+  if(view.t1<=view.t0) view={...full};
+  draw();
+  $('plots').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 /* The strip is drawn over the FULL recording, not the current view, so it
@@ -494,8 +527,11 @@ function drawHealthTL(){
     }
   });
 
-  // current view bracket
-  if(view && full && (view.t1-view.t0) < (full.t1-full.t0)*0.999){
+  // current view bracket. The strip is indexed by ROW, so the bracket is
+  // only meaningful when the x axis is row number too -- in time mode a
+  // non-monotonic file would map one window to several disjoint spans.
+  if(xMode==='row' && view && full &&
+     (view.t1-view.t0) < (full.t1-full.t0)*0.999){
     const f0=(view.t0-full.t0)/(full.t1-full.t0);
     const f1=(view.t1-full.t0)/(full.t1-full.t0);
     const x0=padL+f0*w, x1=padL+f1*w;
@@ -506,8 +542,8 @@ function drawHealthTL(){
   }
 
   g.fillStyle='#7c8fa0'; g.textBaseline='top';
-  g.textAlign='left';  g.fillText(full.t0.toFixed(0)+'s', padL, padT+h+3);
-  g.textAlign='right'; g.fillText(full.t1.toFixed(0)+'s', padL+w, padT+h+3);
+  g.textAlign='left';  g.fillText('row 0', padL, padT+h+3);
+  g.textAlign='right'; g.fillText('row '+(n-1), padL+w, padT+h+3);
   g.textAlign='center';
   g.fillText('drag to zoom · double-click for the whole file', padL+w/2, padT+h+3);
 }
@@ -517,10 +553,10 @@ function wireHealthTL(){
   if(cv._wired) return;
   cv._wired=true;
   let d=null;
-  const xToT=x=>{
+  const xToRow=x=>{
     const padL=52,padR=8,w=cv.clientWidth-padL-padR;
     const f=Math.min(1,Math.max(0,(x-padL)/w));
-    return full.t0+f*(full.t1-full.t0);
+    return Math.round(f*(hInfo.n-1));
   };
   cv.addEventListener('pointerdown',e=>{
     cv.setPointerCapture(e.pointerId); d={x0:e.offsetX};
@@ -536,8 +572,7 @@ function wireHealthTL(){
   });
   cv.addEventListener('pointerup',e=>{
     if(d && d.x1!==undefined && Math.abs(d.x1-d.x0)>4){
-      const a=xToT(Math.min(d.x0,d.x1)), b=xToT(Math.max(d.x0,d.x1));
-      view={t0:a,t1:b}; draw(); drawHealthTL();
+      zoomToRows(xToRow(Math.min(d.x0,d.x1)), xToRow(Math.max(d.x0,d.x1)));
     }
     d=null;
   });
@@ -547,7 +582,11 @@ function wireHealthTL(){
 /* ── error detection ───────────────────────────────────────────────────
    Every check here exists because the fault it looks for actually happened
    during this project and cost real time to find. A check that has never
-   caught anything is noise; these have all caught something.               */
+   caught anything is noise; these have all caught something.
+
+   Spans are recorded as ROW indices rather than timestamps, so the "show"
+   buttons work on either axis and cannot be confused by a file whose
+   timestamps repeat.                                                      */
 
 function median(a){
   if(!a.length) return 0;
@@ -561,15 +600,22 @@ function robustSd(a){
 
 function runChecks(s){
   const out=[];
-  const add=(sev,title,detail,t0,t1)=>out.push({sev,title,detail,t0,t1});
+  const add=(sev,title,detail,i0,i1)=>out.push({sev,title,detail,i0,i1});
   const n=s.t.length;
   const has=k=>!!s.ch[k];
 
   /* --- export completeness ------------------------------------------ */
-  if(s.meta.complete==='false'){
+  if(s.meta.complete==='false' || s.meta.transfer_complete==='false'){
     add('err','Export is incomplete',
-      `The header says ${s.meta.records} of ${s.meta.records_expected} `+
-      `records arrived. Everything below describes only what was received.`);
+      `The header says ${s.meta.records} of `+
+      `${s.meta.records_expected||s.meta.slots_in_range} records arrived. `+
+      `Everything below describes only what was received.`);
+  }
+  if(s.meta.blank_slots && +s.meta.blank_slots>0){
+    add('warn','Blank slots in the log',
+      `${s.meta.blank_slots} slot(s) in this session's address range were `+
+      `never written to flash, so those samples do not exist. They are not `+
+      `rows in this file.`);
   }
   if(s.malformed){
     add('warn','Unparsable lines',
@@ -579,16 +625,20 @@ function runChecks(s){
   /* --- timing -------------------------------------------------------- */
   const dt=[];
   for(let i=1;i<n;i++) dt.push(s.t[i]-s.t[i-1]);
-  const md=median(dt);
-  if(md>0){
+  const md=median(dt.filter(v=>v>0));
+  {
     const back=[];
     for(let i=0;i<dt.length;i++) if(dt[i]<=0) back.push(i);
     if(back.length)
       add('err','Time goes backwards',
-        `${back.length} sample(s) are not later than the one before. `+
-        `Timestamps should be monotonic.`,
-        s.t[back[0]], s.t[Math.min(n-1,back[0]+1)]);
-
+        `${back.length} sample(s) are not later than the one before. First `+
+        `at row ${back[0]+1}: ${s.t[back[0]].toFixed(3)}s → `+
+        `${s.t[back[0]+1].toFixed(3)}s. Timestamps should be monotonic, so `+
+        `part of this range holds records from a different recording. Plot `+
+        `against row number to read it.`,
+        Math.max(0,back[0]-50), Math.min(n-1,back[0]+50));
+  }
+  if(md>0){
     // a gap is a missing sample, not jitter: 1.8x the median period
     const gaps=[];
     for(let i=0;i<dt.length;i++) if(dt[i]>md*1.8) gaps.push(i);
@@ -599,9 +649,9 @@ function runChecks(s){
         `${gaps.length} interval(s) longer than 1.8x the median of `+
         `${(md*1000).toFixed(1)} ms, about ${missed} missing sample(s). `+
         `Worst is ${(dt[worst]*1000).toFixed(0)} ms at t=${s.t[worst].toFixed(2)}s.`,
-        s.t[worst]-md*5, s.t[worst+1]+md*5);
+        Math.max(0,worst-5), Math.min(n-1,worst+6));
     }
-    const jitter=robustSd(dt)*1000;
+    const jitter=robustSd(dt.filter(v=>v>0))*1000;
     if(jitter>md*1000*0.25)
       add('warn','High timing jitter',
         `Interval scatter is ${jitter.toFixed(1)} ms against a `+
@@ -624,13 +674,13 @@ function runChecks(s){
     const expected=(k==='press'||k==='temp')?4:1;
     if(best>Math.max(expected*3, 12)){
       add(best>n*0.2?'err':'warn',`${k} is frozen`,
-        `${best} identical consecutive values starting at `+
-        `t=${s.t[bestAt].toFixed(2)}s (${(best*100/n).toFixed(1)}% of the file). `+
+        `${best} identical consecutive values starting at row ${bestAt} `+
+        `(t=${s.t[bestAt].toFixed(2)}s, ${(best*100/n).toFixed(1)}% of the file). `+
         (k==='press'||k==='temp'
           ? 'Some repetition is normal for the barometer, but not this much.'
           : 'A sensor that stops updating keeps its last value here rather '+
             'than reporting an error.'),
-        s.t[bestAt], s.t[Math.min(n-1,bestAt+best)]);
+        bestAt, Math.min(n-1,bestAt+best));
     }
   }
 
@@ -664,8 +714,9 @@ function runChecks(s){
       add(cnt>n*0.1?'err':'warn',`${k} reports sensor-down`,
         `${cnt} sample(s), ${(cnt*100/n).toFixed(1)}% of the file, longest `+
         `run ${longest}. The firmware writes an unreachable value when a `+
-        `sensor fails, so these are not readings.`,
-        s.t[first], s.t[Math.min(n-1,first+longest)]);
+        `sensor fails, so these are not readings. Press "Show excluded" to `+
+        `plot them anyway.`,
+        first, Math.min(n-1,first+longest));
   }
 
   /* --- health column agreement --------------------------------------- */
@@ -685,8 +736,8 @@ function runChecks(s){
     if(mismatch)
       add('warn','Health column disagrees with the data',
         `${mismatch} case(s) where the health string says a subsystem is up `+
-        `while its channels hold sentinels, or the reverse. First at `+
-        `t=${s.t[firstAt].toFixed(2)}s.`, s.t[firstAt], s.t[Math.min(n-1,firstAt+50)]);
+        `while its channels hold sentinels, or the reverse. First at row `+
+        `${firstAt}.`, firstAt, Math.min(n-1,firstAt+50));
   }
 
   /* --- pressure scale -------------------------------------------------
@@ -755,7 +806,7 @@ function runChecks(s){
         `${exc} sample(s), ${(exc*100/n).toFixed(1)}%, where one axis jumps `+
         `more than 6 robust sd while the other two stay put. A real field `+
         `change moves all three together, so these are disturbances rather `+
-        `than motion.`, s.t[firstAt], s.t[Math.min(n-1,firstAt+100)]);
+        `than motion.`, firstAt, Math.min(n-1,firstAt+100));
   }
 
   /* --- accelerometer magnitude ---------------------------------------- */
@@ -796,13 +847,13 @@ function runChecks(s){
       add(c>n*0.01?'err':'warn',`${k} is saturating`,
         `${c} sample(s) at or beyond the ±${LIMIT[k]} full scale. The sensor `+
         `cannot report what actually happened here; the range needs raising.`,
-        s.t[first], s.t[Math.min(n-1,first+50)]);
+        first, Math.min(n-1,first+50));
   }
 
   /* --- battery --------------------------------------------------------- */
   if(has('vbat')){
     const g=[];
-    for(let i=0;i<n;i++) if(!isBad('vbat',s.ch.vbat[i])) g.push({t:s.t[i],v:s.ch.vbat[i]});
+    for(let i=0;i<n;i++) if(!isBad('vbat',s.ch.vbat[i])) g.push({i,v:s.ch.vbat[i]});
     if(g.length>10){
       const lo=Math.min(...g.map(x=>x.v));
       if(lo<3.4)
@@ -817,7 +868,7 @@ function runChecks(s){
         add('warn','Battery voltage jumps',
           `${jumps} step(s) larger than 150 mV between consecutive samples. `+
           `A cell does not move that fast; suspect the divider or the ADC.`,
-          g[firstAt].t-1, g[firstAt].t+1);
+          Math.max(0,g[firstAt].i-30), Math.min(n-1,g[firstAt].i+30));
     }
   }
 
@@ -840,16 +891,10 @@ function renderIssues(list){
     d.className='iss '+i.sev;
     d.innerHTML=`<div class="sev">${i.sev}</div>
       <div><b>${i.title}</b><div class="det">${i.detail||''}</div></div><div></div>`;
-    if(i.t0!==undefined){
+    if(i.i0!==undefined){
       const b=document.createElement('button');
       b.textContent='show';
-      b.onclick=()=>{
-        const pad=Math.max((i.t1-i.t0)*0.3, 0.5);
-        view={t0:Math.max(full.t0,i.t0-pad), t1:Math.min(full.t1,i.t1+pad)};
-        if(view.t1<=view.t0) view={...full};
-        draw();
-        $('plots').scrollIntoView({behavior:'smooth',block:'start'});
-      };
+      b.onclick=()=>zoomToRows(i.i0,i.i1);
       d.lastElementChild.appendChild(b);
     }
     box.appendChild(d);
@@ -864,19 +909,40 @@ function meta(msg,cls){
 
 function show(s){
   data=s;
-  full={t0:s.t[0], t1:s.t[s.t.length-1]};
+
+  // A file whose timestamps run backwards cannot be read on a time axis:
+  // rows after the jump land on top of earlier ones. Default to row number
+  // in that case, and say so, rather than showing an unusable plot.
+  let reversals=0;
+  for(let i=1;i<s.t.length;i++) if(s.t[i]<s.t[i-1]) reversals++;
+  xMode = reversals ? 'row' : 'time';
+  $('btnX').textContent='X: '+(xMode==='time'?'time':'row');
+
+  // Extent is the MIN and MAX, not the first and last row. Taking the ends
+  // of a non-monotonic file produces an inverted window, after which the
+  // slice test keeps nothing and every channel reads "no data in this
+  // window" -- which looks like a broken file rather than a broken axis.
+  full=extentOf(xArr());
   view={...full};
   valSel={};
 
-  const dur=full.t1-full.t0;
-  const hz=s.t.length>1 ? (s.t.length-1)/dur : 0;
+  const te=extentOf(s.t);
+  const dur=te.t1-te.t0;
+  const hz=s.t.length>1 && dur>0 ? (s.t.length-1)/dur : 0;
   const lines=[];
-  lines.push(`${s.t.length.toLocaleString()} rows · ${dur.toFixed(1)} s · `+
+  lines.push(`${s.t.length.toLocaleString()} rows · ${dur.toFixed(1)} s span · `+
              `${hz.toFixed(2)} Hz mean`);
   if(s.meta.started_local) lines.push('started '+s.meta.started_local);
-  if(s.meta.complete==='false')
+  if(reversals)
+    lines.push(`<span class="bad">${reversals} timestamp reversal(s): the `+
+      `time column is not monotonic, so the X axis is set to row number. `+
+      `Part of this address range holds records from another recording.</span>`);
+  if(s.meta.complete==='false' || s.meta.transfer_complete==='false')
     lines.push(`<span class="bad">INCOMPLETE: ${s.meta.records} of `+
-               `${s.meta.records_expected} records</span>`);
+               `${s.meta.records_expected||s.meta.slots_in_range} records</span>`);
+  if(s.meta.blank_slots && +s.meta.blank_slots>0)
+    lines.push(`<span class="warn">${s.meta.blank_slots} blank slot(s) were `+
+               `never written to flash</span>`);
   if(s.malformed)
     lines.push(`<span class="warn">${s.malformed} unparsable line(s) skipped</span>`);
 
@@ -889,7 +955,8 @@ function show(s){
   if(anyBad){
     lines.push('<span class="warn">sensor-down samples excluded: '+
       Object.entries(nbad).map(([k,n])=>
-        `${k} ${n} (${(n*100/s.t.length).toFixed(1)}%)`).join(', ')+'</span>');
+        `${k} ${n} (${(n*100/s.t.length).toFixed(1)}%)`).join(', ')+
+      ' — press Show excluded to plot them</span>');
   }
   // health column, if present
   const hbad=s.health.filter(h=>h && h!=='11111').length;
@@ -924,6 +991,14 @@ $('btnNone').onclick=()=>{ active.clear(); buildChips(); buildPlots(); };
 $('btnReset').onclick=()=>{ view={...full}; valSel={}; draw(); };
 $('btnLink').onclick=()=>{ linked=!linked; $('btnLink').classList.toggle('on',linked); };
 $('btnRaw').onclick=()=>{ showBad=!showBad; $('btnRaw').classList.toggle('on',showBad); draw(); };
+$('btnX').onclick=()=>{
+  if(!data) return;
+  xMode = xMode==='time' ? 'row' : 'time';
+  $('btnX').textContent='X: '+xMode;
+  full=extentOf(xArr());
+  view={...full};
+  draw();
+};
 
 /* ── plot construction ─────────────────────────────────────────────── */
 let plots=[];
@@ -1030,12 +1105,14 @@ function readout(k,x,box){
     const d=Math.abs(st.t[i]-t);
     if(d<bd){bd=d;best=i;}
   }
-  $('rd_'+k).textContent=`t=${st.t[best].toFixed(3)}s  ${st.v[best].toFixed(4)}`;
+  $('rd_'+k).textContent =
+    (xMode==='time' ? `t=${st.t[best].toFixed(3)}s` : `row ${st.t[best]}`)+
+    `  ${st.v[best].toFixed(4)}`;
 }
 
 /* ── data slicing ──────────────────────────────────────────────────── */
 function slice(k){
-  const T=data.t, V=data.ch[k];
+  const T=xArr(), V=data.ch[k];
   const t=[],v=[];
   const sel=valSel[k];
   for(let i=0;i<T.length;i++){
@@ -1065,9 +1142,13 @@ function chanStats(k){
 
 /* ── drawing ───────────────────────────────────────────────────────── */
 function draw(){
-  $('rangeLbl').textContent=
-    `${view.t0.toFixed(2)} – ${view.t1.toFixed(2)} s  `+
-    `(${(view.t1-view.t0).toFixed(2)} s of ${(full.t1-full.t0).toFixed(1)})`;
+  const u=xMode==='time'?' s':'';
+  $('rangeLbl').textContent =
+    xMode==='time'
+      ? `${view.t0.toFixed(2)} – ${view.t1.toFixed(2)} s  `+
+        `(${(view.t1-view.t0).toFixed(2)} s of ${(full.t1-full.t0).toFixed(1)})`
+      : `rows ${Math.round(view.t0)} – ${Math.round(view.t1)}  `+
+        `(${Math.round(view.t1-view.t0)} of ${Math.round(full.t1-full.t0)})`;
   for(const k of plots){ drawSeries(k); drawHist(k); drawStats(k); }
   drawHealthTL();          // keeps the view bracket following the plots
 }
@@ -1110,8 +1191,10 @@ function drawSeries(k){
   }
   const pad=(st.max-st.min)*0.08||1;
   const y0=st.min-pad, y1=st.max+pad;
-  grid(g,box,view.t0,view.t1,y0,y1,
-       v=>v.toFixed(v>=100?0:2)+'s', v=>fmt(v));
+  const xf = xMode==='time'
+    ? v=>v.toFixed(v>=100?0:2)+'s'
+    : v=>Math.round(v).toString();
+  grid(g,box,view.t0,view.t1,y0,y1,xf,v=>fmt(v));
 
   const X=t=>box.l+(t-view.t0)/(view.t1-view.t0)*box.w;
   const Y=v=>box.tp+(y1-v)/(y1-y0)*box.h;
@@ -1211,7 +1294,6 @@ function drawHist(k){
   g.setLineDash([]);
 
   // live selection rectangle
-  const cvEl=$('hs_'+k);
   if(valSel[k]){
     const a=X(valSel[k].v0), b=X(valSel[k].v1);
     g.fillStyle='rgba(61,125,216,.14)';
