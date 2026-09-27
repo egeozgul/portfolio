@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vanilla Muffins — yogurt version</title>
+<title>Ege's Vanilla Muffins</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
@@ -96,20 +96,6 @@
   }
   p{max-width:68ch}
 
-  /* ---------- swaps ---------- */
-  .swaps{display:grid;gap:12px}
-  .swap{
-    display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
-    background:var(--panel);border-left:3px solid var(--orchid);
-    padding:14px 18px;border-radius:0 8px 8px 0;
-  }
-  .swap del{color:var(--ink-soft);text-decoration-thickness:1px;font-size:15.5px}
-  .swap ins{text-decoration:none;font-weight:700}
-  .swap em{
-    display:block;flex-basis:100%;font-style:normal;font-size:14.5px;color:var(--ink-soft);
-  }
-  .arrow{color:var(--orchid);font-weight:700}
-
   /* ---------- scaler ---------- */
   .scaler{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:26px}
   .scaler p{margin:0;font-size:14.5px;color:var(--ink-soft)}
@@ -143,6 +129,10 @@
   ul.ing input:checked ~ .txt{opacity:.42;text-decoration:line-through}
   .qty{font-weight:700;font-variant-numeric:tabular-nums}
   .note{color:var(--ink-soft);font-size:14.5px}
+  .hint{
+    margin:-14px 0 26px;font-size:14.5px;color:var(--ink-soft);max-width:58ch;
+  }
+  ol.steps .qty{color:var(--amber)}
 
   /* ---------- method ---------- */
   ol.steps{list-style:none;counter-reset:s;margin:0;padding:0}
@@ -197,7 +187,7 @@
 
   @media print{
     .pod{background:none;color:#000;padding:0 0 18px}
-    .scaler,footer,.kicker{display:none}
+    .scaler,.hint,footer,.kicker{display:none}
     h1{font-size:40px}
     .standfirst,.fact span,.fact strong{color:#000}
     section{padding:18px 0;break-inside:avoid}
@@ -209,9 +199,9 @@
 
 <header class="pod">
   <div class="wrap">
-    <p class="kicker">Adapted from Marcellina in Cucina</p>
-    <h1>Vanilla<br>Muffins</h1>
-    <p class="standfirst">Twelve tall, tender muffins with a proper crown — made with yogurt instead of sour cream, and baking powder doing all the lifting on its own.</p>
+    <p class="kicker">Ege's kitchen</p>
+    <h1>Ege's<br>Vanilla<br>Muffins</h1>
+    <p class="standfirst">Twelve tall, tender muffins with a proper crown — yogurt for the crumb, baking powder doing all the lifting on its own, and as much or as little sugar as you like.</p>
     <div class="facts">
       <div class="fact"><span>Prep</span><strong>10 min</strong></div>
       <div class="fact"><span>Bake</span><strong>18–20 min</strong></div>
@@ -222,25 +212,6 @@
 </header>
 
 <main class="wrap">
-
-  <section>
-    <h2>What's different in this version</h2>
-    <p class="sub">Three changes from the original recipe, and what each one actually does to the muffin.</p>
-    <div class="swaps">
-      <div class="swap">
-        <del>Sour cream</del> <span class="arrow">→</span> <ins>Plain full-fat yogurt</ins>
-        <em>Same job, same quantity. Yogurt is a little tangier and thinner, so the crumb stays just as moist.</em>
-      </div>
-      <div class="swap">
-        <del>Baking powder + baking soda</del> <span class="arrow">→</span> <ins>Baking powder only</ins>
-        <em>Soda is about three times stronger than powder, so an extra teaspoon covers the loss. They'll brown more slowly without it — trust the skewer, not the colour.</em>
-      </div>
-      <div class="swap">
-        <del>Vanilla bean paste</del> <span class="arrow">→</span> <ins>Pure vanilla extract</ins>
-        <em>A straight one-for-one swap. You lose the black flecks, not the flavour.</em>
-      </div>
-    </div>
-  </section>
 
   <section>
     <h2>Ingredients</h2>
@@ -255,12 +226,22 @@
       </div>
     </div>
 
+    <div class="scaler">
+      <p>Sweetness</p>
+      <div class="btns" role="group" aria-label="Sweetness">
+        <button data-sweet="0.5" aria-pressed="false">50%</button>
+        <button data-sweet="0.75" aria-pressed="false">75%</button>
+        <button data-sweet="1" aria-pressed="true">Full sugar</button>
+      </div>
+    </div>
+    <p class="hint" id="sweetHint">Full sugar gives the softest crumb and the best golden top.</p>
+
     <div class="cols">
       <div>
         <h3>Dry — sift these together</h3>
         <ul class="ing">
           <li><label><input type="checkbox"><span class="txt"><span class="qty" data-ml="600" data-g="312">600 ml</span> cake flour <span class="note">(312 g)</span></span></label></li>
-          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-ml="240" data-g="200">240 ml</span> granulated sugar <span class="note">(200 g)</span></span></label></li>
+          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-ml="240" data-g="200" data-sweet="1">240 ml</span> granulated sugar <span class="note">(200 g)</span></span></label></li>
           <li><label><input type="checkbox"><span class="txt"><span class="qty" data-tsp="3.5">3½ tsp</span> baking powder <span class="note">(17.5 ml)</span></span></label></li>
           <li><label><input type="checkbox"><span class="txt"><span class="qty" data-tsp="0.5">½ tsp</span> salt <span class="note">(2.5 ml)</span></span></label></li>
         </ul>
@@ -284,19 +265,19 @@
     <ol class="steps">
       <li>
         <div>
-          <p>Heat the oven to 400°F / 200°C and line a 12-cup muffin pan with paper liners.</p>
+          <p>Heat the oven to 400°F / 200°C and line a <span class="qty dyn-cups">12</span>-cup muffin pan with paper liners.</p>
           <p><span class="why">Why first</span>This batter goes into a hot oven the moment it's mixed. While the oven heats, take the milk, yogurt and eggs out of the fridge so they lose their chill.</p>
         </div>
       </li>
       <li>
         <div>
-          <p>Sift the flour, sugar, baking powder and salt into a large bowl.</p>
+          <p>Sift <span class="qty" data-ml="600">600 ml</span> cake flour, <span class="qty" data-ml="240" data-sweet="1">240 ml</span> sugar, <span class="qty" data-tsp="3.5">3½ tsp</span> baking powder and <span class="qty" data-tsp="0.5">½ tsp</span> salt into a large bowl.</p>
           <p>If everything looks lump-free already, a good whisk does the same job.</p>
         </div>
       </li>
       <li>
         <div>
-          <p>In a jug, whisk the milk, yogurt, oil, eggs and vanilla until smooth.</p>
+          <p>In a jug, whisk <span class="qty" data-ml="120">120 ml</span> milk, <span class="qty" data-ml="120">120 ml</span> yogurt, <span class="qty" data-ml="160">160 ml</span> oil, <span class="qty" data-egg="2">2</span> eggs and <span class="qty" data-ml="15">15 ml</span> vanilla extract until smooth.</p>
           <p><span class="why">Yogurt tip</span>If yours is thick Greek-style, whisk it into the milk on its own first so it loosens, then add everything else.</p>
         </div>
       </li>
@@ -308,7 +289,7 @@
       </li>
       <li>
         <div>
-          <p>Divide between the 12 liners and get them into the oven straight away.</p>
+          <p>Divide between the <span class="qty dyn-cups">12</span> liners and get them into the oven straight away.</p>
           <p>Fill nearly to the top for proper domed crowns. An ice-cream scoop makes this quick and even.</p>
         </div>
       </li>
@@ -365,6 +346,9 @@
       <dt>No cake flour?</dt>
       <dd>Plain flour works and still tastes excellent — the crumb is just a touch less delicate.</dd>
 
+      <dt>Cutting the sugar</dt>
+      <dd>Sugar does more than sweeten — it holds water in the crumb and browns the tops. At 75% you'll barely notice the difference. At 50% the muffins are noticeably less sweet, a little firmer, and paler, so check them a minute or two early and lean on the skewer test. A glaze or a dusting of icing sugar puts the sweetness back where you can taste it most, on top.</dd>
+
       <dt>Is your baking powder still alive?</dt>
       <dd>It's doing all the lifting here, so it's worth checking. Half a teaspoon in a glass of hot water should fizz straight away.</dd>
     </dl>
@@ -374,7 +358,7 @@
 
 <footer>
   <div class="wrap">
-    <p>Adapted from the Vanilla Muffins recipe by Marcella Cantatore at Marcellina in Cucina, with yogurt in place of sour cream, baking powder in place of the powder-and-soda combination, and extract in place of vanilla bean paste.</p>
+    <p>Ege's Vanilla Muffins. Worked out in the kitchen, written down here, and better every time someone else bakes them.</p>
   </div>
 </footer>
 
@@ -395,27 +379,43 @@
   }
 
   var qtys = document.querySelectorAll(".qty");
-  var noteFor = {600:"g", 240:"g"};
+  var batch = 1, sweet = 1;
 
-  function apply(mult){
+  var HINTS = {
+    "1":"Full sugar gives the softest crumb and the best golden top.",
+    "0.75":"A quarter less sugar. Still plenty sweet, and almost identical in texture.",
+    "0.5":"Half sugar. Noticeably less sweet, slightly firmer, and paler on top — start checking at 17 minutes."
+  };
+
+  function render(){
     qtys.forEach(function(el){
-      if(el.dataset.ml)  el.textContent = ml(parseFloat(el.dataset.ml) * mult);
-      if(el.dataset.tsp) el.textContent = tsp(parseFloat(el.dataset.tsp) * mult);
-      if(el.dataset.egg) el.textContent = Math.max(1, Math.round(parseFloat(el.dataset.egg) * mult));
+      var m = batch * (el.dataset.sweet ? sweet : 1);
+
+      if(el.classList.contains("dyn-cups")){
+        el.textContent = Math.round(12 * batch);
+        return;
+      }
+      if(el.dataset.ml)  el.textContent = ml(parseFloat(el.dataset.ml) * m);
+      if(el.dataset.tsp) el.textContent = tsp(parseFloat(el.dataset.tsp) * m);
+      if(el.dataset.egg) el.textContent = Math.max(1, Math.round(parseFloat(el.dataset.egg) * m));
       if(el.dataset.g){
         var note = el.parentNode.querySelector(".note");
-        if(note) note.textContent = "(" + Math.round(parseFloat(el.dataset.g) * mult) + " g)";
+        if(note) note.textContent = "(" + Math.round(parseFloat(el.dataset.g) * m) + " g)";
       }
     });
-    document.getElementById("yield").textContent = Math.round(12 * mult);
+    document.getElementById("yield").textContent = Math.round(12 * batch);
+    document.getElementById("sweetHint").textContent = HINTS[String(sweet)];
   }
 
   document.querySelectorAll(".btns button").forEach(function(btn){
     btn.addEventListener("click", function(){
-      document.querySelectorAll(".btns button").forEach(function(b){
+      var group = btn.parentNode;
+      group.querySelectorAll("button").forEach(function(b){
         b.setAttribute("aria-pressed", b === btn ? "true" : "false");
       });
-      apply(parseFloat(btn.dataset.mult));
+      if(btn.dataset.mult)  batch = parseFloat(btn.dataset.mult);
+      if(btn.dataset.sweet) sweet = parseFloat(btn.dataset.sweet);
+      render();
     });
   });
 })();
