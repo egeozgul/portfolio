@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vanilla Muffins — yogurt version</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --pod:#211510;
+    --pod-2:#150C08;
+    --paper:#FFFCF6;
+    --panel:#F6EEDF;
+    --ink:#2E1F18;
+    --ink-soft:#6E584A;
+    --amber:#A86A12;
+    --orchid:#7E6597;
+    --cream:#F3E6CE;
+    --rule:#E3D6C0;
+    --display:"Fraunces", Georgia, serif;
+    --body:"Karla", system-ui, -apple-system, sans-serif;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--body);
+    font-size:17px;
+    line-height:1.65;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 22px}
+
+  /* ---------- hero: the inside of a split vanilla pod ---------- */
+  .pod{
+    background:
+      radial-gradient(1.1px 1.1px at 12% 22%, var(--cream), transparent),
+      radial-gradient(1px 1px at 31% 61%, var(--cream), transparent),
+      radial-gradient(1.4px 1.4px at 54% 14%, var(--cream), transparent),
+      radial-gradient(1px 1px at 72% 47%, var(--cream), transparent),
+      radial-gradient(1.2px 1.2px at 88% 78%, var(--cream), transparent),
+      radial-gradient(1px 1px at 44% 88%, var(--cream), transparent),
+      radial-gradient(1.3px 1.3px at 6% 74%, var(--cream), transparent),
+      radial-gradient(1px 1px at 66% 92%, var(--cream), transparent),
+      radial-gradient(1px 1px at 95% 33%, var(--cream), transparent),
+      radial-gradient(1.2px 1.2px at 23% 41%, var(--cream), transparent),
+      linear-gradient(168deg, var(--pod) 0%, var(--pod-2) 100%);
+    background-size:180px 180px,180px 180px,180px 180px,180px 180px,180px 180px,180px 180px,180px 180px,180px 180px,180px 180px,180px 180px,100% 100%;
+    color:var(--cream);
+    padding:64px 0 54px;
+  }
+  .kicker{
+    font-size:14px;letter-spacing:.02em;color:#C6AE8C;margin:0 0 14px;
+  }
+  h1{
+    font-family:var(--display);
+    font-weight:800;
+    font-size:clamp(48px,11vw,86px);
+    line-height:.92;
+    letter-spacing:-.025em;
+    margin:0 0 20px;
+    font-variation-settings:"SOFT" 40,"WONK" 1;
+  }
+  .standfirst{
+    max-width:46ch;font-size:18px;color:#DFCDB0;margin:0 0 34px;
+  }
+  .facts{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:18px;
+    border-top:1px solid rgba(243,230,206,.22);padding-top:22px;
+  }
+  .fact span{display:block;font-size:13px;color:#B39B7C;margin-bottom:3px}
+  .fact strong{
+    font-family:var(--display);font-weight:600;font-size:21px;color:var(--cream);
+    letter-spacing:-.01em;
+  }
+  @media(max-width:560px){
+    .facts{grid-template-columns:repeat(2,1fr);gap:16px 18px}
+    .pod{padding:44px 0 40px}
+  }
+
+  /* ---------- sections ---------- */
+  section{padding:54px 0}
+  section + section{border-top:1px solid var(--rule)}
+  h2{
+    font-family:var(--display);font-weight:600;font-size:30px;letter-spacing:-.02em;
+    margin:0 0 6px;font-variation-settings:"SOFT" 30;
+  }
+  .sub{color:var(--ink-soft);font-size:15.5px;margin:0 0 26px;max-width:58ch}
+  h3{
+    font-family:var(--body);font-weight:700;font-size:14.5px;
+    color:var(--amber);margin:0 0 12px;
+  }
+  p{max-width:68ch}
+
+  /* ---------- swaps ---------- */
+  .swaps{display:grid;gap:12px}
+  .swap{
+    display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+    background:var(--panel);border-left:3px solid var(--orchid);
+    padding:14px 18px;border-radius:0 8px 8px 0;
+  }
+  .swap del{color:var(--ink-soft);text-decoration-thickness:1px;font-size:15.5px}
+  .swap ins{text-decoration:none;font-weight:700}
+  .swap em{
+    display:block;flex-basis:100%;font-style:normal;font-size:14.5px;color:var(--ink-soft);
+  }
+  .arrow{color:var(--orchid);font-weight:700}
+
+  /* ---------- scaler ---------- */
+  .scaler{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:26px}
+  .scaler p{margin:0;font-size:14.5px;color:var(--ink-soft)}
+  .btns{display:flex;border:1px solid var(--rule);border-radius:999px;overflow:hidden;background:#fff}
+  .btns button{
+    font-family:var(--body);font-size:14.5px;font-weight:700;color:var(--ink-soft);
+    background:none;border:0;padding:8px 17px;cursor:pointer;
+  }
+  .btns button + button{border-left:1px solid var(--rule)}
+  .btns button[aria-pressed="true"]{background:var(--orchid);color:#fff}
+  .btns button:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+
+  /* ---------- ingredients ---------- */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:38px}
+  @media(max-width:620px){.cols{grid-template-columns:1fr;gap:30px}}
+  ul.ing{list-style:none;margin:0;padding:0}
+  ul.ing li{border-bottom:1px dotted var(--rule)}
+  ul.ing label{
+    display:flex;gap:11px;align-items:flex-start;padding:10px 2px;cursor:pointer;
+  }
+  ul.ing input{
+    appearance:none;flex:0 0 17px;width:17px;height:17px;margin-top:5px;
+    border:1.5px solid #C9B79B;border-radius:4px;cursor:pointer;background:#fff;
+  }
+  ul.ing input:checked{background:var(--orchid);border-color:var(--orchid)}
+  ul.ing input:checked::after{
+    content:"";display:block;width:4px;height:8px;margin:1.5px auto 0;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(42deg);
+  }
+  ul.ing input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  ul.ing input:checked ~ .txt{opacity:.42;text-decoration:line-through}
+  .qty{font-weight:700;font-variant-numeric:tabular-nums}
+  .note{color:var(--ink-soft);font-size:14.5px}
+
+  /* ---------- method ---------- */
+  ol.steps{list-style:none;counter-reset:s;margin:0;padding:0}
+  ol.steps li{
+    counter-increment:s;display:grid;grid-template-columns:54px 1fr;gap:16px;
+    padding:20px 0;border-bottom:1px solid var(--rule);
+  }
+  ol.steps li:last-child{border-bottom:0}
+  ol.steps li::before{
+    content:counter(s);
+    font-family:var(--display);font-weight:800;font-size:34px;line-height:.9;
+    color:var(--amber);font-variation-settings:"WONK" 1;
+  }
+  ol.steps p{margin:0}
+  ol.steps p + p{margin-top:9px;color:var(--ink-soft);font-size:15.5px}
+  .why{
+    display:inline-block;background:rgba(126,101,151,.12);color:#5C4874;
+    padding:1px 8px;border-radius:4px;font-size:13.5px;font-weight:700;margin-right:6px;
+  }
+
+  /* ---------- doneness + cards ---------- */
+  .checks{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:8px}
+  @media(max-width:620px){.checks{grid-template-columns:1fr}}
+  .check{background:var(--panel);padding:18px;border-radius:10px}
+  .check strong{display:block;font-family:var(--display);font-size:18px;margin-bottom:4px}
+  .check span{font-size:15px;color:var(--ink-soft)}
+
+  table{border-collapse:collapse;width:100%;margin-top:6px;font-size:15.5px}
+  th,td{text-align:left;padding:10px 12px 10px 0;border-bottom:1px solid var(--rule)}
+  th{font-size:13.5px;color:var(--ink-soft);font-weight:700}
+  td:first-child{font-weight:700}
+
+  dl{margin:0}
+  dt{font-weight:700;margin-top:20px}
+  dt:first-child{margin-top:0}
+  dd{margin:4px 0 0;color:var(--ink-soft);max-width:66ch}
+
+  footer{
+    background:var(--pod);color:#B39B7C;padding:34px 0 40px;font-size:14.5px;
+  }
+  footer p{max-width:60ch;margin:0}
+  footer a{color:var(--cream)}
+
+  @media(prefers-reduced-motion:no-preference){
+    .pod .wrap > *{animation:rise .7s cubic-bezier(.2,.7,.3,1) backwards}
+    .kicker{animation-delay:.05s}
+    h1{animation-delay:.12s}
+    .standfirst{animation-delay:.22s}
+    .facts{animation-delay:.3s}
+    @keyframes rise{from{opacity:0;transform:translateY(14px)}}
+  }
+
+  @media print{
+    .pod{background:none;color:#000;padding:0 0 18px}
+    .scaler,footer,.kicker{display:none}
+    h1{font-size:40px}
+    .standfirst,.fact span,.fact strong{color:#000}
+    section{padding:18px 0;break-inside:avoid}
+    body{font-size:12px}
+  }
+</style>
+</head>
+<body>
+
+<header class="pod">
+  <div class="wrap">
+    <p class="kicker">Adapted from Marcellina in Cucina</p>
+    <h1>Vanilla<br>Muffins</h1>
+    <p class="standfirst">Twelve tall, tender muffins with a proper crown — made with yogurt instead of sour cream, and baking powder doing all the lifting on its own.</p>
+    <div class="facts">
+      <div class="fact"><span>Prep</span><strong>10 min</strong></div>
+      <div class="fact"><span>Bake</span><strong>18–20 min</strong></div>
+      <div class="fact"><span>Oven</span><strong>400°F / 200°C</strong></div>
+      <div class="fact"><span>Makes</span><strong id="yield">12</strong></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section>
+    <h2>What's different in this version</h2>
+    <p class="sub">Three changes from the original recipe, and what each one actually does to the muffin.</p>
+    <div class="swaps">
+      <div class="swap">
+        <del>Sour cream</del> <span class="arrow">→</span> <ins>Plain full-fat yogurt</ins>
+        <em>Same job, same quantity. Yogurt is a little tangier and thinner, so the crumb stays just as moist.</em>
+      </div>
+      <div class="swap">
+        <del>Baking powder + baking soda</del> <span class="arrow">→</span> <ins>Baking powder only</ins>
+        <em>Soda is about three times stronger than powder, so an extra teaspoon covers the loss. They'll brown more slowly without it — trust the skewer, not the colour.</em>
+      </div>
+      <div class="swap">
+        <del>Vanilla bean paste</del> <span class="arrow">→</span> <ins>Pure vanilla extract</ins>
+        <em>A straight one-for-one swap. You lose the black flecks, not the flavour.</em>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ingredients</h2>
+    <p class="sub">Measured in millilitres, with grams and spoons where they're easier. Tap an ingredient to cross it off.</p>
+
+    <div class="scaler">
+      <p>Batch size</p>
+      <div class="btns" role="group" aria-label="Batch size">
+        <button data-mult="0.5" aria-pressed="false">Half</button>
+        <button data-mult="1" aria-pressed="true">12 muffins</button>
+        <button data-mult="2" aria-pressed="false">Double</button>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div>
+        <h3>Dry — sift these together</h3>
+        <ul class="ing">
+          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-ml="600" data-g="312">600 ml</span> cake flour <span class="note">(312 g)</span></span></label></li>
+          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-ml="240" data-g="200">240 ml</span> granulated sugar <span class="note">(200 g)</span></span></label></li>
+          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-tsp="3.5">3½ tsp</span> baking powder <span class="note">(17.5 ml)</span></span></label></li>
+          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-tsp="0.5">½ tsp</span> salt <span class="note">(2.5 ml)</span></span></label></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wet — whisk these in a jug</h3>
+        <ul class="ing">
+          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-ml="160">160 ml</span> light-flavoured oil <span class="note">(vegetable, avocado, light olive)</span></span></label></li>
+          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-ml="120">120 ml</span> whole milk</span></label></li>
+          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-ml="120">120 ml</span> plain full-fat yogurt</span></label></li>
+          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-egg="2">2</span> eggs <span class="note">(room temperature)</span></span></label></li>
+          <li><label><input type="checkbox"><span class="txt"><span class="qty" data-ml="15">15 ml</span> pure vanilla extract <span class="note">(1 tbsp)</span></span></label></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Method</h2>
+    <p class="sub">The batter takes about four minutes. Everything else is getting ready for it.</p>
+    <ol class="steps">
+      <li>
+        <div>
+          <p>Heat the oven to 400°F / 200°C and line a 12-cup muffin pan with paper liners.</p>
+          <p><span class="why">Why first</span>This batter goes into a hot oven the moment it's mixed. While the oven heats, take the milk, yogurt and eggs out of the fridge so they lose their chill.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Sift the flour, sugar, baking powder and salt into a large bowl.</p>
+          <p>If everything looks lump-free already, a good whisk does the same job.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>In a jug, whisk the milk, yogurt, oil, eggs and vanilla until smooth.</p>
+          <p><span class="why">Yogurt tip</span>If yours is thick Greek-style, whisk it into the milk on its own first so it loosens, then add everything else.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Pour the wet into the dry and fold gently with a spatula, scraping right to the bottom of the bowl, until no dry flour is visible.</p>
+          <p><span class="why">Stop here</span>A lumpy batter is a good batter. Keep mixing past this point and the muffins turn dense and tough — this is the one step that decides how they come out.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Divide between the 12 liners and get them into the oven straight away.</p>
+          <p>Fill nearly to the top for proper domed crowns. An ice-cream scoop makes this quick and even.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Bake on the middle rack for 18–20 minutes, checking from 18.</p>
+          <p>Without the baking soda they'll be paler than usual at this stage. That's expected — go by the tests below instead.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Rest a few minutes in the pan, then lift each muffin onto a wire rack.</p>
+          <p>Left in the hot tin, they keep cooking and the bottoms go dry.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Are they done?</h2>
+    <p class="sub">Three tests. You want all three.</p>
+    <div class="checks">
+      <div class="check"><strong>Risen</strong><span>Domed and set, no dip in the middle.</span></div>
+      <div class="check"><strong>Firm</strong><span>Press a top lightly — it springs back rather than wobbling.</span></div>
+      <div class="check"><strong>Clean skewer</strong><span>In and out of the centre with no wet batter clinging to it.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Other tin sizes</h2>
+    <table>
+      <tr><th>Tin</th><th>Time at 400°F / 200°C</th></tr>
+      <tr><td>Standard, 12</td><td>18–20 minutes</td></tr>
+      <tr><td>Jumbo</td><td>24–28 minutes</td></tr>
+      <tr><td>Mini</td><td>10–15 minutes</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Good to know</h2>
+    <dl>
+      <dt>Keeping them</dt>
+      <dd>Best the day they're baked, ideally still a little warm. The yogurt keeps them moist for a second and third day in a sealed container.</dd>
+
+      <dt>Freezing</dt>
+      <dd>Wrap each muffin once it's cool, seal them in a container, and freeze for up to three months. Thaw on the counter, or a few seconds in the microwave to bring back the just-baked smell.</dd>
+
+      <dt>Things to stir in</dt>
+      <dd>A handful of mini chocolate chips, frozen berries, chopped nuts, a grating of lemon or orange zest, or a little cinnamon. Fold them in at the very end of step 4 so you're not overworking the batter.</dd>
+
+      <dt>Finishing</dt>
+      <dd>A dusting of icing sugar once they're cool, or a thin vanilla glaze if you've got a few extra minutes.</dd>
+
+      <dt>No cake flour?</dt>
+      <dd>Plain flour works and still tastes excellent — the crumb is just a touch less delicate.</dd>
+
+      <dt>Is your baking powder still alive?</dt>
+      <dd>It's doing all the lifting here, so it's worth checking. Half a teaspoon in a glass of hot water should fizz straight away.</dd>
+    </dl>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Adapted from the Vanilla Muffins recipe by Marcella Cantatore at Marcellina in Cucina, with yogurt in place of sour cream, baking powder in place of the powder-and-soda combination, and extract in place of vanilla bean paste.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var FRAC = {0:"",0.25:"¼",0.5:"½",0.75:"¾"};
+
+  function tsp(v){
+    v = Math.round(v * 4) / 4;
+    var whole = Math.floor(v), rem = +(v - whole).toFixed(2);
+    var f = FRAC[rem] || "";
+    var num = whole === 0 ? (f || "0") : whole + f;
+    return num + " tsp";
+  }
+  function ml(v){
+    v = v < 20 ? Math.round(v * 2) / 2 : Math.round(v / 5) * 5;
+    return v + " ml";
+  }
+
+  var qtys = document.querySelectorAll(".qty");
+  var noteFor = {600:"g", 240:"g"};
+
+  function apply(mult){
+    qtys.forEach(function(el){
+      if(el.dataset.ml)  el.textContent = ml(parseFloat(el.dataset.ml) * mult);
+      if(el.dataset.tsp) el.textContent = tsp(parseFloat(el.dataset.tsp) * mult);
+      if(el.dataset.egg) el.textContent = Math.max(1, Math.round(parseFloat(el.dataset.egg) * mult));
+      if(el.dataset.g){
+        var note = el.parentNode.querySelector(".note");
+        if(note) note.textContent = "(" + Math.round(parseFloat(el.dataset.g) * mult) + " g)";
+      }
+    });
+    document.getElementById("yield").textContent = Math.round(12 * mult);
+  }
+
+  document.querySelectorAll(".btns button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".btns button").forEach(function(b){
+        b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+      });
+      apply(parseFloat(btn.dataset.mult));
+    });
+  });
+})();
+</script>
+</body>
+</html>
