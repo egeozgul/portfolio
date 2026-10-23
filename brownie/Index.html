@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cocoa Brownies, the fudgy version</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --crust:#2A1610;
+    --crust-2:#170B07;
+    --paper:#FFFCF6;
+    --panel:#F6EEDF;
+    --ink:#2E1F18;
+    --ink-soft:#6E584A;
+    --amber:#A86A12;
+    --berry:#8E4A5A;
+    --cream:#F3E6CE;
+    --rule:#E3D6C0;
+    --chip-on:#2E1F18;
+    --chip-on-ink:#FFFCF6;
+    --display:"Fraunces", Georgia, "Times New Roman", serif;
+    --body:"Karla", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme:light;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top, 0px);
+    padding-bottom:env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#1B120E; --panel:#271A14; --ink:#F1E4D2; --ink-soft:#BBA48F;
+      --amber:#E0A246; --berry:#D28C9C; --rule:#3A2A21;
+      --chip-on:#F1E4D2; --chip-on-ink:#1B120E;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#1B120E; --panel:#271A14; --ink:#F1E4D2; --ink-soft:#BBA48F;
+    --amber:#E0A246; --berry:#D28C9C; --rule:#3A2A21;
+    --chip-on:#F1E4D2; --chip-on-ink:#1B120E;
+    color-scheme:dark;
+  }
+  html{scroll-padding-top:env(safe-area-inset-top, 0px);-webkit-text-size-adjust:100%;background:var(--crust-2)}
+  *,*::before,*::after{box-sizing:inherit}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.65}
+  .wrap{max-width:760px;margin:0 auto;padding:0 22px}
+  img,svg{max-width:100%}
+  :focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+
+  /* ---------- hero: a crackly brownie top dusted with cocoa ---------- */
+  .crust{
+    position:relative;overflow:hidden;color:var(--cream);
+    background:
+      radial-gradient(1.2px 1.2px at 14% 24%, rgba(243,230,206,.55), transparent),
+      radial-gradient(1px 1px at 33% 64%, rgba(243,230,206,.45), transparent),
+      radial-gradient(1.4px 1.4px at 57% 18%, rgba(243,230,206,.5), transparent),
+      radial-gradient(1px 1px at 72% 72%, rgba(243,230,206,.4), transparent),
+      radial-gradient(1.3px 1.3px at 88% 36%, rgba(243,230,206,.5), transparent),
+      radial-gradient(1px 1px at 46% 86%, rgba(243,230,206,.35), transparent),
+      radial-gradient(120% 90% at 20% 0%, #3B2117 0%, var(--crust) 45%, var(--crust-2) 100%);
+  }
+  .crust svg.cracks{position:absolute;inset:0;width:100%;height:100%;opacity:.22;pointer-events:none}
+  .crust .wrap{position:relative;padding-top:64px;padding-bottom:56px}
+  .crust h1{
+    font-family:var(--display);font-weight:800;font-variation-settings:"opsz" 144;
+    font-size:clamp(46px, 12vw, 92px);line-height:.92;letter-spacing:-.025em;margin:0 0 18px;
+  }
+  .crust h1 span{display:block;font-weight:400;font-style:italic;font-size:.42em;letter-spacing:0;margin-top:12px;color:var(--cream);opacity:.85}
+  .crust p.lede{max-width:46ch;margin:0 0 30px;font-size:18px;color:rgba(243,230,206,.88)}
+  .facts{display:flex;flex-wrap:wrap;gap:10px 26px;margin:0;padding:0;list-style:none}
+  .facts li{display:flex;flex-direction:column}
+  .facts b{font-family:var(--display);font-size:26px;font-weight:600;line-height:1.1;color:#fff}
+  .facts small{font-size:13.5px;color:rgba(243,230,206,.7)}
+
+  section{padding:46px 0 10px}
+  h2{font-family:var(--display);font-weight:600;font-size:clamp(28px, 6vw, 36px);line-height:1.1;letter-spacing:-.01em;margin:0 0 18px}
+  p{margin:0 0 14px}
+  .note{color:var(--ink-soft);font-size:14.5px}
+
+  /* ---------- unit switch ---------- */
+  .switch{display:inline-flex;gap:4px;padding:4px;background:var(--panel);border-radius:999px;margin:0 0 22px}
+  .switch button{
+    font:inherit;font-size:15px;font-weight:700;border:0;cursor:pointer;
+    padding:7px 16px;border-radius:999px;background:transparent;color:var(--ink-soft);
+  }
+  .switch button[aria-pressed="true"]{background:var(--chip-on);color:var(--chip-on-ink)}
+
+  /* ---------- ingredients ---------- */
+  ul.ing{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
+  ul.ing li{display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid var(--rule)}
+  ul.ing li .amt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+  ul.ing li em{font-style:normal;color:var(--ink-soft);font-size:14.5px;display:block}
+  .gear{margin-top:20px;font-size:15.5px;color:var(--ink-soft)}
+  .gear b{color:var(--ink)}
+
+  /* ---------- timeline of the two-stage bake ---------- */
+  .timeline{display:flex;width:100%;height:46px;border-radius:8px;overflow:hidden;margin:6px 0 8px}
+  .timeline div{display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;min-width:0;white-space:nowrap;overflow:hidden}
+  .t-bake{background:var(--amber)}
+  .t-rest{background:#8B7A6C}
+  .t-cool{background:var(--berry)}
+  .tl-key{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+
+  /* ---------- method ---------- */
+  ol.steps{list-style:none;counter-reset:s;margin:0;padding:0}
+  ol.steps li{counter-increment:s;display:grid;grid-template-columns:44px 1fr;gap:6px;padding:16px 0;border-bottom:1px solid var(--rule)}
+  ol.steps li::before{
+    content:counter(s);font-family:var(--display);font-weight:800;font-size:30px;line-height:1;color:var(--amber);
+  }
+  ol.steps p:last-child{margin-bottom:0}
+  .qty{font-weight:700;font-variant-numeric:tabular-nums}
+  ol.steps .qty{color:var(--amber)}
+  .why{
+    display:inline-block;font-size:13px;font-weight:700;color:var(--berry);
+    border:1px solid currentColor;border-radius:999px;padding:0 9px;margin-right:8px;line-height:1.6;
+  }
+
+  /* ---------- tweak table ---------- */
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:15px}
+  th,td{text-align:left;vertical-align:top;padding:11px 12px 11px 0;border-bottom:1px solid var(--rule)}
+  th{font-weight:700;font-size:14px;color:var(--ink-soft)}
+  td:first-child{font-weight:700;white-space:nowrap}
+  .scale{display:flex;justify-content:space-between;margin:20px 0 6px;font-weight:700;font-size:14.5px}
+  .scale-bar{height:10px;border-radius:999px;background:linear-gradient(90deg, var(--crust), var(--amber) 55%, var(--cream))}
+  [data-theme="dark"] .scale-bar{outline:1px solid var(--rule)}
+
+  /* ---------- add-ins ---------- */
+  .addins{display:grid;gap:12px}
+  .addin{background:var(--panel);border-left:3px solid var(--amber);padding:14px 18px;border-radius:0 8px 8px 0}
+  .addin b{display:block;font-size:16.5px}
+  .addin span{font-size:15px;color:var(--ink-soft)}
+
+  dl.faq dt{font-family:var(--display);font-weight:600;font-size:20px;margin:22px 0 6px}
+  dl.faq dd{margin:0;color:var(--ink)}
+
+  footer{padding:46px 0 60px;color:var(--ink-soft);font-size:14px}
+  footer a{color:inherit}
+</style>
+</head>
+<body>
+
+<header class="crust">
+  <svg class="cracks" viewBox="0 0 400 240" preserveAspectRatio="none" aria-hidden="true">
+    <g fill="none" stroke="#F3E6CE" stroke-width=".8" stroke-linecap="round">
+      <path d="M0 60 L40 72 L70 58 L120 80 L160 66 L210 90 L250 74 L300 96 L350 82 L400 98"/>
+      <path d="M70 58 L82 20 L78 0"/><path d="M160 66 L150 120 L176 160 L168 240"/>
+      <path d="M250 74 L262 130 L240 170 L252 240"/><path d="M300 96 L330 140 L380 150 L400 176"/>
+      <path d="M0 170 L50 160 L96 182 L150 120"/><path d="M262 130 L310 120 L330 140"/>
+      <path d="M210 90 L222 30 L246 0"/><path d="M96 182 L110 240"/>
+    </g>
+  </svg>
+  <div class="wrap">
+    <h1>Cocoa Brownies<span>dense, fudgy, crackly on top</span></h1>
+    <p class="lede">No chocolate bars to melt. Just a lot of cocoa, a lot of butter, and a bake that stops halfway for a rest. That pause is what gives you the flaky crust.</p>
+    <ul class="facts">
+      <li><b>16</b><small>brownies</small></li>
+      <li><b>20 min</b><small>hands-on</small></li>
+      <li><b>1½ hr</b><small>start to slice</small></li>
+      <li><b>300°F</b><small>low and slow</small></li>
+    </ul>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="ingredients">
+    <h2>What you need</h2>
+    <div class="switch" role="group" aria-label="Units">
+      <button type="button" data-unit="us" aria-pressed="true">Cups</button>
+      <button type="button" data-unit="g" aria-pressed="false">Grams</button>
+      <button type="button" data-unit="ml" aria-pressed="false">ml</button>
+    </div>
+    <ul class="ing">
+      <li><span>Granulated sugar</span><span class="amt" data-us="1 cup" data-g="200 g" data-ml="240 ml"></span></li>
+      <li><span>Light brown sugar</span><span class="amt" data-us="1 cup" data-g="215 g" data-ml="240 ml"></span></li>
+      <li><span>Natural cocoa powder<em>Not Dutch-process. Hershey’s or Ghirardelli unsweetened both work.</em></span><span class="amt" data-us="2 cups" data-g="170 g" data-ml="480 ml"></span></li>
+      <li><span>All-purpose flour</span><span class="amt" data-us="½ cup" data-g="64 g" data-ml="120 ml"></span></li>
+      <li><span>Kosher salt</span><span class="amt" data-us="½ tsp" data-g="3 g" data-ml="2.5 ml"></span></li>
+      <li><span>Large eggs</span><span class="amt" data-us="4" data-g="4" data-ml="4"></span></li>
+      <li><span>Unsalted butter, melted<em>2 sticks. Don’t cut this one.</em></span><span class="amt" data-us="1 cup" data-g="227 g" data-ml="240 ml"></span></li>
+      <li><span>Vanilla extract</span><span class="amt" data-us="2 tsp" data-g="10 ml" data-ml="10 ml"></span></li>
+    </ul>
+    <p class="gear"><b>Gear:</b> an 8-inch square pan, parchment paper, cooking spray, a stand or hand mixer, and an instant-read thermometer if you have one.</p>
+    <p class="note">Gram weights are close approximations. Cocoa is the one worth weighing, since it packs very differently depending on how you scoop.</p>
+  </section>
+
+  <section id="timing">
+    <h2>The bake, at a glance</h2>
+    <div class="timeline" aria-label="Bake 15 minutes, rest 15, bake about 30, cool 40">
+      <div class="t-bake" style="flex:15">Bake</div>
+      <div class="t-rest" style="flex:15">Rest</div>
+      <div class="t-bake" style="flex:30">Bake again</div>
+      <div class="t-cool" style="flex:40">Cool</div>
+    </div>
+    <div class="tl-key"><span>0</span><span>15</span><span>30</span><span>60</span><span>100 min</span></div>
+  </section>
+
+  <section id="method">
+    <h2>How to make them</h2>
+    <ol class="steps">
+      <li><div>
+        <p>Heat the oven to <span class="qty">300°F (150°C)</span>. Spray the pan, then lay in a strip of parchment that hangs over two sides by about 2 inches.</p>
+        <p><span class="why">Why</span>Those flaps are handles. You’ll lift the whole slab out in one piece later.</p>
+      </div></li>
+      <li><div>
+        <p>Sift the granulated sugar, brown sugar, cocoa, flour and salt together into a bowl.</p>
+        <p><span class="why">Why</span>Cocoa loves to clump. Sifting now means no dry pockets later.</p>
+      </div></li>
+      <li><div>
+        <p>Beat the <span class="qty">4</span> eggs on medium for <span class="qty">2–3 minutes</span>, until pale yellow and fluffy.</p>
+        <p><span class="why">Why</span>The air you whip in here is what lifts the top into that thin, crackly layer.</p>
+      </div></li>
+      <li><div>
+        <p>Drop to low speed. Spoon in the dry mix a little at a time, then pour in the melted butter and vanilla. Mix only until smooth, then scrape into the pan and spread it out.</p>
+        <p><span class="why">Heads up</span>It will be much thicker than boxed brownie batter. That’s correct, keep going.</p>
+      </div></li>
+      <li><div>
+        <p>Bake for <span class="qty">15 minutes</span>. Take the pan out and let it sit on the counter for <span class="qty">15 minutes</span>.</p>
+        <p><span class="why">Why</span>This pause is the trick. The top sets and dries while the middle stays soft, which is how you get a flaky crust over a fudgy center.</p>
+      </div></li>
+      <li><div>
+        <p>Back into the oven for about <span class="qty">30 minutes</span>, until the center reads <span class="qty">195°F (90°C)</span>.</p>
+        <p><span class="why">No thermometer?</span>A toothpick in the middle should come out with moist crumbs, not wet batter.</p>
+      </div></li>
+      <li><div>
+        <p>Cool in the pan for <span class="qty">30 minutes</span>, lift out by the parchment, then give it <span class="qty">10 minutes</span> on a rack. Cut into 16 with a long knife or a pizza wheel.</p>
+        <p><span class="why">Bonus</span>Chill for an hour before cutting and they slice cleaner and get even fudgier.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section id="tweaks">
+    <h2>What each ingredient does</h2>
+    <p>Want to nudge the texture? This is what happens when you change one amount. Small moves of 10–20% are the safe way to experiment.</p>
+    <div class="scale" aria-hidden="true"><span>Fudgy</span><span>Cakey</span></div>
+    <div class="scale-bar" aria-hidden="true"></div>
+    <p class="note" style="margin-top:8px">Butter and cocoa pull toward fudgy. Flour and eggs pull toward cakey.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Ingredient</th><th>Use more</th><th>Use less</th></tr></thead>
+        <tbody>
+          <tr><td>Cocoa</td><td>Richer, fudgier, but drier and denser</td><td>Milder flavor, softer and cakier</td></tr>
+          <tr><td>White sugar</td><td>Shinier, crisper top, chewier edges, sweeter</td><td>Duller top, less crunch, a bit cakier</td></tr>
+          <tr><td>Brown sugar</td><td>Moister, chewier, caramel notes</td><td>Drier, flatter flavor</td></tr>
+          <tr><td>Flour</td><td>Cakier and firmer</td><td>Gooier, but harder to slice</td></tr>
+          <tr><td>Eggs</td><td>Lighter, puffier, cake-like</td><td>Denser, can turn greasy or crumbly</td></tr>
+          <tr><td>Butter</td><td>Richer, can get greasy</td><td>Drier, cakier, harder to mix</td></tr>
+          <tr><td>Salt</td><td>Sharper, deeper chocolate</td><td>Flatter and sweeter</td></tr>
+          <tr><td>Vanilla</td><td>Rounder aroma</td><td>Barely noticeable</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="extras">
+    <h2>Make them even better</h2>
+    <div class="addins">
+      <div class="addin"><b>1–2 tsp espresso powder</b><span>Sift it in with the dry mix. Deeper chocolate, no coffee taste.</span></div>
+      <div class="addin"><b>A pinch of flaky salt on top</b><span>Sprinkle before baking. Pairs best with the espresso.</span></div>
+      <div class="addin"><b>About 1 cup chopped dark chocolate</b><span>Fold in last for melty pockets.</span></div>
+      <div class="addin"><b>Brown the butter</b><span>Same 2 sticks, cooked until golden and nutty, then cooled a little. Adds a toasty edge.</span></div>
+      <div class="addin"><b>¾–1 cup toasted walnuts or pecans</b><span>For crunch against all that fudge.</span></div>
+    </div>
+  </section>
+
+  <section id="notes">
+    <h2>Good to know</h2>
+    <dl class="faq">
+      <dt>Does the cocoa type really matter?</dt>
+      <dd>Yes. Look for “natural” on the label and skip anything that says Dutch-process, alkalized or “processed with alkali.” Hot chocolate mix won’t work either.</dd>
+      <dt>Is there milk in this?</dt>
+      <dd>No. The eggs and melted butter are all the liquid it needs.</dd>
+      <dt>How much cocoa should I buy?</dt>
+      <dd>About 170 g. One 8 oz bag covers it. A 6 oz bag is cutting it close.</dd>
+      <dt>Storing leftovers</dt>
+      <dd>Stack them in an airtight container with parchment between layers. They keep for a few days at room temperature, assuming any are left.</dd>
+    </dl>
+  </section>
+
+  <footer>Adapted from Alton Brown’s <a href="https://altonbrown.com/recipes/cocoa-brownies-reloaded/" target="_blank" rel="noopener">Cocoa Brownies: Reloaded</a>.</footer>
+</main>
+
+<script>
+(function(){
+  var buttons = document.querySelectorAll('.switch button');
+  var amts = document.querySelectorAll('.amt');
+  function setUnit(u){
+    amts.forEach(function(el){ el.textContent = el.getAttribute('data-' + u); });
+    buttons.forEach(function(b){ b.setAttribute('aria-pressed', b.dataset.unit === u ? 'true' : 'false'); });
+    try { localStorage.setItem('brownie-unit', u); } catch(e){}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('brownie-unit'); } catch(e){}
+  setUnit(saved === 'g' || saved === 'ml' ? saved : 'us');
+  buttons.forEach(function(b){ b.addEventListener('click', function(){ setUnit(b.dataset.unit); }); });
+})();
+</script>
+</body>
+</html>
