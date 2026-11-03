@@ -306,6 +306,9 @@
     background:#0e141a;cursor:grab;touch-action:none;
   }
   #att3d.dragging{cursor:grabbing}
+  #compassCv{display:block;width:100%;height:420px;border-radius:3px;background:#000}
+  .tog{display:flex;gap:7px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--ink);margin-top:6px;cursor:pointer}
+  .tog input{margin:0}
   .bigread{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:1px 0}
   .bigread span{font-size:10px;letter-spacing:.16em;text-transform:uppercase}
   .bigread b{
@@ -384,7 +387,7 @@
 
 <header>
   <div class="brand">
-    <h1>ESP32-LOG</h1>
+    <h1 id="brandName">ESP32-LOG</h1>
     <span id="mtu">—</span>
   </div>
   <div class="lamps">
@@ -408,7 +411,8 @@
 <main>
   <div class="hint" id="hint">
     <p>Nothing is connected yet. Power the board, then choose <strong>Connect</strong> and
-    pick <code>ESP32-LOG</code> from the browser's device list.</p>
+    pick <code>ESP32-LOG</code> from the browser's device list — or <code>ESP32-LOG-3</code> and so on,
+    once a board's <code>config.json</code> gives it a device ID.</p>
     <p>Web Bluetooth runs in Chrome and Edge on desktop and Android. If the button does
     nothing, open this file over <code>http://localhost</code> instead of double-clicking it.</p>
   </div>
@@ -671,6 +675,42 @@
       </div>
     </div>
   </section>
+
+  <section class="scene">
+    <div class="viewport">
+      <canvas id="compassCv"></canvas>
+    </div>
+    <div class="stats">
+      <div class="lbl" style="margin-bottom:8px">Compass</div>
+      <div class="bigread"><span>Heading</span><b id="cHdg">—</b></div>
+      <div class="heading" id="cCard">—</div>
+      <div class="covnote" id="cRef" style="margin-top:4px">magnetic north</div>
+      <div class="sepline"></div>
+      <div class="statrow"><span>Tube tilt</span><b id="cTilt">—</b></div>
+      <div class="statrow"><span>Magnetometer</span><b id="cCal">—</b></div>
+      <div class="statrow"><span>Declination</span></div>
+      <div class="mapfield">
+        <input id="inpDecl" type="number" step="0.1" value="0" aria-label="Magnetic declination in degrees">
+      </div>
+      <div class="sepline"></div>
+      <div class="statrow"><span>Showing</span><b id="cView">raw</b></div>
+      <div class="statrow"><span>Raw heading</span><b id="cHdgRaw">—</b></div>
+      <div class="statrow"><span>Corrected − raw</span><b id="cHdgDiff">—</b></div>
+      <div class="statrow"><span>Calibration</span></div>
+      <div class="scenebtns" style="margin-top:4px"><button id="btnCalBoard">Load from board</button></div>
+      <div class="mapfield"><input type="file" id="inpCal" accept=".json,application/json" aria-label="Load a config.json"></div>
+      <div class="covnote" id="cCalFile">none loaded</div>
+      <label class="tog"><input type="checkbox" id="chkCalUse" disabled> Use calibration</label>
+      <label class="tog"><input type="checkbox" id="chkCalBoth" disabled> Show raw and corrected</label>
+      <div class="covnote" style="margin-top:4px">Applies to this compass and the 3D view above. Display only:
+        recordings and saved files stay raw.</div>
+      <div class="sepline"></div>
+      <div class="covnote">The direction of the board's +y axis, across the tube, clockwise from north — for a
+        hanging tube, its rotation about its own axis. Solved from the accelerometer and magnetometer
+        on every sample, so it works in any reference mode. Enter the declination for true north —
+        about −14 in Boston; west is negative.</div>
+    </div>
+  </section>
   </div>
 
   <div class="grid" id="grid"></div>
@@ -688,7 +728,7 @@ const STAT = '12345678-1234-5678-1234-56789abcdef3';
 
 const CMD = { RECORD:1, STOP:2, ERASE:3, DUMP:4, STATUS:5, ABORT:6, RATE:7,
               VERIFY:8, STREAM:9, MEMREAD:0x0B,
-              INDEX:0x0C, DUMPRANGE:0x0D };
+              INDEX:0x0C, DUMPRANGE:0x0D, CONFIG:0x0E };
 const MEM_PAGE = 1024;                 // bytes fetched per browser request
 const MEM_TOTAL = 0x1000000;           // 16 MB address space
 let hexCols = 64;                      // bytes per row, depends on view mode
@@ -865,6 +905,7 @@ function handle(f){
     });
   }
   else if(type===0x51){
+    idxPendingAt = 0;
     renderSessions();
     el('btnSessCsv').disabled=sessionsList.length===0;
     el('btnExportAll').disabled=sessionsList.length===0;
@@ -934,6 +975,11 @@ function handle(f){
           `after ${(kb/1024).toFixed(2)} MB.`,'err');
     }
   }
+  else if(type===0x60 && f.length>=2){
+    if(!cfgRx) cfgRx={chunks:[]};
+    cfgRx.chunks[f[1]] = f.slice(2);
+  }
+  else if(type===0x61 && f.length>=5){ cfgDone(f); }
   else if(type===0x10 && f.length>=14){ decodeStatus(f); }
 }
 
@@ -1072,8 +1118,15 @@ function addSample(s){
   }
   samples.push(s);
   lastSampleAt = Date.now();
-  pushMag(s.mx,s.my,s.mz);
-  updateAttitude(s);
+  pushMag(s.mx,s.my,s.mz);                    // the cloud always works on raw data
+  const sc = CAL ? calCorrect(s) : null;
+  const corr = !!sc && (calUse || calBoth);     // "both": corrected is the main view
+  updateAttitude(corr ? sc : s);
+  updateHeading(corr ? sc : s, HDG);
+  if(calBoth && sc){                           // the raw estimate, alongside
+    attSwap(ATT2); updateAttitude(s); attSwap(ATT2);
+    updateHeading(s, HDG2);
+  }
   if(samples.length===1) setButtons();
   if(samples.length>MAX_SAMPLES) samples.splice(0,samples.length-MAX_SAMPLES);
   el('sCount').textContent=samples.length.toLocaleString();
@@ -1110,6 +1163,8 @@ async function connect(){
     });
     device.addEventListener('gattserverdisconnected',onDisconnect);
     log('Connecting to '+device.name+'…');
+    el('brandName').textContent = device.name || 'ESP32-LOG';   // which board this is
+    calStatus();
     const server=await device.gatt.connect();
     const svc=await server.getPrimaryService(SVC);
     chData=await svc.getCharacteristic(DATA);
@@ -1122,6 +1177,7 @@ async function connect(){
     await chData.startNotifications();
     await chStat.startNotifications();
     requestIndex();
+    requestConfig();
     el('lampLink').classList.add('on');
     el('hint').style.display='none';
     el('mtu').textContent='streaming 4 Hz';
@@ -1146,10 +1202,21 @@ function onDisconnect(){
   setButtons();
 }
 
-async function send(...bytes){
-  if(!chCtrl) return;
-  try{ await chCtrl.writeValue(Uint8Array.from(bytes)); }
-  catch(e){ log('Command failed: '+e.message,'err'); }
+/* Web Bluetooth allows ONE operation at a time: a write started while
+   another is in flight fails with "GATT operation already in progress".
+   Connecting sends several commands back to back -- the index, the config,
+   a status request -- and all but the first were being rejected. So every
+   command waits its turn here. Resolves true if the board got it. */
+let gattQ = Promise.resolve();
+function send(...bytes){
+  if(!chCtrl) return Promise.resolve(false);
+  const p = gattQ.then(async () => {
+    if(!chCtrl) return false;
+    try{ await chCtrl.writeValue(Uint8Array.from(bytes)); return true; }
+    catch(e){ log('Command failed: '+e.message,'err'); return false; }
+  });
+  gattQ = p.catch(() => false);
+  return p;
 }
 
 function applyRate(){
@@ -1625,8 +1692,16 @@ el('btnDataClear').onclick=()=>{
 el('btnDumpCsv').onclick=()=>saveCsv(dumped,'esp32-log.csv');
 
 /* ── session index ───────────────────────────────────────────────── */
+/* One index transfer at a time. On connecting, the first status frame
+   arrives while the index requested a moment earlier is still coming in --
+   its session count differs from the (still empty) list, which used to
+   trigger a second request that CLEARED the list mid-transfer. A transfer
+   that never finishes is forgotten after 10 s, so it cannot block for good. */
+let idxPendingAt = 0;
 function requestIndex(){
   if(!chCtrl||dumpActive||recording) return false;
+  if(idxPendingAt && performance.now()-idxPendingAt < 10000) return true;   // already on its way
+  idxPendingAt = performance.now();
   sessionsList=[];
   send(CMD.INDEX);
   return true;
@@ -2658,6 +2733,7 @@ function parseMap(str){
 }
 
 function magBody(s){
+  if(s.magDone) return [s.mx,s.my,s.mz];      // already corrected from a loaded config
   let m=[s.mx,s.my,s.mz];
   if(calApplied&&cal){
     const dx=m[0]-cal.b[0], dy=m[1]-cal.b[1], dz=m[2]-cal.b[2], W=cal.W;
@@ -2687,6 +2763,16 @@ let seedN=0, seedF=0, seedS=0, seedC=0;
 
 const STILL_WIN=1.5;        // seconds of gyro history used for the rest test
 const STILL_SD=0.02;        // rad/s, ~1.1 deg/s
+/* A STEADY rotation has almost no spread either: turning at a constant
+   20 deg/s reads 20, 20, 20... and passed the spread test as 'still' --
+   the filter then learned the turn as gyro bias and the rotation vanished
+   from the estimate (a steadily spinning tube froze). So stillness also
+   needs the rate itself to be small -- far above any real bias of this
+   chip (~0.5 deg/s measured), far below a deliberate turn -- and gravity
+   and the field must not have turned across the window, which catches
+   even slow steady turns below that limit. */
+const STILL_MAX=0.087;      // rad/s, 5 deg/s
+const STILL_TURN=0.01745;   // rad, 1 deg over the window
 const SEED_N=8;             // samples averaged to seed the field reference
 const MAX_REJECT=60;        // consecutive rejections before re-seeding
 
@@ -2873,7 +2959,12 @@ function updateAttitude(s){
   // stationary board reads as still however large its offset. Testing the
   // corrected magnitude instead would gate bias estimation behind already
   // having a small bias, and a large offset could never be found.
-  gyrBuf.push([s.t, wm[0], wm[1], wm[2]]);
+  {
+    const an=Math.hypot(s.ax,s.ay,s.az), mb=(!s.health || s.health[2]==='1') ? magBody(s) : null;
+    const mn=mb ? Math.hypot(mb[0],mb[1],mb[2]) : 0;
+    gyrBuf.push([s.t, wm[0], wm[1], wm[2],
+                 an>0 ? [s.ax/an,s.ay/an,s.az/an] : null, mn>0 ? [mb[0]/mn,mb[1]/mn,mb[2]/mn] : null]);
+  }
   while(gyrBuf.length>2 && s.t-gyrBuf[0][0]>STILL_WIN) gyrBuf.shift();
   if(useGyro && gyrBuf.length>=4){
     let m0=0,m1=0,m2=0;
@@ -2884,7 +2975,10 @@ function updateAttitude(s){
       v0+=(g[1]-m0)*(g[1]-m0); v1+=(g[2]-m1)*(g[2]-m1); v2+=(g[3]-m2)*(g[3]-m2);
     }
     gyrSd=Math.sqrt(Math.max(v0,v1,v2)/n);
-    isStill = gyrSd<STILL_SD && dev<0.03;
+    const g0=gyrBuf[0], g1=gyrBuf[gyrBuf.length-1];
+    const turned=(u,v)=>(u&&v) ? Math.acos(Math.max(-1,Math.min(1,u[0]*v[0]+u[1]*v[1]+u[2]*v[2]))) : 0;
+    isStill = gyrSd<STILL_SD && dev<0.03 && Math.hypot(m0,m1,m2)<STILL_MAX &&
+              turned(g0[4],g1[4])<STILL_TURN && turned(g0[5],g1[5])<STILL_TURN;
   } else { isStill=false; }
   if(isStill){
     const H=mZeros(3,6);
@@ -3002,6 +3096,268 @@ const FACES=[
   {v:[0,1,5,4],n:[0,-1,0], c:'#283c49'}
 ];
 
+/* ── a loaded calibration, applied for DISPLAY only ──────────────────
+   The board records raw data, and so does every file this page saves: a
+   loaded config.json only changes what the compass and the 3D view show.
+   Applied in the order the calibration defines (see the README):
+     accelerometer  (raw - bias_g) / scale
+     magnetometer   soft_iron x (raw - hard_iron_uT), then axis_map, then
+                    rotated by mag.align_deg onto the accelerometer
+     all three      rotated by accel.align_deg into the tube's frame -- the
+                    gyro too, since it shares the accelerometer's chip
+   "Show raw and corrected" runs the orientation filter twice, once on each,
+   by swapping its state in and out (attSwap). */
+let CAL=null, calUse=false, calBoth=false;
+function calExp(w){                        // rotation matrix from a rotation vector (rad)
+  const th=Math.hypot(w[0],w[1],w[2]);
+  if(th<1e-12) return [[1,-w[2],w[1]],[w[2],1,-w[0]],[-w[1],w[0],1]];
+  const k=w.map(x=>x/th), c=Math.cos(th), s=Math.sin(th), C=1-c;
+  return [[c+k[0]*k[0]*C, k[0]*k[1]*C-k[2]*s, k[0]*k[2]*C+k[1]*s],
+          [k[1]*k[0]*C+k[2]*s, c+k[1]*k[1]*C, k[1]*k[2]*C-k[0]*s],
+          [k[2]*k[0]*C-k[1]*s, k[2]*k[1]*C+k[0]*s, c+k[2]*k[2]*C]];
+}
+const calMv=(M,v)=>[M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2], M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2], M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]];
+function calBuild(o){
+  const num=x=>typeof x==='number' && isFinite(x);
+  const vec=(v,n,d)=>Array.isArray(v) && v.length===n && v.every(num) ? v : d;
+  const a=(o && o.accel) || {}, m=(o && o.mag) || {};
+  const bias=vec(a.bias_g,3,[0,0,0]), scale=vec(a.scale,3,[1,1,1]), al=vec(a.align_deg,2,[0,0]);
+  const h=vec(m.hard_iron_uT,3,[0,0,0]);
+  const W=Array.isArray(m.soft_iron) && m.soft_iron.length===3 && m.soft_iron.every(r=>vec(r,3,null)) ? m.soft_iron : [[1,0,0],[0,1,0],[0,0,1]];
+  const map=(typeof m.axis_map==='string' && parseMap(m.axis_map)) || magMap;
+  const Rm=calExp(vec(m.align_deg,3,[0,0,0]).map(v=>v*Math.PI/180));
+  // the tube's axis as the chip sees it: -x, tilted toward +y and +z by align_deg;
+  // Ra is the rotation that takes it back onto -x
+  const t0=[-1, Math.tan(al[0]*Math.PI/180), Math.tan(al[1]*Math.PI/180)], tn=Math.hypot(...t0), t=t0.map(v=>v/tn);
+  const e=[-1,0,0], ax=[t[1]*e[2]-t[2]*e[1], t[2]*e[0]-t[0]*e[2], t[0]*e[1]-t[1]*e[0]];
+  const sn=Math.hypot(...ax), cs=t[0]*e[0]+t[1]*e[1]+t[2]*e[2];
+  const Ra = sn<1e-12 ? [[1,0,0],[0,1,0],[0,0,1]] : calExp(ax.map(v=>v/sn*Math.atan2(sn,cs)));
+  return {bias, scale, h, W, map, Rm, Ra, id:o.device_id, ver:o.cal_version, date:o.cal_date};
+}
+function calCorrect(s){
+  if(!CAL || (s.health && (s.health[0]!=='1' || s.health[2]!=='1'))) return null;
+  const C=CAL;
+  const a=[(s.ax-C.bias[0])/C.scale[0], (s.ay-C.bias[1])/C.scale[1], (s.az-C.bias[2])/C.scale[2]];
+  const mW=calMv(C.W,[s.mx-C.h[0], s.my-C.h[1], s.mz-C.h[2]]);
+  const mA=calMv(C.Rm, C.map.map(([i,sg])=>mW[i]*sg));
+  const aT=calMv(C.Ra,a), mT=calMv(C.Ra,mA), gT=calMv(C.Ra,[s.gx,s.gy,s.gz]);
+  return Object.assign({}, s, {ax:aT[0],ay:aT[1],az:aT[2], gx:gT[0],gy:gT[1],gz:gT[2],
+                               mx:mT[0],my:mT[1],mz:mT[2], magDone:true});
+}
+function calLoadText(txt, src){
+  let o; try{ o=JSON.parse(txt); }catch(e){ log('That config.json is not valid JSON: '+e.message,'err'); return false; }
+  if(!o || typeof o!=='object' || Array.isArray(o) || (!o.accel && !o.mag)){
+    log('That file has no accel or mag calibration in it.','err'); return false; }
+  CAL=calBuild(o); CAL.src = src || 'file';
+  el('chkCalUse').disabled=false; el('chkCalBoth').disabled=false;
+  calStatus();
+  log('Calibration loaded '+(CAL.src==='board'?'from the board':'from a file')+': device '+(o.device_id ?? '?')+', version '+(o.cal_version ?? '?')+
+      (o.cal_date?' ('+o.cal_date+')':'')+' -- display only; recordings stay raw','ok');
+  calRestart();
+  return true;
+}
+function calStatus(msg){
+  if(msg){ el('cCalFile').textContent=msg; el('cCalFile').style.color=''; return; }
+  if(!CAL){ el('cCalFile').textContent='none loaded'; return; }
+  const m=/ESP32-LOG-(\d+)/.exec(el('brandName').textContent), conn=m ? +m[1] : null;
+  const mismatch = CAL.id!=null && conn!=null && CAL.id!==conn;
+  el('cCalFile').textContent = (CAL.src==='board' ? 'from the board: ' : 'from a file: ')+'device '+(CAL.id ?? '?')+', version '+(CAL.ver ?? '?')+(CAL.date?', '+CAL.date:'')+
+    (mismatch ? ' -- NOT the connected board (ESP32-LOG-'+conn+')' : '');
+  el('cCalFile').style.color = mismatch ? '#ff8080' : '';
+}
+/* The board's own config.json, over Bluetooth (command 0x0E). It arrives
+   as 0x60 pieces, then 0x61 with the total length and the sum of the bytes;
+   anything that doesn't match is refused rather than half-loaded. A board
+   whose firmware predates this ignores the command, so there's a timeout. */
+let cfgRx=null, cfgTimer=null;
+function requestConfig(){
+  if(!chCtrl){ log('Connect to a board first.','err'); return; }
+  cfgRx={chunks:[]};
+  calStatus('asking the board…');
+  clearTimeout(cfgTimer);
+  cfgTimer=setTimeout(()=>{
+    if(!cfgRx) return;
+    cfgRx=null;
+    calStatus(CAL ? null : 'the board did not send a config');
+    if(CAL) calStatus();
+    log('The board did not send its config.json -- it may be recording (try again after), '+
+        'or its firmware predates this feature (update main.py).','err');
+  }, 8000);
+  send(CMD.CONFIG).then(ok => {
+    if(ok || !cfgRx) return;
+    clearTimeout(cfgTimer); cfgRx=null;
+    calStatus(CAL ? null : 'could not ask the board'); if(CAL) calStatus();
+    log('Could not send the config request to the board -- press Load from board to try again.','err');
+  });
+}
+function cfgDone(f){
+  clearTimeout(cfgTimer);
+  const dv=new DataView(f.buffer,f.byteOffset,f.byteLength);
+  const len=dv.getUint16(1,true), sum=dv.getUint16(3,true);
+  const parts=(cfgRx && cfgRx.chunks) || []; cfgRx=null;
+  if(len===0){ calStatus(CAL?null:'the board has no config.json'); if(CAL) calStatus();
+    log('The board has no config.json -- it is using default (uncalibrated) values.','err'); return; }
+  const n=parts.reduce((a,c)=>a+(c?c.length:0),0), buf=new Uint8Array(n);
+  let o=0; for(const c of parts) if(c){ buf.set(c,o); o+=c.length; }
+  let ck=0; for(const b of buf) ck=(ck+b)&0xFFFF;
+  if(n!==len || ck!==sum){ calStatus(CAL?null:'config arrived damaged'); if(CAL) calStatus();
+    log('The config arrived damaged ('+n+' of '+len+' bytes) -- press Load from board to try again.','err'); return; }
+  calLoadText(new TextDecoder().decode(buf), 'board');
+}
+
+// the filter's state, swapped so it can run as two independent copies
+function attFresh(){ return {q:[1,0,0,0], bias:[0,0,0], Pm:null, gLP:null, linAcc:[0,0,0], aMag:1, gTrust:1,
+  lastT:null, attReady:false, isStill:false, gyrSd:0, gyrBuf:[], magOK:false, accScale:1, magScale:1,
+  refField:null, refDip:null, refReady:false, rejectStreak:0, seedN:0, seedF:0, seedS:0, seedC:0}; }
+let ATT2=attFresh();
+function attSwap(o){ let t;
+  t=q; q=o.q; o.q=t;                 t=bias; bias=o.bias; o.bias=t;       t=Pm; Pm=o.Pm; o.Pm=t;
+  t=gLP; gLP=o.gLP; o.gLP=t;         t=linAcc; linAcc=o.linAcc; o.linAcc=t;
+  t=aMag; aMag=o.aMag; o.aMag=t;     t=gTrust; gTrust=o.gTrust; o.gTrust=t;
+  t=lastT; lastT=o.lastT; o.lastT=t; t=attReady; attReady=o.attReady; o.attReady=t;
+  t=isStill; isStill=o.isStill; o.isStill=t;   t=gyrSd; gyrSd=o.gyrSd; o.gyrSd=t;
+  t=gyrBuf; gyrBuf=o.gyrBuf; o.gyrBuf=t;       t=magOK; magOK=o.magOK; o.magOK=t;
+  t=accScale; accScale=o.accScale; o.accScale=t; t=magScale; magScale=o.magScale; o.magScale=t;
+  t=refField; refField=o.refField; o.refField=t; t=refDip; refDip=o.refDip; o.refDip=t;
+  t=refReady; refReady=o.refReady; o.refReady=t; t=rejectStreak; rejectStreak=o.rejectStreak; o.rejectStreak=t;
+  t=seedN; seedN=o.seedN; o.seedN=t; t=seedF; seedF=o.seedF; o.seedF=t;
+  t=seedS; seedS=o.seedS; o.seedS=t; t=seedC; seedC=o.seedC; o.seedC=t;
+}
+// a change of what is shown restarts both estimates and both headings
+function calRestart(){
+  setMode(attMode);
+  Object.assign(HDG, {deg:null, c:0, s:0, tLast:null, tilt:null, tTilt:null, U:null, ok:false, why:'waiting for data'});
+  Object.assign(HDG2, {deg:null, c:0, s:0, tLast:null, tilt:null, tTilt:null, U:null, ok:false, why:'waiting for data'});
+  dirty=true;
+}
+
+/* ── compass heading ─────────────────────────────────────────────────
+   The compass bearing of the board's +y axis -- the reference direction
+   across the tube -- clockwise from north. For the tube hanging on its x
+   axis, this is its rotation about its own axis: the same quantity as the
+   debug page's "spin about axis".
+
+   Solved directly from the accelerometer and magnetometer on every sample
+   (gravity gives "up", the field with its vertical part removed gives
+   north), so it is tilt-compensated and does not depend on the 3D view's
+   reference mode -- like a phone's compass. Uses the cloud panel's
+   calibration when it is applied, and the Mag axes mapping. Smoothed with a
+   0.25 s time constant on the direction, so 359 and 1 average to 0. */
+const HDG = {deg:null, c:0, s:0, tLast:null, tilt:null, ok:false, why:'waiting for data'};
+const HDG2 = {deg:null, c:0, s:0, tLast:null, tilt:null, ok:false, why:'waiting for data'};   // raw, for "both"
+const HDG_TAU = 0.25;
+let hdgDecl = 0;                              // degrees; added to give true north
+const CARD8 = ['N','NE','E','SE','S','SW','W','NW'];
+const card8 = d => CARD8[Math.round(d/45)%8];
+function updateHeading(s, H){
+  H = H || HDG;
+  if(s.health && (s.health[0]!=='1' || s.health[2]!=='1')) return;
+  const a=[s.ax,s.ay,s.az], m=magBody(s);
+  const an=Math.hypot(a[0],a[1],a[2]); if(!(an>0)) return;
+  const U=[a[0]/an,a[1]/an,a[2]/an];
+  // The tube axis is -x when it hangs normally, so its angle from vertical.
+  // Smoothed, or each sample's noise shows as flicker -- and the DIRECTION of
+  // gravity is averaged, not the tilt: tilt is a size, and noise can only make
+  // a size larger, so averaging tilts would leave an upright tube reading
+  // about 0.3 deg instead of 0. Averaging the direction lets the noise cancel.
+  const dtT = H.tTilt==null ? 1e9 : s.t-H.tTilt; H.tTilt=s.t;
+  const kT = H.U==null || !(dtT>0) || dtT>1 ? 1 : 1-Math.exp(-dtT/HDG_TAU);
+  H.U = H.U==null || kT===1 ? U.slice() : H.U.map((v,i)=>v+kT*(U[i]-v));
+  const un=Math.hypot(H.U[0],H.U[1],H.U[2]);
+  H.tilt=Math.acos(Math.max(-1,Math.min(1,-H.U[0]/un)))*180/Math.PI;
+  let W=[U[1]*m[2]-U[2]*m[1], U[2]*m[0]-U[0]*m[2], U[0]*m[1]-U[1]*m[0]];
+  const wn=Math.hypot(W[0],W[1],W[2]);
+  if(!(wn>1e-6)){ H.ok=false; H.why='field too close to vertical'; return; }
+  W=[W[0]/wn,W[1]/wn,W[2]/wn];
+  const N=[W[1]*U[2]-W[2]*U[1], W[2]*U[0]-W[0]*U[2], W[0]*U[1]-W[1]*U[0]];
+  // +y's northward and eastward parts (east = -west)
+  const n=N[1], e=-W[1], hz=Math.hypot(n,e);
+  if(hz<0.2){ H.ok=false; H.why='y axis close to vertical -- no bearing'; return; }
+  const dt = H.tLast===null ? 1e9 : s.t-H.tLast; H.tLast=s.t;
+  const k = !H.ok || !(dt>0) || dt>1 ? 1 : 1-Math.exp(-dt/HDG_TAU);
+  H.c += k*(n/hz-H.c); H.s += k*(e/hz-H.s);
+  H.deg = ((Math.atan2(H.s,H.c)*180/Math.PI)%360+360)%360;
+  H.ok=true; H.why='';
+}
+const hdgShown = (H=HDG) => H.ok ? (((H.deg+hdgDecl)%360)+360)%360 : null;
+
+/* ── the compass panel, drawn like the iPhone Compass app ────────────── */
+function drawCompass(){
+  const cv=el('compassCv'); if(!cv || !cv.getContext) return;
+  const dpr=devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
+  if(!w||!h) return;
+  if(cv.width!==w*dpr||cv.height!==h*dpr){ cv.width=w*dpr; cv.height=h*dpr; }
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  g.fillStyle='#000'; g.fillRect(0,0,w,h);
+  const hd=hdgShown(), live=hd!==null;
+  const cx=w/2, cy=h/2-14, R=Math.max(40, Math.min(w, h-60)/2-34);
+  const FONT=css('--mono'), SANS='-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
+  // the fixed lubber line at the top: where the device is pointing
+  g.strokeStyle='#fff'; g.lineWidth=3; g.lineCap='round';
+  g.beginPath(); g.moveTo(cx, cy-R-4); g.lineTo(cx, cy-R+20); g.stroke();
+  // the dial turns so that the current heading sits under the line
+  g.save(); g.translate(cx,cy); g.rotate(-(live?hd:0)*Math.PI/180);
+  g.globalAlpha = live ? 1 : 0.35;
+  for(let d=0; d<360; d+=2){
+    const major=d%30===0, ten=d%10===0, a=d*Math.PI/180;
+    const len=major?16:ten?11:7, sx=Math.sin(a), sy=-Math.cos(a);
+    g.strokeStyle = major ? '#fff' : ten ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.45)';
+    g.lineWidth = major ? 2.4 : ten ? 1.6 : 1; g.lineCap='butt';
+    g.beginPath(); g.moveTo(sx*R, sy*R); g.lineTo(sx*(R-len), sy*(R-len)); g.stroke();
+  }
+  // degree numbers round the outside, turning with the dial
+  g.fillStyle='#fff'; g.textAlign='center'; g.textBaseline='middle';
+  g.font='600 12px '+SANS;
+  for(let d=0; d<360; d+=30){
+    const a=d*Math.PI/180;
+    g.save(); g.translate(Math.sin(a)*(R+16), -Math.cos(a)*(R+16)); g.rotate(a);
+    g.fillText(String(d),0,0); g.restore();
+  }
+  // north marker: a red triangle on the ring
+  g.fillStyle='#ff3b30';
+  g.beginPath(); g.moveTo(0,-R+20); g.lineTo(-7,-R+32); g.lineTo(7,-R+32); g.closePath(); g.fill();
+  // cardinal letters inside
+  g.font='600 '+Math.round(R*0.2)+'px '+SANS;
+  for(const [d,L] of [[0,'N'],[90,'E'],[180,'S'],[270,'W']]){
+    const a=d*Math.PI/180, r=R-50;
+    g.save(); g.translate(Math.sin(a)*r, -Math.cos(a)*r); g.rotate(a);
+    g.fillStyle = '#fff'; g.fillText(L,0,0); g.restore();
+  }
+  g.restore();
+  g.globalAlpha=1;
+  // the centre crosshair
+  g.strokeStyle='rgba(255,255,255,0.55)'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(cx-R*0.28,cy); g.lineTo(cx+R*0.28,cy); g.moveTo(cx,cy-R*0.28); g.lineTo(cx,cy+R*0.28); g.stroke();
+  // the reading underneath, large
+  g.fillStyle='#fff'; g.textAlign='center'; g.textBaseline='alphabetic';
+  g.font='300 '+Math.round(Math.min(44, R*0.42))+'px '+SANS;
+  g.fillText(live ? Math.round(hd)%360+'° '+card8(hd) : '—', cx, h-14);
+  const viewName = CAL && (calUse||calBoth) ? 'CORRECTED' : 'RAW';
+  g.textAlign='left'; g.font='11px '+FONT; g.fillStyle='#8a99a6'; g.fillText(viewName, 10, 18);
+  // "both": an orange marker on the ring where the RAW heading would be
+  const hb=hdgShown(HDG2), both=calBoth && CAL && hb!==null && live;
+  if(both){
+    const rel=(hb-hd)*Math.PI/180;               // relative to the top of the dial
+    const px=cx+Math.sin(rel)*(R+2), py=cy-Math.cos(rel)*(R+2);
+    g.save(); g.translate(cx,cy); g.rotate(rel);
+    g.strokeStyle='#ff9f0a'; g.lineWidth=3; g.lineCap='round';
+    g.beginPath(); g.moveTo(0,-R-4); g.lineTo(0,-R+20); g.stroke(); g.restore();
+    g.fillStyle='#ff9f0a'; g.font='12px '+FONT; g.textAlign='left';
+    const dd=((hd-hb+540)%360)-180;
+    g.fillText('raw '+hb.toFixed(1)+'°   Δ '+(dd>=0?'+':'')+dd.toFixed(1)+'°', 10, 36);
+  }
+  el('cHdgRaw').textContent = both ? hb.toFixed(1)+'°' : '—';
+  el('cHdgDiff').textContent = both ? ((((hd-hb+540)%360)-180)>=0?'+':'')+((((hd-hb+540)%360)-180)).toFixed(1)+'°' : '—';
+  el('cView').textContent = viewName.toLowerCase();
+  if(!live){ g.font='12px '+FONT; g.fillStyle='#8a99a6'; g.fillText(HDG.why, cx, cy); }
+  // the readouts beside it
+  el('cHdg').textContent = live ? hd.toFixed(1)+'°' : '—';
+  el('cCard').textContent = live ? card8(hd) : '—';
+  el('cRef').textContent = hdgDecl ? 'true north (declination '+(hdgDecl>0?'+':'')+hdgDecl+'°)' : 'magnetic north';
+  el('cTilt').textContent = HDG.tilt===null ? '—' : HDG.tilt.toFixed(1)+'°';
+  el('cCal').textContent = CAL && (calUse||calBoth) ? 'from config' : calApplied ? 'cloud fit' : 'uncalibrated';
+}
+
 function drawAttitude(){
   const cv=el('att3d'), dpr=devicePixelRatio||1;
   const w=cv.clientWidth, h=cv.clientHeight;
@@ -3023,23 +3379,48 @@ function drawAttitude(){
   const S=v=>{ const p=camRot(v[0],v[1],v[2]); return [ox+p[0]*scale, oy-p[1]*scale, p[2]]; };
 
   // ground grid
-  g.strokeStyle='#1e2a34'; g.lineWidth=1;
-  const G=2.0, step=0.5;
-  g.beginPath();
-  for(let i=-G;i<=G+1e-9;i+=step){
-    let p=S([i,-G,-0.8]), q=S([i,G,-0.8]);
-    g.moveTo(p[0],p[1]); g.lineTo(q[0],q[1]);
-    p=S([-G,i,-0.8]); q=S([G,i,-0.8]);
-    g.moveTo(p[0],p[1]); g.lineTo(q[0],q[1]);
-  }
+  // a compass rose on the ground, like the 2D compass (world X north, Y west)
+  const Z0=-0.8, RR=2.0;
+  const RP=(b,r)=>S([Math.cos(b*Math.PI/180)*r, -Math.sin(b*Math.PI/180)*r, Z0]);
+  g.strokeStyle='#3a4a58'; g.lineWidth=1; g.beginPath();
+  for(let b=0;b<=360;b+=3){ const p=RP(b,RR); b?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]); }
   g.stroke();
-
-  // north needle, fixed in the world frame
-  const n0=S([0,0,-0.8]), n1=S([G,0,-0.8]);
-  g.strokeStyle=css('--rec'); g.lineWidth=2;
-  g.beginPath(); g.moveTo(n0[0],n0[1]); g.lineTo(n1[0],n1[1]); g.stroke();
-  g.fillStyle=css('--rec'); g.font='11px '+css('--mono'); g.textAlign='center';
-  g.fillText('N',n1[0],n1[1]-7);
+  for(let b=0;b<360;b+=2){
+    const major=b%30===0, ten=b%10===0, p0=RP(b,RR), p1=RP(b,RR-(major?0.2:ten?0.13:0.07));
+    g.strokeStyle=major?'#c9d4dd':ten?'#7d8c99':'#465664'; g.lineWidth=major?2:1;
+    g.beginPath(); g.moveTo(p0[0],p0[1]); g.lineTo(p1[0],p1[1]); g.stroke();
+  }
+  g.textAlign='center'; g.textBaseline='middle';
+  g.fillStyle='#8a99a6'; g.font='10px '+css('--mono');
+  for(let b=0;b<360;b+=30){ const p=RP(b,RR+0.24); g.fillText(String(b),p[0],p[1]); }
+  g.font='bold 15px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
+  for(const [b,L] of [[0,'N'],[90,'E'],[180,'S'],[270,'W']]){
+    const p=RP(b,RR-0.5); g.fillStyle='#e6edf3'; g.fillText(L,p[0],p[1]);
+  }
+  { const a=RP(0,RR-0.22), l=RP(-4,RR-0.36), r=RP(4,RR-0.36);   // red north marker
+    g.fillStyle='#ff3b30'; g.beginPath(); g.moveTo(a[0],a[1]); g.lineTo(l[0],l[1]); g.lineTo(r[0],r[1]); g.closePath(); g.fill(); }
+  g.textBaseline='alphabetic';
+  // heading pointers from the centre: white for the main view, orange for raw
+  const pointer=(H,col,dash)=>{ if(!H.ok) return;
+    const c0=S([0,0,Z0]), tip=RP(H.deg,RR-0.24);
+    g.strokeStyle=col; g.lineWidth=2.5; g.setLineDash(dash);
+    g.beginPath(); g.moveTo(c0[0],c0[1]); g.lineTo(tip[0],tip[1]); g.stroke(); g.setLineDash([]);
+    g.fillStyle=col; g.beginPath(); g.arc(tip[0],tip[1],4,0,7); g.fill(); };
+  pointer(HDG,'#ffffff',[]);
+  if(calBoth && CAL) pointer(HDG2,'#ff9f0a',[5,4]);
+  // the heading, as a number
+  const hd3=hdgShown(), hd3b=hdgShown(HDG2), showBoth=calBoth && CAL;
+  const viewName = CAL && (calUse||calBoth) ? 'CORRECTED' : 'RAW';
+  g.textAlign='left'; g.font='11px '+css('--mono'); g.fillStyle='#8a99a6';
+  g.fillText('HEADING  '+viewName, 12, 20);
+  g.fillStyle='#e6edf3'; g.font='20px '+css('--mono');
+  g.fillText(hd3===null ? '—' : hd3.toFixed(1)+'° '+card8(hd3), 12, 44);
+  if(showBoth){
+    g.fillStyle='#ff9f0a'; g.font='12px '+css('--mono');
+    g.fillText(hd3b===null ? 'raw —' : 'raw '+hd3b.toFixed(1)+'°'+(hd3!==null?'   Δ '+(((hd3-hd3b+540)%360)-180>=0?'+':'')+(((hd3-hd3b+540)%360)-180).toFixed(1)+'°':''), 12, 64);
+    g.fillStyle='#8a99a6'; g.font='10px '+css('--mono');
+    g.fillText('solid: corrected   orange outline: raw', 12, h-12);
+  }
 
   const R=quatToR(q);
   const toWorld=v=>[R[0]*v[0]+R[1]*v[1]+R[2]*v[2],
@@ -3074,6 +3455,22 @@ function drawAttitude(){
     g.fillStyle=css(col);
     g.beginPath(); g.arc(p1[0],p1[1],3,0,7); g.fill();
     g.fillText(name,p1[0],p1[1]-8);
+  }
+
+  // the raw orientation, as an orange outline, when showing both
+  if(calBoth && CAL && ATT2.attReady){
+    const Rg=quatToR(ATT2.q);
+    const tw=v=>[Rg[0]*v[0]+Rg[1]*v[1]+Rg[2]*v[2], Rg[3]*v[0]+Rg[4]*v[1]+Rg[5]*v[2], Rg[6]*v[0]+Rg[7]*v[1]+Rg[8]*v[2]];
+    const gv=BOX.map(v=>S(tw(v)));
+    g.strokeStyle='#ff9f0a'; g.lineWidth=1.5; g.setLineDash([5,3]);
+    for(const f of FACES){
+      g.beginPath(); f.v.forEach((k,j)=>j?g.lineTo(gv[k][0],gv[k][1]):g.moveTo(gv[k][0],gv[k][1]));
+      g.closePath(); g.stroke();
+    }
+    g.setLineDash([]);
+    const y0=S(tw([0,0,0])), y1=S(tw([0,1.3,0]));
+    g.beginPath(); g.moveTo(y0[0],y0[1]); g.lineTo(y1[0],y1[1]); g.stroke();
+    g.fillStyle='#ff9f0a'; g.font='11px '+css('--mono'); g.textAlign='center'; g.fillText('Y raw',y1[0],y1[1]-8);
   }
 
   // gravity: straight down in the world frame, from the board centre
@@ -3161,6 +3558,7 @@ function setMode(m){
   el('aNote').textContent=MODE_NOTE[m]+
     (m==='fuse'&&!calApplied?' Calibrate the magnetometer for a trustworthy heading.':'');
   resetAttitude();
+  ATT2=attFresh();
 }
 for(const b of el('modeBtns').children) b.onclick=()=>setMode(b.dataset.mode);
 el('inpMap').addEventListener('change',()=>{
@@ -3381,11 +3779,21 @@ function tick(ts){
     drawHealth();
     drawScene();
     drawAttitude();
+    drawCompass();
     lastDraw=ts; dirty=false;
   }
   requestAnimationFrame(tick);
 }
 
+el('inpCal').addEventListener('change', e => {
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader(); rd.onload=()=>calLoadText(rd.result); rd.readAsText(f);
+});
+el('chkCalUse').addEventListener('change', e => { calUse=e.target.checked; calRestart(); });
+el('btnCalBoard').addEventListener('click', () => requestConfig());
+el('chkCalBoth').addEventListener('change', e => { calBoth=e.target.checked; calRestart(); });
+el('inpDecl').addEventListener('change', e => { const v=+e.target.value;
+  hdgDecl = isFinite(v) && Math.abs(v)<=90 ? v : 0; e.target.value=hdgDecl; dirty=true; });
 addEventListener('resize',()=>{dirty=true});
 buildPlots();
 setButtons();
@@ -3393,6 +3801,7 @@ setMode('fuse');
 setCalApplied(false);
 drawScene();
 drawAttitude();
+drawCompass();
 requestAnimationFrame(tick);
 log('Ready. Connect to the board to start.');
 
