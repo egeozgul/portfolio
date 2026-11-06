@@ -42,6 +42,8 @@
     text-align:center;color:var(--dim);cursor:pointer;transition:.15s;
   }
   .drop:hover,.drop.over{border-color:#3d7dd8;background:#131c26;color:var(--ink)}
+  #latestRow[hidden]{display:none}
+  .latestinfo{font-family:var(--mono);font-size:11px;color:var(--dim)}
 
   .meta{
     font-family:var(--mono);font-size:11px;color:var(--dim);
@@ -138,6 +140,10 @@
     </div>
   </div>
   <input type="file" id="file" accept=".csv,.zip,.txt">
+  <div class="row" id="latestRow" hidden>
+    <button id="btnLatest">Load latest export</button>
+    <span class="latestinfo" id="latestInfo"></span>
+  </div>
   <div class="row" id="sessRow" hidden>
     <span class="lbl">Session</span>
     <select id="sessSel"></select>
@@ -1573,4 +1579,64 @@ $('btnClip').onclick=()=>{
 };
 
 addEventListener('resize',()=>{ if(data) draw(); });
+
+/* ── latest export from the logger ───────────────────────────────────
+   The logger (/logger/) keeps a copy of its most recent "Export
+   everything" ZIP in this site's IndexedDB: database 'borelogger', store
+   'exports', key 'latest'. Opened at #latest-export (the logger's "Open in
+   visualizer" button) the page loads it at once; otherwise it offers a
+   button. The same code is in the logger; keep the two in step. */
+const XDB='borelogger', XSTORE='exports', XKEY='latest';
+function xdbOpen(){
+  return new Promise((res,rej)=>{
+    let r;
+    try{ r=indexedDB.open(XDB,1); }catch(e){ rej(e); return; }
+    r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(XSTORE))
+                              r.result.createObjectStore(XSTORE); };
+    r.onsuccess=()=>res(r.result);
+    r.onerror=()=>rej(r.error||new Error('storage unavailable'));
+    r.onblocked=()=>rej(new Error('storage busy in another tab'));
+  });
+}
+async function readLatestExport(){
+  const db=await xdbOpen();
+  try{
+    return await new Promise((res,rej)=>{
+      const q=db.transaction(XSTORE,'readonly').objectStore(XSTORE).get(XKEY);
+      q.onsuccess=()=>res(q.result||null);
+      q.onerror=()=>rej(q.error);
+    });
+  }finally{ db.close(); }
+}
+function latestFile(rec){
+  return new File([rec.blob], rec.name||'latest-export.zip', {type:'application/zip'});
+}
+async function initLatest(){
+  const asked = location.hash==='#latest-export';
+  if(asked) history.replaceState(null,'',location.pathname+location.search);
+  let rec=null;
+  try{ rec=await readLatestExport(); }
+  catch(e){
+    if(asked) meta('Could not open the logger\'s latest export ('+((e&&e.message)||e)+
+                   '). Choose the ZIP file instead.','bad');
+    return;
+  }
+  if(!rec||!rec.blob){
+    if(asked) meta('No export from the logger is stored in this browser. '+
+                   'Choose the ZIP file instead.','bad');
+    return;
+  }
+  const when=new Date(rec.savedAt||Date.now()).toLocaleString();
+  $('latestInfo').textContent=`${rec.name} · ${(rec.size/1048576).toFixed(1)} MB · exported ${when}`;
+  $('latestRow').hidden=false;
+  $('btnLatest').onclick=async()=>{
+    try{
+      const r=await readLatestExport();      // re-read: a newer export may exist
+      if(r&&r.blob) load(latestFile(r));
+      else meta('The stored export is gone. Choose the ZIP file instead.','bad');
+    }catch(e){ meta('Could not open the latest export: '+((e&&e.message)||e),'bad'); }
+  };
+  if(asked) load(latestFile(rec));
+}
+initLatest();
 </script>

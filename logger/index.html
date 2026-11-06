@@ -80,6 +80,19 @@
     padding:8px 12px;cursor:pointer;white-space:nowrap;
   }
   button:hover:not(:disabled){border-color:#3f5364;background:#212c37}
+  /* a link that looks like the buttons around it: opening the visualizer
+     in a new tab from a real link works where window.open is blocked */
+  a.btnlink{
+    display:inline-flex;align-items:center;text-decoration:none;
+    font-family:var(--panelface);font-size:10.5px;font-weight:600;
+    letter-spacing:.13em;text-transform:uppercase;
+    color:#cdeaf7;background:#20303c;
+    border:1px solid #3a5666;border-radius:3px;
+    padding:8px 12px;cursor:pointer;white-space:nowrap;
+  }
+  a.btnlink[hidden]{display:none}
+  a.btnlink:hover{border-color:#4f7488;background:#263a48}
+  a.btnlink:focus-visible{outline:2px solid var(--link);outline-offset:2px}
   button:disabled{opacity:.32;cursor:not-allowed}
   button:focus-visible{outline:2px solid var(--link);outline-offset:2px}
   button.primary{background:#20303c;border-color:#3a5666;color:#cdeaf7}
@@ -547,6 +560,8 @@
         <button id="btnSessRefresh" disabled>Refresh</button>
         <button id="btnSessCsv" disabled>Save index CSV</button>
         <button id="btnExportAll" disabled>Export everything (ZIP)</button>
+        <a id="lnkViz" class="btnlink" href="../visualizer/#latest-export"
+           target="_blank" rel="noopener" hidden>Open in visualizer</a>
       </div>
     </div>
     <div class="expprog" id="expProg" hidden>
@@ -2082,6 +2097,15 @@ async function exportAll(){
   const a = document.createElement('a');
   a.href=url; a.download=`${root}.zip`; a.click();
   URL.revokeObjectURL(url);
+  // keep a copy where the visualizer (same site) can open it directly
+  try{
+    await saveLatestExport(blob, `${root}.zip`);
+    el('lnkViz').hidden=false;
+  }catch(e){
+    el('lnkViz').hidden=true;
+    log('The ZIP was saved, but no copy could be kept for the visualizer ('+
+        ((e&&e.message)||e)+'). Open the saved ZIP in the visualizer instead.','err');
+  }
   if(short)
     log(`Export finished, but ${short} file(s) are INCOMPLETE — check the `+
         `complete= line in each. Re-run the export to try again.`,'err');
@@ -2090,6 +2114,37 @@ async function exportAll(){
         `${total.toLocaleString()} records, ${(blob.size/1024).toFixed(0)} kB.`,'ok');
 }
 el('btnExportAll').onclick=exportAll;
+
+/* ── hand-off to the visualizer ──────────────────────────────────────
+   /visualizer/ is on the same site, so it can read this browser's
+   IndexedDB. The latest export is kept there (database 'borelogger',
+   store 'exports', key 'latest'), replacing the previous one, and the
+   visualizer opened at #latest-export loads it straight away. The same
+   code is in the visualizer; keep the two in step. */
+const XDB='borelogger', XSTORE='exports', XKEY='latest';
+function xdbOpen(){
+  return new Promise((res,rej)=>{
+    let r;
+    try{ r=indexedDB.open(XDB,1); }catch(e){ rej(e); return; }
+    r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(XSTORE))
+                              r.result.createObjectStore(XSTORE); };
+    r.onsuccess=()=>res(r.result);
+    r.onerror=()=>rej(r.error||new Error('storage unavailable'));
+    r.onblocked=()=>rej(new Error('storage busy in another tab'));
+  });
+}
+async function saveLatestExport(blob,name){
+  const db=await xdbOpen();
+  try{
+    await new Promise((res,rej)=>{
+      const tx=db.transaction(XSTORE,'readwrite');
+      tx.objectStore(XSTORE).put({blob, name, size:blob.size, savedAt:Date.now()}, XKEY);
+      tx.oncomplete=res;
+      tx.onerror=()=>rej(tx.error);
+      tx.onabort=()=>rej(tx.error||new Error('storage full'));
+    });
+  }finally{ db.close(); }
+}
 
 el('btnSessRefresh').onclick=requestIndex;
 el('btnSessCsv').onclick=()=>{
