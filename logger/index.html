@@ -306,6 +306,14 @@
   .expcancel:hover{background:#3a2126}
 
   .healthcv{display:block;width:100%;height:96px;margin-top:10px}
+  /* recording overview: the session just read, end to end */
+  .ovsub{margin-top:12px}
+  .ovhealthcv{display:block;width:100%;height:118px;margin-top:8px}
+  .ovgrid{margin-top:12px}
+  .ovgrid .cell{background:var(--panel)}
+  .ovgrid canvas{height:170px}
+  .ovgrid .readout{font-size:10.5px;color:var(--dim)}
+  .ovgrid .readout span{color:var(--ink)}
 
   .stages{display:grid;gap:14px;margin-bottom:14px}
   @media (min-width:1180px){.stages{grid-template-columns:1fr 1fr}}
@@ -615,6 +623,21 @@
         <div class="tscroll" id="tScroll"><div id="tSpacer"></div><div id="tRows"></div></div>
       </div>
     </div>
+  </section>
+
+  <section class="mem" id="ovBlock" hidden>
+    <div class="memhead">
+      <div>
+        <div class="lbl">Recording overview</div>
+        <div class="datainfo" id="ovInfo">—</div>
+      </div>
+    </div>
+    <div class="ovsub">
+      <div class="lbl">Data health · whole recording</div>
+      <div class="datainfo" id="ovHealthInfo">—</div>
+      <canvas id="ovHealthCv" class="ovhealthcv"></canvas>
+    </div>
+    <div class="grid ovgrid" id="ovGrid"></div>
   </section>
 
   <div class="stages">
@@ -1716,7 +1739,224 @@ function showDataset(){
   el('dataBlock').hidden=false;
   el('tScroll').scrollTop=0;
   renderTable();
+  buildOverview();
 }
+
+/* ── recording overview ──────────────────────────────────────────────
+   After a read, the whole session at once: a health strip per subsystem
+   plus pressure, acceleration and magnetic field, end to end. Each pixel
+   column covers many samples, so it is drawn as the min-max envelope of
+   those samples -- a single-sample spike or dropout stays visible instead
+   of being averaged away. Samples whose sensor was down (its sentinel,
+   health digit 0) are left out of that sensor's plot. */
+const OV_PLOTS = [
+  {title:'Pressure',       unit:'hPa', keys:['press'],         hidx:1, dp:1},
+  {title:'Acceleration',   unit:'g',   keys:['ax','ay','az'],  hidx:0, dp:3},
+  {title:'Magnetic field', unit:'µT',  keys:['mx','my','mz'],  hidx:2, dp:1}
+];
+const OV_ROWS = [['IMU',0],['Baro',1],['Mag',2],['Flash',3],['Vbat',4],['Timing',-1]];
+let ov = null;
+
+function fmtClock(s){
+  s=Math.max(0,Math.round(s));
+  const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60;
+  return h ? `${h}:${pad2(m)}:${pad2(x)}` : `${m}:${pad2(x)}`;
+}
+
+function buildOverview(){
+  const rows=dumped, n=rows.length;
+  if(!n){ ov=null; el('ovBlock').hidden=true; return; }
+  // time axis when timestamps run forward; otherwise (a log with an
+  // overwritten stretch, or several boots) fall back to sample number
+  let mono=true;
+  for(let i=1;i<n;i++) if(rows[i].t<rows[i-1].t){ mono=false; break; }
+  const t0=rows[0].t;
+  const x=new Float64Array(n);
+  for(let i=0;i<n;i++) x[i]= mono ? rows[i].t-t0 : i;
+  const xmax = Math.max(n>1 ? x[n-1] : 1, 1e-9);
+  const span = mono ? rows[n-1].t-t0 : 0;
+  const per = (dataSession && dataSession.sampleMs) ? dataSession.sampleMs/1000
+            : (mono && n>1 ? span/(n-1) : 0);
+
+  // per subsystem: samples down, separate outages, longest outage
+  const sys = OV_ROWS.filter(r=>r[1]>=0).map(([name,idx])=>{
+    let down=0, runs=0, run=0, longest=0;
+    for(let i=0;i<n;i++){
+      const h=rows[i].health;
+      if(h && h[idx]==='0'){ down++; if(!run) runs++; run++; if(run>longest) longest=run; }
+      else run=0;
+    }
+    return {name, idx, down, runs, longest};
+  });
+  // timing: late samples and real gaps, against the session's own period
+  let late=0, gaps=0, worst=0;
+  const gapAt=new Uint8Array(n);
+  if(mono && per>0){
+    for(let i=1;i<n;i++){
+      const d=rows[i].t-rows[i-1].t;
+      if(d>worst) worst=d;
+      if(d>per*1.5) late++;
+      if(d>per*4){ gaps++; gapAt[i]=1; }
+    }
+  }
+  ov={rows, n, x, xmax, mono, span, per, sys, late, gaps, worst, gapAt};
+
+  const who = dataSession ? `Session ${dataSession.seq+1}` : 'Whole log';
+  el('ovInfo').textContent = `${who} · ${n.toLocaleString()} samples · `+
+    (mono ? `${fmtClock(span)} long` : 'timestamps not in order, plotted by sample number');
+
+  const bad = sys.filter(s=>s.down);
+  const parts = sys.map(s=> s.down
+    ? `${s.name} down ${s.down.toLocaleString()} samples in ${s.runs} outage${s.runs>1?'s':''}`+
+      (per ? ` (longest ${(s.longest*per).toFixed(s.longest*per<10?1:0)} s)` : '')
+    : `${s.name} ok`);
+  if(mono && per>0)
+    parts.push(gaps ? `${gaps} gap${gaps>1?'s':''} (worst ${(worst*1000).toFixed(0)} ms)`
+                    : `no gaps · ${late.toLocaleString()} late (worst ${(worst*1000).toFixed(0)} ms)`);
+  el('ovHealthInfo').textContent = parts.join(' · ');
+  el('ovHealthInfo').style.color = (bad.length||gaps) ? '#ff8080' : 'var(--dim)';
+
+  // plot cells, built once per dataset
+  const grid=el('ovGrid');
+  grid.replaceChildren();
+  ov.plots = OV_PLOTS.map(def=>{
+    const cell=document.createElement('div'); cell.className='cell';
+    const head=document.createElement('div'); head.className='cellhead';
+    head.innerHTML=`<div><div class="lbl">${def.title}</div><div class="unit">${def.unit} · min – max</div></div>`;
+    const ro=document.createElement('div'); ro.className='readout';
+    const st={};
+    for(const k of def.keys){
+      let lo=Infinity, hi=-Infinity;
+      for(let i=0;i<n;i++){
+        const h=rows[i].health; if(h && h[def.hidx]==='0') continue;
+        const v=rows[i][k]; if(v<lo) lo=v; if(v>hi) hi=v;
+      }
+      st[k]={lo,hi};
+      const line=document.createElement('div');
+      line.innerHTML=`<i style="background:${css(CH[k].c)}"></i>${CH[k].n} `+
+        `<span>${isFinite(lo) ? lo.toFixed(def.dp)+' – '+hi.toFixed(def.dp) : 'no data'}</span>`;
+      ro.appendChild(line);
+    }
+    head.appendChild(ro);
+    const cv=document.createElement('canvas');
+    cell.appendChild(head); cell.appendChild(cv); grid.appendChild(cell);
+    return {def, cv, st};
+  });
+  el('ovBlock').hidden=false;
+  drawOverview();
+}
+
+function ovCanvas(cv){
+  const dpr=devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
+  if(!w||!h) return null;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){
+    cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+  }
+  const g=cv.getContext('2d');
+  g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,h);
+  g.font='10px '+css('--mono');
+  return {g,w,h};
+}
+function ovXLabels(g,padL,pw,y){
+  g.fillStyle=css('--dim');
+  const step = pw<420 ? 2 : 1;                // phone width: start, middle, end
+  for(let k=0;k<=4;k+=step){
+    const v=ov.xmax*k/4, x=padL+pw*k/4;
+    g.textAlign = k===0 ? 'left' : k===4 ? 'right' : 'center';
+    g.fillText(ov.mono ? fmtClock(v) : '#'+Math.round(v).toLocaleString(), x, y);
+  }
+}
+
+function drawOverview(){
+  if(!ov || el('ovBlock').hidden) return;
+  const {rows,n,x,xmax}=ov;
+
+  // health strip: a column is red if ANY of its samples had that sensor down
+  const c=ovCanvas(el('ovHealthCv'));
+  if(c){
+    const {g,w,h}=c, padL=52, padR=6, padT=4, padB=14;
+    const pw=Math.max(1,w-padL-padR), ph=h-padT-padB, rowH=ph/OV_ROWS.length;
+    const cols=Math.max(1,Math.floor(pw));
+    const mark=new Uint8Array(cols*OV_ROWS.length), seen=new Uint8Array(cols);
+    for(let i=0;i<n;i++){
+      const col=Math.min(cols-1,Math.floor(x[i]/xmax*cols));
+      seen[col]=1;
+      const hs=rows[i].health;
+      OV_ROWS.forEach(([,idx],r)=>{
+        if(idx>=0 ? (hs && hs[idx]==='0') : ov.gapAt[i]) mark[r*cols+col]=1;
+      });
+    }
+    OV_ROWS.forEach(([name,idx],r)=>{
+      const y=padT+r*rowH, bh=Math.max(5,rowH-4);
+      g.fillStyle=css('--dim'); g.textAlign='right';
+      g.fillText(name,padL-8,y+bh*0.8);
+      g.fillStyle='#141c24'; g.fillRect(padL,y,pw,bh);          // no samples: unknown
+      if(idx>=0){                                                // working: green
+        g.fillStyle='#2f6b3a';
+        for(let col=0;col<cols;col++) if(seen[col]) g.fillRect(padL+col,y,1.01,bh);
+      }
+      // problems on top, at least 3 px wide, so one bad sample in three
+      // hours still shows as a visible mark rather than a hairline
+      g.fillStyle = idx<0 ? '#f0a030' : '#ff4d4d';
+      for(let col=0;col<cols;col++)
+        if(mark[r*cols+col]) g.fillRect(padL+Math.min(col-1,pw-3),y,3,bh);
+    });
+    ovXLabels(g,padL,pw,h-2);
+  }
+
+  // plots: min-max envelope per pixel column
+  for(const p of ov.plots){
+    const c2=ovCanvas(p.cv); if(!c2) continue;
+    const {g,w,h}=c2, padL=46, padR=6, padT=6, padB=14;
+    const pw=Math.max(1,w-padL-padR), ph=h-padT-padB;
+    let lo=Infinity, hi=-Infinity;
+    for(const k of p.def.keys){ lo=Math.min(lo,p.st[k].lo); hi=Math.max(hi,p.st[k].hi); }
+    if(!isFinite(lo)){ lo=-1; hi=1; }
+    if(hi-lo<1e-9){ lo-=.5; hi+=.5; }
+    const pad=(hi-lo)*.06; lo-=pad; hi+=pad;
+    const Y=v=>padT+ph-((v-lo)/(hi-lo))*ph;
+
+    g.strokeStyle=css('--rule'); g.lineWidth=1; g.beginPath();
+    for(let i=0;i<=4;i++){ const yy=Math.round(padT+ph*i/4)+.5; g.moveTo(padL,yy); g.lineTo(padL+pw,yy); }
+    for(let i=0;i<=4;i++){ const xx=Math.round(padL+pw*i/4)+.5; g.moveTo(xx,padT); g.lineTo(xx,padT+ph); }
+    g.stroke();
+    g.fillStyle=css('--dim'); g.textAlign='right';
+    g.fillText(hi.toFixed(p.def.dp),padL-6,padT+8);
+    g.fillText(((hi+lo)/2).toFixed(p.def.dp),padL-6,padT+ph/2+3);
+    g.fillText(lo.toFixed(p.def.dp),padL-6,padT+ph);
+    ovXLabels(g,padL,pw,h-2);
+
+    const cols=Math.max(1,Math.floor(pw));
+    const dense = n > cols*2;
+    for(const k of p.def.keys){
+      g.strokeStyle=css(CH[k].c); g.fillStyle=g.strokeStyle;
+      if(dense){
+        const mn=new Float64Array(cols).fill(Infinity), mx=new Float64Array(cols).fill(-Infinity);
+        for(let i=0;i<n;i++){
+          const hs=rows[i].health; if(hs && hs[p.def.hidx]==='0') continue;
+          const col=Math.min(cols-1,Math.floor(x[i]/xmax*cols)), v=rows[i][k];
+          if(v<mn[col]) mn[col]=v; if(v>mx[col]) mx[col]=v;
+        }
+        for(let col=0;col<cols;col++){
+          if(mn[col]===Infinity) continue;
+          const y0=Y(mx[col]), y1=Y(mn[col]);
+          g.fillRect(padL+col, y0, 1, Math.max(1,y1-y0));
+        }
+      }else{
+        g.lineWidth=1.3; g.beginPath(); let on=false;
+        for(let i=0;i<n;i++){
+          const hs=rows[i].health;
+          if(hs && hs[p.def.hidx]==='0'){ on=false; continue; }       // gap, not a line to the sentinel
+          const xx=padL+x[i]/xmax*pw, yy=Y(rows[i][k]);
+          if(on) g.lineTo(xx,yy); else { g.moveTo(xx,yy); on=true; }
+        }
+        g.stroke();
+      }
+    }
+  }
+}
+let ovResizeT=null;
+addEventListener('resize',()=>{ clearTimeout(ovResizeT); ovResizeT=setTimeout(drawOverview,120); });
 
 el('tScroll').addEventListener('scroll',renderTable);
 
@@ -1809,6 +2049,7 @@ function readSession(i){
   // the board refuses to read memory while recording (it would leave a
   // hole in the survey) and sends no end frame, so the read would never end
   if(recording){ log('Stop recording before reading a session.','err'); return; }
+  el('ovBlock').hidden=true; ov=null;           // the overview belongs to the previous read
   dumped=[]; dumpActive=true; dataSession=s; setButtons();
   log(`Reading session ${s.seq+1} — ${s.count.toLocaleString()} records from `+
       `0x${s.start.toString(16).toUpperCase()}.`);
