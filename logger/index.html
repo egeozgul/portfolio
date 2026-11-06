@@ -594,6 +594,21 @@
     </div>
   </section>
 
+  <section class="mem" id="ovBlock" hidden>
+    <div class="memhead">
+      <div>
+        <div class="lbl">Recording overview</div>
+        <div class="datainfo" id="ovInfo">—</div>
+      </div>
+    </div>
+    <div class="ovsub">
+      <div class="lbl">Data health · whole recording</div>
+      <div class="datainfo" id="ovHealthInfo">—</div>
+      <canvas id="ovHealthCv" class="ovhealthcv"></canvas>
+    </div>
+    <div class="grid ovgrid" id="ovGrid"></div>
+  </section>
+
   <section class="mem" id="dataBlock" hidden>
     <div class="memhead">
       <div>
@@ -623,21 +638,6 @@
         <div class="tscroll" id="tScroll"><div id="tSpacer"></div><div id="tRows"></div></div>
       </div>
     </div>
-  </section>
-
-  <section class="mem" id="ovBlock" hidden>
-    <div class="memhead">
-      <div>
-        <div class="lbl">Recording overview</div>
-        <div class="datainfo" id="ovInfo">—</div>
-      </div>
-    </div>
-    <div class="ovsub">
-      <div class="lbl">Data health · whole recording</div>
-      <div class="datainfo" id="ovHealthInfo">—</div>
-      <canvas id="ovHealthCv" class="ovhealthcv"></canvas>
-    </div>
-    <div class="grid ovgrid" id="ovGrid"></div>
   </section>
 
   <div class="stages">
@@ -1750,10 +1750,20 @@ function showDataset(){
    of being averaged away. Samples whose sensor was down (its sentinel,
    health digit 0) are left out of that sensor's plot. */
 const OV_PLOTS = [
-  {title:'Pressure',       unit:'hPa', keys:['press'],         hidx:1, dp:1},
-  {title:'Acceleration',   unit:'g',   keys:['ax','ay','az'],  hidx:0, dp:3},
-  {title:'Magnetic field', unit:'µT',  keys:['mx','my','mz'],  hidx:2, dp:1}
+  {title:'Pressure',       unit:'hPa', keys:['press'],         dp:1},
+  {title:'Temperature',    unit:'°C',  keys:['temp','itemp'],  dp:2},
+  {title:'Acceleration',   unit:'g',   keys:['ax','ay','az'],  dp:3},
+  {title:'Magnetic field', unit:'µT',  keys:['mx','my','mz'],  dp:1},
+  {title:'Battery',        unit:'V',   keys:['vbat'],          dp:3}
 ];
+// Which health digit covers each channel comes from CSV_HEALTH (the two
+// temperatures belong to different sensors: barometer and IMU die). Both
+// temperatures use the same colour on the live plots, so the overview
+// gives the die temperature its own colour and both clearer names.
+const OV_NAME  = {temp:'Baro', itemp:'IMU die'};
+const OV_COLOR = {itemp:'--y'};
+const ovColor = k => css(OV_COLOR[k] || CH[k].c);
+const ovDown  = (r,k) => r.health && r.health[CSV_HEALTH[k]]==='0';
 const OV_ROWS = [['IMU',0],['Baro',1],['Mag',2],['Flash',3],['Vbat',4],['Timing',-1]];
 let ov = null;
 
@@ -1828,12 +1838,12 @@ function buildOverview(){
     for(const k of def.keys){
       let lo=Infinity, hi=-Infinity;
       for(let i=0;i<n;i++){
-        const h=rows[i].health; if(h && h[def.hidx]==='0') continue;
+        if(ovDown(rows[i],k)) continue;
         const v=rows[i][k]; if(v<lo) lo=v; if(v>hi) hi=v;
       }
       st[k]={lo,hi};
       const line=document.createElement('div');
-      line.innerHTML=`<i style="background:${css(CH[k].c)}"></i>${CH[k].n} `+
+      line.innerHTML=`<i style="background:${ovColor(k)}"></i>${OV_NAME[k]||CH[k].n} `+
         `<span>${isFinite(lo) ? lo.toFixed(def.dp)+' – '+hi.toFixed(def.dp) : 'no data'}</span>`;
       ro.appendChild(line);
     }
@@ -1929,11 +1939,11 @@ function drawOverview(){
     const cols=Math.max(1,Math.floor(pw));
     const dense = n > cols*2;
     for(const k of p.def.keys){
-      g.strokeStyle=css(CH[k].c); g.fillStyle=g.strokeStyle;
+      g.strokeStyle=ovColor(k); g.fillStyle=g.strokeStyle;
       if(dense){
         const mn=new Float64Array(cols).fill(Infinity), mx=new Float64Array(cols).fill(-Infinity);
         for(let i=0;i<n;i++){
-          const hs=rows[i].health; if(hs && hs[p.def.hidx]==='0') continue;
+          if(ovDown(rows[i],k)) continue;
           const col=Math.min(cols-1,Math.floor(x[i]/xmax*cols)), v=rows[i][k];
           if(v<mn[col]) mn[col]=v; if(v>mx[col]) mx[col]=v;
         }
@@ -1945,8 +1955,7 @@ function drawOverview(){
       }else{
         g.lineWidth=1.3; g.beginPath(); let on=false;
         for(let i=0;i<n;i++){
-          const hs=rows[i].health;
-          if(hs && hs[p.def.hidx]==='0'){ on=false; continue; }       // gap, not a line to the sentinel
+          if(ovDown(rows[i],k)){ on=false; continue; }               // gap, not a line to the sentinel
           const xx=padL+x[i]/xmax*pw, yy=Y(rows[i][k]);
           if(on) g.lineTo(xx,yy); else { g.moveTo(xx,yy); on=true; }
         }
