@@ -309,9 +309,9 @@
   /* recording overview: the session just read, end to end */
   .ovsub{margin-top:12px}
   .ovhealthcv{display:block;width:100%;height:118px;margin-top:8px}
-  .ovgrid{margin-top:12px}
-  .ovgrid .cell{background:var(--panel)}
-  .ovgrid canvas{height:170px}
+  .grid.ovgrid{margin-top:12px;grid-template-columns:1fr}   /* one plot per row; beats .grid */
+  .ovgrid .cell{background:var(--panel);min-width:0}
+  .ovgrid canvas{height:190px}
   .ovgrid .readout{font-size:10.5px;color:var(--dim)}
   .ovgrid .readout span{color:var(--ink)}
 
@@ -850,6 +850,7 @@ let rateWarned=false, capacityKb=0, lastSampleAt=0;
 // references it, and a `let` below that point sits in the temporal
 // dead zone as far as any reader is concerned
 let exportProg = null;
+let readProg = null;      // progress bar for Read and Dump (not export)
 // health arrives with the status frame, not with samples, so it needs its
 // own timeline. Kept as {t, mask} transitions rather than one entry per
 // status frame -- a subsystem that stays up for an hour costs one record.
@@ -904,6 +905,7 @@ function handle(f){
     // single-record frame, kept so older firmware still works
     dumped.push(decodeRec(f,1));
     if(exportProg) exportProg.onRecord();
+    else if(readProg) readProg.onRecord();
   }
   else if(type===0x22 && f.length>=2){
     // batched: [0x22][count][record * count]. One notification carries up
@@ -912,7 +914,8 @@ function handle(f){
     const n = f[1];
     if(f.length >= 2 + n*REC_SIZE){
       for(let k=0;k<n;k++) dumped.push(decodeRec(f, 2 + k*REC_SIZE));
-      if(exportProg) for(let k=0;k<n;k++) exportProg.onRecord();
+      const pr = exportProg || readProg;
+      if(pr) for(let k=0;k<n;k++) pr.onRecord();
     } else {
       log(`Short batch frame: said ${n} records, carried `+
           `${Math.floor((f.length-2)/REC_SIZE)}.`,'err');
@@ -932,6 +935,13 @@ function handle(f){
     if(dumpResolve){ const r=dumpResolve; dumpResolve=null; r(); }
     else {
       const s2=dataSession;
+      if(readProg){
+        const complete = !s2 || dumped.length===s2.count;
+        if(readProg.cancelled) readProg.stage(`cancelled — kept ${dumped.length.toLocaleString()} records`);
+        else readProg.stage(complete ? 'read finished — drawing…'
+                                     : `cut short — ${dumped.length.toLocaleString()} records arrived`);
+        readProg.done(complete && !readProg.cancelled); readProg=null;
+      }
       if(s2 && dumped.length!==s2.count)
         log(`Read ${dumped.length.toLocaleString()} of ${s2.count.toLocaleString()} `+
             `records — the transfer was cut short.`,'err');
@@ -1264,6 +1274,9 @@ function onDisconnect(){
   recording=false; dumpActive=false;
   bridgeSeen=null;
   if(dumpReject){ const r=dumpReject; r(new Error('the Bluetooth link was lost')); }
+  if(readProg){ readProg.stage(`link lost — ${dumped.length.toLocaleString()} records arrived`);
+                readProg.done(false); readProg=null;
+                if(dumped.length) showDataset(); }
   resetAttitude();
   log('Link lost. Press Connect to rejoin.','err');
   setButtons();
@@ -1430,6 +1443,10 @@ el('btnDump').onclick=()=>{
   dumped=[]; dumpActive=true; dataSession=null;
   showDataset();
   setButtons();
+  if(!exportProg){
+    readProg = makeProgress(storedRecords, 1);
+    readProg.stage(`reading the whole log — ${storedRecords.toLocaleString()} records`);
+  }
   log(`Reading the flash log over BLE — expect roughly ${DUMP_RATE} records/second.`);
   send(CMD.DUMP);
 };
@@ -2060,6 +2077,8 @@ function readSession(i){
   if(recording){ log('Stop recording before reading a session.','err'); return; }
   el('ovBlock').hidden=true; ov=null;           // the overview belongs to the previous read
   dumped=[]; dumpActive=true; dataSession=s; setButtons();
+  readProg = makeProgress(s.count, 1);
+  readProg.stage(`reading session ${s.seq+1} — ${s.count.toLocaleString()} records`);
   log(`Reading session ${s.seq+1} — ${s.count.toLocaleString()} records from `+
       `0x${s.start.toString(16).toUpperCase()}.`);
   const a=s.start, c=s.count;
@@ -2185,7 +2204,9 @@ function sessionCsv(s, rows){
    still for minutes. The rate is measured over the last few seconds
    rather than the whole run, so the estimate reacts when the link slows
    down instead of averaging the stall away. */
+let progHideT = null;      // pending hide of the bar; a new transfer cancels it
 function makeProgress(totalRecords, sessionCount){
+  clearTimeout(progHideT);
   const t0 = Date.now();
   let done = 0, base = 0, cancelled = false;
   let recent = [];                 // [ms, count] samples for the rate
@@ -2236,22 +2257,28 @@ function makeProgress(totalRecords, sessionCount){
     stage(text){ el('expWhat').textContent = text; paint(true); },
     get cancelled(){ return cancelled; },
     cancel(){ cancelled = true; },
-    done(){
-      el('expFill').style.width = '100%';
-      el('expPct').textContent = '100%';
+    // full=false (a read cut short or cancelled) leaves the bar where the
+    // transfer actually stopped instead of claiming 100%
+    done(full = true){
+      if(full){
+        el('expFill').style.width = '100%';
+        el('expPct').textContent = '100%';
+      } else paint(true);
       el('expEta').textContent =
         ((Date.now() - t0) / 1000).toFixed(0) + ' s total';
-      setTimeout(()=>{ el('expProg').hidden = true; }, 2500);
+      el('btnExportCancel').disabled = true;
+      progHideT = setTimeout(()=>{ el('expProg').hidden = true; }, full ? 2500 : 6000);
     },
     abort(){ el('expProg').hidden = true; }
   };
 }
 
 el('btnExportCancel').onclick = ()=>{
-  if(exportProg){
-    exportProg.cancel();
-    exportProg.stage('cancelling…');
-    send(CMD.ABORT);
+  const pr = exportProg || readProg;
+  if(pr){
+    pr.cancel();
+    pr.stage('cancelling…');
+    send(CMD.ABORT);          // the board stops and reports what it sent
   }
 };
 
