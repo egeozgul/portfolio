@@ -777,6 +777,20 @@ const CSV_KEYS = ['ax','ay','az','gx','gy','gz','press','temp',
 // the column name carries the bit order, so an exported file explains
 // itself without needing the README alongside it
 const CSV_EXTRA = ['health_IBMFV'];
+// Which health character covers each column (order I B M F V). A sensor
+// that is down has the firmware's sentinel in its channels (-32768, or -1
+// for pressure); scaled, those look like real readings (-286.72 deg/s,
+// -0.1 hPa, -327.68 C), so the cell is left empty instead.
+const CSV_HEALTH = { ax:0, ay:0, az:0, gx:0, gy:0, gz:0, itemp:0,
+                     press:1, temp:1, mx:2, my:2, mz:2, vbat:4 };
+function csvCell(r,k){
+  if(r.health && r.health[CSV_HEALTH[k]]==='0') return '';
+  const v = (r.raw && k in r.raw) ? r.raw[k] : r[k];
+  return v.toFixed(4);
+}
+// Typical session read speed over BLE, measured at ~515 records/s on
+// 2026-11-05; used only for time estimates shown to the user.
+const DUMP_RATE = 500;
 
 /* ── battery smoothing ─────────────────────────────────────────────
    Battery voltage is SHOWN as a moving average of the last 50 samples,
@@ -803,6 +817,7 @@ let exportProg = null;
 // status frame -- a subsystem that stays up for an hour costs one record.
 const HEALTH_BITS=[[1,'IMU'],[2,'Baro'],[4,'Mag'],[8,'Flash'],[16,'Vbat']];
 let healthLog=[], lastHealthMask=-1, healthSeenAt=0;
+let bridgeSeen=null;          // last flag-64 state, so a change is logged once
 let hexOn=false, memPages=new Map(), memPending=new Set(), memAsk=null;
 let rateT0=0, rateN=0;
 const MAX_SAMPLES = 100000;
@@ -908,7 +923,7 @@ function handle(f){
     idxPendingAt = 0;
     renderSessions();
     el('btnSessCsv').disabled=sessionsList.length===0;
-    el('btnExportAll').disabled=sessionsList.length===0;
+    setButtons();                       // Export everything: also gated on recording
     const cal=sessionsList.filter(x=>x.kind).length;
     log(sessionsList.length
       ? `Session index: ${sessionsList.length} session(s), ${cal} calibration.`
@@ -1068,8 +1083,20 @@ function decodeStatus(f){
   // The board keeps running and keeps retrying whatever is dashed.
   const HB=[[1,'IMU'],[2,'Baro'],[4,'Mag'],[8,'Flash'],[16,'Vbat']];
   const down=HB.filter(([b])=>!(health&b)).map(([,n])=>n);
-  el('sHealth').textContent = down.length ? down.join(', ')+' down' : 'all ok';
-  el('sHealth').style.color = down.length ? '#ff8080' : '';
+  // flag 64: the firmware is running its GPIO4/GPIO5 solder-bridge
+  // workaround (sensors read with the flash chip-select held off the bus)
+  const bridge=!!(flags&64);
+  el('sHealth').textContent = (down.length ? down.join(', ')+' down' : 'all ok') +
+                              (bridge ? ' · bridge workaround on' : '');
+  el('sHealth').style.color = down.length ? '#ff8080' : (bridge ? '#e8c060' : '');
+  el('sHealth').title = bridge
+    ? 'The board detected the GPIO4/GPIO5 solder bridge and is using its workaround.' : '';
+  if(bridge!==bridgeSeen){
+    if(bridgeSeen!==null || bridge)
+      log(bridge ? 'Bridge workaround is ON: the board detected the GPIO4/GPIO5 solder bridge.'
+                 : 'Bridge workaround is off.', bridge ? 'err' : 'ok');
+    bridgeSeen=bridge;
+  }
   noteHealth(health);
   el('btnStream').textContent=streamOn?'Stream on':'Stream off';
   el('btnStream').classList.toggle('active',streamOn);
@@ -1197,6 +1224,8 @@ function onDisconnect(){
   frag.data.buf=null; frag.stat.buf=null;
   memPending.clear();
   recording=false; dumpActive=false;
+  bridgeSeen=null;
+  if(dumpReject){ const r=dumpReject; r(new Error('the Bluetooth link was lost')); }
   resetAttitude();
   log('Link lost. Press Connect to rejoin.','err');
   setButtons();
@@ -1221,6 +1250,7 @@ function send(...bytes){
 
 function applyRate(){
   const hz=parseFloat(el('inpRate').value);
+  if(recording){ log('Stop recording before changing the sample rate — the session records its rate when it starts.','err'); return; }
   if(!isFinite(hz)||hz<=0){ log('Enter a sample rate in hertz.','err'); return; }
   if(hz<MIN_HZ||hz>MAX_HZ){
     log(`Rate must be between ${MIN_HZ.toFixed(3)} and ${MAX_HZ} Hz.`,'err');
@@ -1362,7 +1392,7 @@ el('btnDump').onclick=()=>{
   dumped=[]; dumpActive=true; dataSession=null;
   showDataset();
   setButtons();
-  log('Reading the flash log over BLE — expect roughly 200 records/second.');
+  log(`Reading the flash log over BLE — expect roughly ${DUMP_RATE} records/second.`);
   send(CMD.DUMP);
 };
 el('btnCsv').onclick=()=>saveCsv(samples,'esp32-live.csv');
@@ -1433,8 +1463,8 @@ function setButtons(){
   el('btnStop').disabled=!live;
   el('btnDump').disabled=!live||recording||dumpActive;
   el('btnCsv').disabled=samples.length===0;
-  el('btnRate').disabled=!live||dumpActive;
-  el('inpRate').disabled=!live||dumpActive;
+  el('btnRate').disabled=!live||dumpActive||recording;
+  el('inpRate').disabled=!live||dumpActive||recording;
   el('btnStream').disabled=!live;
   el('btnStreamRate').disabled=!live;
   el('inpStream').disabled=!live;
@@ -1443,6 +1473,10 @@ function setButtons(){
   el('btnErase').disabled=busy;
   el('btnUsage').disabled=!live;
   el('btnSessRefresh').disabled=!live||dumpActive;
+  // reading sessions is refused by the board while it records
+  el('btnExportAll').disabled=!live||recording||dumpActive||sessionsList.length===0;
+  for(const b of document.querySelectorAll('button.sessRead'))
+    b.disabled=!live||recording||dumpActive;
   el('btnVerify').disabled=busy;
   el('btnDumpCsv').disabled=dumped.length===0;
 }
@@ -1461,7 +1495,7 @@ function saveCsv(rows,name){
   if(!rows.length){ log('Nothing to save yet.','err'); return; }
   const head='t_s,'+CSV_KEYS.join(',')+','+CSV_EXTRA.join(',')+'\n';
   const body=rows.map(r=>
-    [r.t.toFixed(3),...CSV_KEYS.map(k=>((r.raw && k in r.raw) ? r.raw[k] : r[k]).toFixed(4)),r.health].join(',')
+    [r.t.toFixed(3),...CSV_KEYS.map(k=>csvCell(r,k)),r.health].join(',')
   ).join('\n');
   const url=URL.createObjectURL(new Blob([head+body],{type:'text/csv'}));
   const a=document.createElement('a');
@@ -1739,6 +1773,8 @@ function renderSessions(){
       `<span>${fmtDur(hz?s.count/hz:0)}</span>`;
     const b=document.createElement('button');
     b.textContent='Read';
+    b.className='sessRead';
+    b.disabled=!chCtrl||recording||dumpActive;
     b.onclick=()=>readSession(i);
     d.appendChild(b);
     frag.appendChild(d);
@@ -1755,6 +1791,9 @@ function renderSessions(){
 function readSession(i){
   const s=sessionsList[i];
   if(!s||!s.count){ log('That session has no records.','err'); return; }
+  // the board refuses to read memory while recording (it would leave a
+  // hole in the survey) and sends no end frame, so the read would never end
+  if(recording){ log('Stop recording before reading a session.','err'); return; }
   dumped=[]; dumpActive=true; dataSession=s; setButtons();
   log(`Reading session ${s.seq+1} — ${s.count.toLocaleString()} records from `+
       `0x${s.start.toString(16).toUpperCase()}.`);
@@ -1830,15 +1869,18 @@ function sessionSlug(s){
   return `session-${pad2(s.seq+1)}_${stamp}_${s.kind?'calibration':'measurement'}`;
 }
 
-let dumpResolve=null;
+let dumpResolve=null, dumpReject=null;
 function readSessionAsync(s){
   return new Promise((resolve,reject)=>{
     dumped=[]; dumpActive=true; dataSession=s; setButtons();
     dumpResolve=resolve;
-    const to=setTimeout(()=>{ dumpResolve=null; reject(new Error('timed out')); },
+    const to=setTimeout(()=>{ dumpResolve=dumpReject=null; reject(new Error('timed out')); },
                         60000 + s.count*40);
-    const wrapped=()=>{ clearTimeout(to); resolve(); };
+    const wrapped=()=>{ clearTimeout(to); dumpReject=null; resolve(); };
     dumpResolve=wrapped;
+    // a dropped link ends the export now, instead of after the timeout
+    // (which is hours for a long session)
+    dumpReject=(e)=>{ clearTimeout(to); dumpResolve=dumpReject=null; reject(e); };
     const a=s.start, c=s.count;
     send(CMD.DUMPRANGE, a&0xFF,(a>>8)&0xFF,(a>>16)&0xFF,(a>>>24)&0xFF,
          c&0xFF,(c>>8)&0xFF,(c>>16)&0xFF,(c>>>24)&0xFF);
@@ -1866,7 +1908,7 @@ function sessionCsv(s, rows){
   ].join('\n');
   const body = rows.map(r =>
     (s.seq+1)+','+r.t.toFixed(3)+','+
-    CSV_KEYS.map(k=>r[k].toFixed(4)).join(',')+','+r.health
+    CSV_KEYS.map(k=>csvCell(r,k)).join(',')+','+r.health
   ).join('\n');
   return head+'\n'+body+'\n';
 }
@@ -1950,12 +1992,13 @@ el('btnExportCancel').onclick = ()=>{
 
 async function exportAll(){
   if(!sessionsList.length){ log('No sessions to export.','err'); return; }
+  if(recording){ log('Stop recording before exporting sessions.','err'); return; }
   const withData = sessionsList.filter(s=>s.count>0);
   if(!withData.length){ log('Every session is empty.','err'); return; }
   const total = withData.reduce((a,s)=>a+s.count,0);
   if(!confirm(`Read ${total.toLocaleString()} records across ${withData.length} `+
-              `session(s) over Bluetooth?\n\nAt roughly 200 records a second this `+
-              `will take about ${Math.ceil(total/200/60)} minute(s).`)) return;
+              `session(s) over Bluetooth?\n\nAt roughly ${DUMP_RATE} records a second this `+
+              `will take about ${Math.ceil(total/DUMP_RATE/60)} minute(s).`)) return;
 
   const now = new Date();
   const root = `borelogger-export_${localStamp(now,false)}_${tzSuffix(now)}`;
@@ -2090,7 +2133,9 @@ function memGet(addr){
 function memHave(pi){ return memPages.has(pi); }
 
 function requestPages(fromAddr,toAddr){
-  if(!chCtrl||dumpActive) return;
+  // raw reads are refused while recording; a request sent then would stay
+  // "pending" and block every later page until recording stopped
+  if(!chCtrl||dumpActive||recording) return;
   const p0=Math.floor(fromAddr/MEM_PAGE), p1=Math.floor(toAddr/MEM_PAGE);
   for(let pi=p0;pi<=p1;pi++){
     if(pi*MEM_PAGE>=MEM_TOTAL) break;
