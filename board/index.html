@@ -3,345 +3,81 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>BoreLogger Firmware Update</title>
+<title>BoreLogger Probe</title>
 <style>
-/* One column, phone first: what the firmware is, one button, then a step log. */
+/* One short column: what to do, then a button that opens the probe's own page. */
 :root{
   --bg:#f3f5f7; --card:#ffffff; --ink:#14212d; --muted:#5d6b78; --line:#d9e0e6;
-  --acc:#0b7a68; --acc-ink:#ffffff; --ok:#137a43; --warn:#9a5d00; --bad:#b3261e; --code:#eef2f5;
+  --acc:#0b7a68; --acc-ink:#ffffff; --link:#0b6b9a;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0f151b; --card:#171f27; --ink:#e6edf3; --muted:#93a2b0; --line:#2a3642;
-  --acc:#2fb39c; --acc-ink:#06201b; --ok:#5fd394; --warn:#f0bf5a; --bad:#ff8a80; --code:#121a21; color-scheme:dark}}
+  --acc:#2fb39c; --acc-ink:#06201b; --link:#7cc7ef; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0f151b; --card:#171f27; --ink:#e6edf3; --muted:#93a2b0; --line:#2a3642;
-  --acc:#2fb39c; --acc-ink:#06201b; --ok:#5fd394; --warn:#f0bf5a; --bad:#ff8a80; --code:#121a21; color-scheme:dark}
+  --acc:#2fb39c; --acc-ink:#06201b; --link:#7cc7ef; color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--sans);
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 48px}
-main{max-width:560px;margin:0 auto;display:grid;gap:14px}
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+main{max-width:520px;margin:0 auto;display:grid;gap:14px}
 h1{font-size:24px;margin:0;line-height:1.2;text-wrap:balance}
 .sub{color:var(--muted);font-size:14px;margin-top:4px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:8px;min-width:0}
-.lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
-.kv span:nth-child(odd){color:var(--muted)}
-.kv span:nth-child(even){font-family:var(--mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:right}
-button{font:700 17px var(--sans);min-height:52px;border-radius:12px;border:0;background:var(--acc);color:var(--acc-ink);cursor:pointer;padding:12px 16px}
-button:disabled{opacity:.45;cursor:default}
-button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-button.ghost{background:transparent;color:var(--acc);border:2px solid var(--acc);min-height:44px;font-size:15px}
-label.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:10px}
+ol{margin:0;padding-left:20px;display:grid;gap:6px}
+a{color:var(--link)}
+a.btn{display:flex;align-items:center;justify-content:center;min-height:56px;border-radius:12px;background:var(--acc);color:var(--acc-ink);
+  font:700 18px var(--sans);text-decoration:none}
+a.btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .note{font-size:14px;color:var(--muted)}
-.warn{color:var(--warn)} .bad{color:var(--bad)} .ok{color:var(--ok)}
-.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
-.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .15s}
-@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
-.steps{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:14px}
-.steps li{display:grid;grid-template-columns:22px 1fr;gap:6px}
-.steps li::before{content:"·";color:var(--muted);text-align:center}
-.steps li.ok::before{content:"✓";color:var(--ok)} .steps li.bad::before{content:"✕";color:var(--bad)}
-.steps li.run::before{content:"…";color:var(--warn)}
-pre{margin:0;background:var(--code);border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.45 var(--mono);
-  max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
-[hidden]{display:none!important}
+code{font-family:var(--mono);font-size:14px}
+#count[hidden]{display:none}
 </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>BoreLogger firmware update</h1>
-    <div class="sub">Installs the firmware below on a BL-100 probe over its USB cable.</div>
+    <h1>BoreLogger probe</h1>
+    <div class="sub">Opens the probe’s own page: checks, recording, runs and firmware update.</div>
   </header>
 
-  <section class="card" aria-labelledby="fw-h">
-    <div class="lbl" id="fw-h">Firmware on this page</div>
-    <div class="kv">
-      <span>File</span><span>main.py</span>
-      <span>Size</span><span id="fw-size">loading…</span>
-      <span>SHA-256</span><span id="fw-sha">loading…</span>
-    </div>
+  <section class="card">
+    <ol>
+      <li>Plug the probe into this phone with its USB cable.</li>
+      <li>Wait a few seconds, then tap <b>Open probe page</b>.</li>
+      <li>For a firmware update, use the <b>Update</b> tab there. It needs the phone’s internet (4G or Wi-Fi).</li>
+    </ol>
+    <a class="btn" id="open" href="http://10.10.10.10/#update">Open probe page</a>
+    <div class="note" id="count" hidden>Opening in <span id="sec">3</span> s · <a href="#" id="stay">stay here</a></div>
+    <div class="note">The probe page is <code>http://10.10.10.10</code>, served by the probe over the cable.
+      If it does not open, the probe is not connected yet: check the cable and try again.</div>
   </section>
 
-  <section class="card" id="unsupported" hidden>
-    <div class="lbl">This browser cannot reach USB</div>
-    <div class="note" id="unsupported-why"></div>
-  </section>
-
-  <section class="card" id="go-card">
-    <div class="lbl">Update a probe</div>
-    <div class="note">1. Plug the probe into this computer or Android phone with a USB cable.<br>
-      2. Tap the button and choose the probe (<b>BL-100 Survey Probe</b>) in the list.<br>
-      <span class="warn">Updating stops the probe's firmware for about a minute, including any recording in progress. Stop a survey run first.</span></div>
-    <label class="chk"><input type="checkbox" id="force"> Install even if the probe already has this version</label>
-    <button id="go" disabled>Connect and update</button>
-    <div class="bar" id="bar" hidden><i></i></div>
-    <ul class="steps" id="steps" aria-live="polite"></ul>
-  </section>
-
-  <section class="card" id="boot-card" hidden>
-    <div class="lbl">Probe start-up after the update</div>
-    <pre id="boot"></pre>
+  <section class="card">
+    <div class="note"><b>Probe page will not open?</b> On a computer, or an Android phone with Chrome, the
+      <a href="usb.html">USB updater</a> installs the firmware over the cable directly. Probes that do not
+      have the Update tab yet need it once.</div>
   </section>
 </main>
-
 <script>
-'use strict';
-/* ==== BLREPL: MicroPython raw-REPL client over a pair of web streams ==========
-   The probe needs no update code of its own: this talks to MicroPython's built-in
-   console, the same way mpremote does. Works with Web Serial (navigator.serial)
-   in the page, and with Node's stream adapters in the test harness. */
-const BLREPL = (() => {
-  const enc = new TextEncoder(), dec = new TextDecoder();
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  class Repl {
-    constructor(readable, writable) {
-      this.reader = readable.getReader(); this.writer = writable.getWriter();
-      this.buf = new Uint8Array(0); this.closed = false; this.waiters = [];
-      this.pump();
+// Go on to the probe by itself after a short pause, unless the reader stays.
+// Only on a first visit in this tab, so Back from an error page does not loop.
+(function(){
+  let n = 3, t = null;
+  try { if (sessionStorage.getItem('bl-forwarded')) return; } catch (e) {}
+  const c = document.getElementById('count'), s = document.getElementById('sec');
+  c.hidden = false;
+  t = setInterval(() => {
+    n--; s.textContent = n;
+    if (n <= 0) {
+      clearInterval(t);
+      try { sessionStorage.setItem('bl-forwarded', '1'); } catch (e) {}
+      location.href = document.getElementById('open').href;
     }
-    async pump() {
-      try {
-        for (;;) {
-          const { value, done } = await this.reader.read();
-          if (done) break;
-          const b = new Uint8Array(this.buf.length + value.length); b.set(this.buf); b.set(value, this.buf.length);
-          this.buf = b; this.waiters.splice(0).forEach(w => w());
-        }
-      } catch (e) { /* port gone (the probe reset or was unplugged) */ }
-      this.closed = true; this.waiters.splice(0).forEach(w => w());
-    }
-    async write(s) { await this.writer.write(typeof s === 'string' ? enc.encode(s) : s); }
-    take() { const s = dec.decode(this.buf); this.buf = new Uint8Array(0); return s; }
-    /* wait until `pat` appears; return everything before it and drop it from the buffer */
-    async until(pat, ms) {
-      const p = enc.encode(pat), t0 = Date.now();
-      for (;;) {
-        const i = indexOf(this.buf, p);
-        if (i >= 0) { const s = dec.decode(this.buf.slice(0, i)); this.buf = this.buf.slice(i + p.length); return s; }
-        if (this.closed) throw new Error('the probe disconnected');
-        const left = ms - (Date.now() - t0);
-        if (left <= 0) throw new Error('no answer from the probe (waiting for ' + JSON.stringify(pat) + ')');
-        await new Promise(r => { this.waiters.push(r); setTimeout(r, Math.min(left, 200)); });
-      }
-    }
-    /* stop the running firmware and enter the raw REPL. A firmware that resets
-       itself in a loop is caught by sending Ctrl-C repeatedly for a while. */
-    async enterRaw(log) {
-      const prompt = async ms => { try { await this.until('>>> ', ms); return true; } catch (e) { return false; } };
-      await this.write('\r\x03');
-      let got = await prompt(6000);
-      if (!got) {
-        // already in the raw REPL (an earlier attempt on this connection): there
-        // Ctrl-C only gives a bare '>', and Ctrl-B returns to the normal prompt
-        await this.write('\x02');
-        got = await prompt(2000);
-      }
-      if (!got) {
-        log && log('still running, interrupting harder…');
-        for (let k = 0; k < 60 && !got; k++) {
-          await this.write('\r\x03\x03');
-          got = await prompt(150);
-        }
-        if (!got) throw new Error('the probe did not stop (no MicroPython prompt). Unplug it, plug it back in, and try again.');
-      }
-      await sleep(150); this.take();
-      await this.write('\r\x01');
-      await this.until('raw REPL; CTRL-B to exit\r\n>', 3000);
-    }
-    /* run code in the raw REPL; resolve to its printed output, reject with its error */
-    async exec(code, ms = 20000) {
-      const b = enc.encode(code);
-      for (let i = 0; i < b.length; i += 256) { await this.write(b.slice(i, i + 256)); await sleep(10); }
-      await this.write('\x04');
-      const ok = await this.until('OK', 5000);
-      if (ok.trim()) throw new Error('unexpected reply before OK: ' + ok.slice(-80));
-      const out = await this.until('\x04', ms);
-      const err = await this.until('\x04', 5000);
-      await this.until('>', 3000);
-      if (err.trim()) throw new Error(err.trim().split('\n').slice(-1)[0]);
-      return out;
-    }
-    async close() { try { this.reader.cancel(); } catch (e) {} try { this.writer.releaseLock(); } catch (e) {} }
-  }
-  function indexOf(h, n) { outer: for (let i = 0; i + n.length <= h.length; i++) { for (let j = 0; j < n.length; j++) if (h[i + j] !== n[j]) continue outer; return i; } return -1; }
-  const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
-  const SHA = p => `import hashlib,binascii
-h=hashlib.sha256();n=0
-with open(${JSON.stringify(p)},'rb') as f:
- while 1:
-  b=f.read(1024)
-  if not b:break
-  h.update(b);n+=len(b)
-print(n,binascii.hexlify(h.digest()).decode())`;
-
-  /* Install `data` (Uint8Array, sha256 hex) on the probe.
-     Layout is detected from the files on the probe:
-       launcher layout (fwguard.py + logger.py): the firmware is logger.py; it is
-         staged as logger.py.new and swapped by fwguard, which keeps the previous
-         copy and puts it back by itself if the new one fails to start;
-       single-file layout: the firmware is main.py; main.py -> main_prev.py.
-     opts.target overrides the file name (tests only). */
-  async function install(repl, data, sha, opts, step) {
-    opts = opts || {};
-    step('stop', 'Stopping the probe’s firmware…');
-    await repl.enterRaw(t => step('stop', t));
-    step('stop', 'Probe stopped', 'ok');
-
-    const files = JSON.parse((await repl.exec("import os,json;print(json.dumps(sorted(os.listdir('/'))))")).trim());
-    const launcher = files.includes('fwguard.py') && files.includes('logger.py');
-    const target = opts.target || (launcher ? 'logger.py' : 'main.py');
-    step('layout', launcher ? 'Launcher layout: installing as logger.py (automatic rollback on)' : 'Single-file layout: installing as main.py', 'ok');
-
-    let cur = null;
-    if (files.includes(target)) { const [n, h] = (await repl.exec(SHA(target))).trim().split(' '); cur = { size: +n, sha: h }; }
-    if (cur && cur.sha === sha && !opts.force) {
-      step('same', 'The probe already has this version (' + sha.slice(0, 12) + '). Nothing changed.', 'ok');
-      return { target, launcher, changed: false };
-    }
-
-    const stage = launcher && !opts.target ? target + '.new' : target.replace(/\.py$/, '') + '_new.py';
-    step('send', 'Sending ' + (data.length / 1024).toFixed(1) + ' kB…');
-    await repl.exec(`from binascii import a2b_base64 as _a\n_f=open(${JSON.stringify(stage)},'wb')`);
-    const CH = 1024;
-    for (let off = 0; off < data.length; off += CH) {
-      await repl.exec('_f.write(_a(' + JSON.stringify(b64(data.subarray(off, off + CH))) + '))');
-      opts.progress && opts.progress(Math.min(1, (off + CH) / data.length));
-    }
-    await repl.exec('_f.close();del _f');
-    step('send', 'Sent ' + (data.length / 1024).toFixed(1) + ' kB', 'ok');
-
-    step('check', 'Checking the copy on the probe…');
-    const [n, h] = (await repl.exec(SHA(stage))).trim().split(' ');
-    if (+n !== data.length || h !== sha) {
-      await repl.exec(`import os\ntry:os.remove(${JSON.stringify(stage)})\nexcept OSError:pass`);
-      throw new Error('the copy on the probe does not match (' + n + ' bytes, ' + h.slice(0, 12) + '). Nothing was changed.');
-    }
-    try { await repl.exec(`import gc;gc.collect();compile(open(${JSON.stringify(stage)}).read(),${JSON.stringify(target)},'exec');print('ok')`, 60000); }
-    catch (e) {
-      await repl.exec(`import os\ntry:os.remove(${JSON.stringify(stage)})\nexcept OSError:pass`);
-      throw new Error('the firmware does not compile on the probe: ' + e.message + '. Nothing was changed.');
-    }
-    step('check', 'Copy matches (SHA-256 ' + sha.slice(0, 12) + ') and compiles', 'ok');
-
-    step('swap', 'Installing…');
-    if (launcher && !opts.target) {
-      const r = await repl.exec(`import fwguard;print(fwguard.swap_in(['logger.py'],'web-${sha.slice(0, 8)}'))`);
-      if (!/logger\.py/.test(r)) throw new Error('install did not complete: ' + r.trim());
-    } else {
-      const prev = target.replace(/\.py$/, '') + '_prev.py';
-      await repl.exec(`import os
-def _rm(p):
- try:os.remove(p)
- except OSError:pass
-_rm(${JSON.stringify(prev)})
-try:os.rename(${JSON.stringify(target)},${JSON.stringify(prev)})
-except OSError:pass
-os.rename(${JSON.stringify(stage)},${JSON.stringify(target)})`);
-    }
-    step('swap', 'Installed as ' + target + (launcher && !opts.target ? ' (previous copy kept as logger.py.prev)' : ' (previous copy kept as ' + target.replace(/\.py$/, '') + '_prev.py)'), 'ok');
-    return { target, launcher, changed: true };
-  }
-  async function restart(repl) {
-    try { await repl.write('import machine\nmachine.reset()\n\x04'); } catch (e) {}
-    await sleep(300);
-  }
-  return { Repl, install, restart, sleep };
+  }, 1000);
+  document.getElementById('stay').onclick = e => { e.preventDefault(); clearInterval(t); c.hidden = true; };
 })();
-/* ==== end BLREPL ==== */
-
-const $ = id => document.getElementById(id);
-let FW = null;
-
-function step(key, text, state) {
-  let li = document.querySelector('#steps li[data-k="' + key + '"]');
-  if (!li) { li = document.createElement('li'); li.dataset.k = key; $('steps').appendChild(li); }
-  li.textContent = text; li.className = state || 'run';
-}
-function bar(p) { $('bar').hidden = p == null; if (p != null) $('bar').firstChild.style.width = Math.round(p * 100) + '%'; }
-
-async function loadFirmware() {
-  try {
-    const r = await fetch('main.py', { cache: 'no-store' });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = new Uint8Array(await r.arrayBuffer());
-    const sha = [...new Uint8Array(await crypto.subtle.digest('SHA-256', data))].map(x => x.toString(16).padStart(2, '0')).join('');
-    FW = { data, sha };
-    $('fw-size').textContent = data.length.toLocaleString() + ' bytes';
-    $('fw-sha').textContent = sha;
-  } catch (e) {
-    $('fw-size').textContent = '—'; $('fw-sha').innerHTML = '<span class="bad">could not load main.py: ' + e.message + '</span>';
-  }
-}
-
-function checkSupport() {
-  if ('serial' in navigator) return true;
-  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  $('unsupported').hidden = false; $('go-card').hidden = true;
-  $('unsupported-why').textContent = ios
-    ? 'iPhone and iPad browsers cannot open USB devices, so this page cannot update a probe from them. Use Chrome or Edge on a computer, or Chrome on an Android phone.'
-    : 'This browser has no Web Serial. Use Chrome or Edge on a computer, or Chrome on an Android phone. (On Linux, Chromium may need chrome://flags/#enable-experimental-web-platform-features turned on.)';
-  return false;
-}
-
-/* After the reset the probe comes back as a new USB connection; read its start-up
-   messages so a problem is visible here instead of only on the probe. */
-async function watchBoot(port) {
-  $('boot-card').hidden = false; $('boot').textContent = 'waiting for the probe to restart…';
-  const back = await new Promise(res => {
-    const t = setTimeout(() => res(null), 15000);
-    navigator.serial.addEventListener('connect', e => { clearTimeout(t); res(e.target); }, { once: true });
-  });
-  const p = back || port;
-  try { await p.open({ baudRate: 115200 }); }
-  catch (e) { $('boot').textContent = 'Restarted. (Could not read its start-up messages: ' + e.message + ')'; return ''; }
-  const rd = p.readable.getReader(), dec = new TextDecoder(); let txt = '';
-  const stop = Date.now() + 12000;
-  try {
-    while (Date.now() < stop) {
-      const r = await Promise.race([rd.read(), BLREPL.sleep(stop - Date.now()).then(() => ({ timeout: true }))]);
-      if (r.timeout || r.done) break;
-      txt += dec.decode(r.value); $('boot').textContent = txt.slice(-4000); $('boot').scrollTop = 1e9;
-    }
-  } catch (e) {}
-  try { await rd.cancel(); rd.releaseLock(); await p.close(); } catch (e) {}
-  return txt;
-}
-
-async function run() {
-  if (!FW) return;
-  $('go').disabled = true; $('steps').innerHTML = ''; $('boot-card').hidden = true; bar(null);
-  let port, repl, res = null, stopped = false;
-  try {
-    step('port', 'Choose the probe in the list…');
-    port = await navigator.serial.requestPort({ filters: [{ usbVendorId: 0x303a }] });
-    await port.open({ baudRate: 115200 });
-    step('port', 'Connected', 'ok');
-    repl = new BLREPL.Repl(port.readable, port.writable);
-    res = await BLREPL.install(repl, FW.data, FW.sha, { force: $('force').checked, progress: p => bar(p) }, (k, t, s) => { step(k, t, s); if (k === 'stop' && s === 'ok') stopped = true; });
-    bar(null);
-  } catch (e) {
-    bar(null);
-    if (e.name === 'NotFoundError') { step('port', 'No probe chosen', 'bad'); $('go').disabled = false; return; }
-    step('error', 'Update failed: ' + e.message, 'bad');
-  }
-  if (repl && stopped) {
-    step('restart', 'Restarting the probe…');
-    await BLREPL.restart(repl); await repl.close();
-    try { await port.close(); } catch (e) {}
-    const boot = await watchBoot(port);
-    if (/Traceback|Error/.test(boot) && !/rolled back/.test(boot)) step('restart', 'Restarted, but it printed an error - see below', 'bad');
-    else if (/rolled back/.test(boot)) step('restart', 'The new firmware failed to start; the probe put the previous one back', 'bad');
-    else step('restart', boot ? 'Restarted and running' : 'Restarted', 'ok');
-    if (res && res.changed) step('done', 'Done: ' + res.target + ' is now SHA-256 ' + FW.sha.slice(0, 12) + '. You can unplug the probe.', 'ok');
-  } else if (port) { try { await repl && repl.close(); await port.close(); } catch (e) {} }
-  $('go').disabled = false;
-}
-
-if (checkSupport()) { $('go').onclick = run; loadFirmware().then(() => { $('go').disabled = !FW; }); }
-else loadFirmware();
 </script>
 </body>
 </html>

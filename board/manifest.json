@@ -1,0 +1,13 @@
+{
+ "version": "2026.11.07-1334-8f1f9610",
+ "notes": "Logger with the live stream at the sample rate",
+ "released": "2026-11-07T18:34:02Z",
+ "files": [
+  {
+   "name": "logger.py",
+   "path": "main.py",
+   "size": 106161,
+   "sha256": "8f1f9610908cd9cc9dd89e44a075288a73e97c9b66ac4f3b9a7732dfca40ccfc"
+  }
+ ]
+}
