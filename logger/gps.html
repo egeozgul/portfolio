@@ -5,47 +5,97 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BoreLogger GPS</title>
 <style>
-  :root{ --bg:#10151b; --ink:#e8eff5; --dim:#7c8fa0; --bad:#ff8080; }
+  :root{ --bg:#10151b; --ink:#e8eff5; --dim:#7c8fa0; --bad:#ff8080; --rule:#2a3743; }
   body{ margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
         background:var(--bg); color:var(--ink); font:15px/1.5 "Roboto Condensed","Arial Narrow",system-ui,sans-serif; }
   main{ max-width:420px; padding:24px 16px; text-align:center; }
   h1{ font-size:13px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); font-weight:600; margin:0 0 14px; }
-  #msg{ font-size:17px; }
+  #msg{ font-size:17px; min-height:1.5em; }
   #why{ margin-top:10px; color:var(--dim); font-size:13px; }
   .err{ color:var(--bad); }
-  a{ color:#4cc9f0; }
+  button{ display:block; width:100%; margin-top:12px; padding:14px; font:600 13px/1 inherit; letter-spacing:.12em;
+          text-transform:uppercase; color:var(--ink); background:#202a34; border:1px solid var(--rule); border-radius:4px; cursor:pointer; }
+  button.primary{ background:#20303c; border-color:#3a5666; color:#cdeaf7; font-size:15px; padding:18px; }
+  button[hidden]{ display:none; }
 </style>
 </head>
 <body>
 <main>
   <h1>BoreLogger · GPS</h1>
-  <div id="msg">Getting this phone's position…</div>
-  <div id="why">The probe's own page (10.10.10.10) is not allowed to use GPS, so it asks this page for a moment.
-    You go straight back.</div>
+  <div id="msg">Checking location access…</div>
+  <button id="share" class="primary" hidden>Share this phone's location</button>
+  <button id="again" hidden>Try again</button>
+  <button id="skip">Back without GPS</button>
+  <div id="why">The probe's own page (10.10.10.10) is not allowed to use GPS, so it asks this page for a moment,
+    then you go straight back.</div>
 </main>
 <script>
 /* Takes one GPS fix and returns to the probe's page with it, in the address:
    ...#<tab>&gps=<lat>,<lon>,<accuracy m>,<time ms>. Only the probe's address
    (and the laptop itself, for testing) may receive it, so a link cannot send
-   your position anywhere else. */
+   your position anywhere else.
+
+   Browsers often keep a location prompt quiet on a page the user did not
+   tap (Chrome on Android shows only an icon), and a phone with location
+   off may never answer. So: if access is already granted the fix is taken
+   at once; otherwise a button asks (a tap makes the prompt appear); a
+   watchdog says when nothing comes; "Back without GPS" always works. */
 const ALLOWED = [/^http:\/\/10\.10\.10\.10(\/|$)/, /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/];
-const back = new URLSearchParams(location.search).get('back') || '';
-const msg = document.getElementById('msg');
+const q = new URLSearchParams(location.search);
+const back = q.get('back') || '';
+const WAIT_MS = +q.get('wait') || 30000;             // the watchdog (tests shorten it)
+const $ = id => document.getElementById(id);
+const say = (t, err) => { $('msg').textContent = t; $('msg').className = err ? 'err' : ''; };
+let asking = 0, done = false;
+
 function go(extra){
-  const sep = back.includes('#') ? '&' : '#';
-  location.replace(back + sep + extra);
+  if(done) return; done = true;
+  location.replace(back + (back.includes('#') ? '&' : '#') + extra);
 }
-if(!ALLOWED.some(r => r.test(back))){
-  msg.className = 'err';
-  msg.textContent = 'This page only returns a position to the probe (http://10.10.10.10).';
-} else if(!navigator.geolocation){
-  go('gpserr=' + encodeURIComponent('not supported by this browser'));
-} else {
+function ask(){
+  const me = ++asking;
+  $('share').hidden = true; $('again').hidden = true;
+  say('Getting this phone\'s position…');
+  const dog = setTimeout(() => {
+    if(me !== asking || done) return;
+    say('No answer from the phone\'s location. Is Location turned on, and allowed for this browser?', true);
+    $('again').hidden = false;
+  }, WAIT_MS);
   navigator.geolocation.getCurrentPosition(
-    p => go('gps=' + [p.coords.latitude.toFixed(7), p.coords.longitude.toFixed(7),
-                     Math.round(p.coords.accuracy || 0), Date.now()].join(',')),
-    e => go('gpserr=' + encodeURIComponent(e.code === 1 ? 'permission denied' : e.code === 2 ? 'position unavailable' : 'timed out')),
+    p => { if(me !== asking) return; clearTimeout(dog);
+           say('Got it - going back…');
+           go('gps=' + [p.coords.latitude.toFixed(7), p.coords.longitude.toFixed(7),
+                       Math.round(p.coords.accuracy || 0), Date.now()].join(',')); },
+    e => { if(me !== asking) return; clearTimeout(dog);
+           const why = e.code === 1 ? 'permission denied' : e.code === 2 ? 'position unavailable' : 'timed out';
+           say(e.code === 1 ? 'Location is blocked for this site. Allow it in the browser\'s site settings, then Try again.'
+                            : e.code === 2 ? 'The phone could not find its position. Is Location turned on?'
+                            : 'Finding the position took too long.', true);
+           $('again').hidden = false;
+           $('skip').dataset.why = why; },
     {enableHighAccuracy:true, timeout:20000, maximumAge:10000});
+}
+
+$('skip').onclick = () => go('gpserr=' + encodeURIComponent($('skip').dataset.why || 'skipped'));
+$('share').onclick = ask;
+$('again').onclick = ask;
+
+if(!ALLOWED.some(r => r.test(back))){
+  say('This page only returns a position to the probe (http://10.10.10.10).', true);
+  $('skip').hidden = true;
+} else if(!navigator.geolocation){
+  say('This browser has no location support.', true);
+} else if(navigator.permissions && navigator.permissions.query){
+  navigator.permissions.query({name:'geolocation'}).then(st => {
+    if(st.state === 'granted') ask();                       // allowed before: no prompt, go
+    else if(st.state === 'denied'){
+      say('Location is blocked for this site. Allow it in the browser\'s site settings, then Try again.', true);
+      $('again').hidden = false;
+    } else { say('Tap the button to share this phone\'s position with the probe.'); $('share').hidden = false; }
+  }, () => { say('Tap the button to share this phone\'s position with the probe.'); $('share').hidden = false; });
+} else {
+  say('Tap the button to share this phone\'s position with the probe.');   // e.g. older Safari: no Permissions API
+  $('share').hidden = false;
 }
 </script>
 </body>
