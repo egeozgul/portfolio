@@ -400,6 +400,18 @@
   .console .err{color:#ff8080}
   .console .ok{color:#8fe388}
 
+  /* ─ tabs: one page per job ─ */
+  .tabs{
+    display:flex;gap:2px;margin:0 0 14px;border-bottom:1px solid var(--rule);
+    overflow-x:auto;scrollbar-width:none;
+  }
+  .tabs button{
+    background:none;border:none;border-bottom:2px solid transparent;border-radius:0;
+    padding:11px 14px 9px;color:var(--dim);font-size:11px;
+  }
+  .tabs button:hover:not(:disabled){background:none;border-color:transparent;border-bottom-color:#3f5364;color:var(--ink)}
+  .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--link)}
+  .tabpage:not(.on){display:none}
   .hint{padding:44px 18px;text-align:center;color:var(--dim);max-width:520px;margin:0 auto}
   .hint code{font-family:var(--mono);color:var(--ink);font-size:12px}
 </style>
@@ -438,6 +450,13 @@
     <p>Web Bluetooth runs in Chrome and Edge on desktop and Android. If the button does
     nothing, open this file over <code>http://localhost</code> instead of double-clicking it.</p>
   </div>
+  <nav class="tabs" id="tabs" role="tablist">
+    <button role="tab" data-tab="health">Health Check</button>
+    <button role="tab" data-tab="bore">Bore Measurement</button>
+    <button role="tab" data-tab="runs">Runs</button>
+    <button role="tab" data-tab="cal">Field Calibration</button>
+  </nav>
+  <div class="tabpage" id="tab-health" data-tab="health">
   <section class="mem" id="healthBlock">
     <div class="memhead">
       <div>
@@ -447,7 +466,20 @@
     </div>
     <canvas id="healthCv" class="healthcv"></canvas>
   </section>
+  <section class="controls">
+    <div class="ctlcard">
+      <div class="lbl">Battery</div>
+      <div class="battnow"><b id="battV">—</b><span id="battRate">collecting…</span></div>
+      <div class="battproj" id="battProj"></div>
+      <div class="ctlhint">Least squares over the last 60 s. The projections are
+        a straight-line extrapolation; a lithium cell holds a plateau and then
+        falls away, so they read optimistic near the end.</div>
+    </div>
+  </section>
+  <div class="grid" id="grid"></div>
+  </div>
 
+  <div class="tabpage" id="tab-bore" data-tab="bore">
   <section class="controls">
     <div class="ctlcard">
       <div class="lbl">Acquisition</div>
@@ -460,10 +492,7 @@
         <button id="btnRecMeas" disabled>Record measurement</button>
       </div>
       <div class="ctlrow">
-        <button id="btnRecCal" disabled>Record calibration</button>
         <button id="btnStop" disabled>Stop</button>
-      </div>
-      <div class="ctlrow">
         <button id="btnStream" disabled title="Live data from the probe, every sample. Record calibration turns it on, Record measurement turns it off.">Stream on</button>
       </div>
       <div class="ctlrow">
@@ -481,177 +510,8 @@
       </div>
       <div class="ctlhint">Sampling and recording rate, up to 100 Hz. Above 30 Hz the barometer is read across three ticks instead of blocking.</div>
     </div>
-
-    <div class="ctlcard">
-      <div class="lbl">Battery</div>
-      <div class="battnow"><b id="battV">—</b><span id="battRate">collecting…</span></div>
-      <div class="battproj" id="battProj"></div>
-      <div class="ctlhint">Least squares over the last 60 s. The projections are
-        a straight-line extrapolation; a lithium cell holds a plateau and then
-        falls away, so they read optimistic near the end.</div>
-    </div>
   </section>
-
-  <section class="mem">
-    <div class="memhead">
-      <div class="lbl">On-board memory</div>
-      <div class="membtns">
-        <button id="btnDump" disabled>Read log</button>
-        <button id="btnHex" disabled>Browse raw</button>
-        <span class="vsep"></span>
-        <button id="btnUsage" disabled>Refresh usage</button>
-        <button id="btnVerify" disabled>Verify erased</button>
-        <button id="btnErase" class="arm" disabled>Erase memory</button>
-      </div>
-    </div>
-    <div class="usewrap">
-      <div class="usebar"><i id="useBar"></i></div>
-      <div class="usetext">
-        <span>Used <b id="useUsed">—</b></span>
-        <span>Capacity <b id="useCap">—</b></span>
-        <span>Records <b id="useRecs">—</b></span>
-        <span>Utilisation <b id="usePct">—</b></span>
-        <span>Time left <b id="useTime">—</b></span>
-        <span>Sessions <b id="useSess">—</b></span>
-        <span id="useNote"></span>
-      </div>
-    </div>
-    <div class="tablewrap m-ascii" id="hexWrap" hidden>
-      <div class="hexhead">
-        <span>Raw flash — 16 MB, whatever it contains</span>
-        <span class="hexnav">
-          <button id="btnModeAscii" class="active">ASCII</button>
-          <button id="btnModeBoth">Hex+ASCII</button>
-          <button id="btnModeHex">Hex</button>
-          <span class="vsep"></span>
-          <button id="btnHexData">Data start</button>
-          <button id="btnHexHdr">Header</button>
-          <button id="btnHexEnd">Log end</button>
-          <button id="btnHexReload">Reload</button>
-        </span>
-        <span id="hexAddr">0x000000</span>
-      </div>
-      <div class="tscroll" id="hScroll"><div id="hSpacer"></div><div id="hRows"></div></div>
-    </div>
-  </section>
-
-  <section class="mem" id="sessBlock">
-    <div class="memhead">
-      <div class="lbl">Recording sessions</div>
-      <div class="membtns">
-        <button id="btnSessRefresh" disabled>Refresh</button>
-        <button id="btnSessCsv" disabled>Save index CSV</button>
-        <button id="btnExportAll" disabled>Export everything (ZIP)</button>
-        <a id="lnkViz" class="btnlink" href="../visualizer/#latest-export"
-           target="_blank" rel="noopener" hidden>Open in visualizer</a>
-      </div>
-    </div>
-    <div class="expprog" id="expProg" hidden>
-      <div class="expbar"><div class="expfill" id="expFill"></div></div>
-      <div class="expinfo">
-        <span id="expPct">0%</span>
-        <span id="expWhat">preparing…</span>
-        <span id="expEta"></span>
-        <button id="btnExportCancel" class="expcancel">Cancel</button>
-      </div>
-      </div>
-    </div>
-    <div class="sesswrap">
-      <div class="sesshead">
-        <span>#</span><span>Type</span><span>Started</span><span>Location</span>
-        <span>Address</span><span>Records</span><span>Rate</span>
-        <span>Duration</span><span></span>
-      </div>
-      <div class="sessbody" id="sessRows">
-        <div class="sessempty">No sessions recorded yet.</div>
-      </div>
-    </div>
-  </section>
-
-  <section class="mem" id="ovBlock" hidden>
-    <div class="memhead">
-      <div>
-        <div class="lbl">Recording overview</div>
-        <div class="datainfo" id="ovInfo">—</div>
-      </div>
-    </div>
-    <div class="ovsub">
-      <div class="lbl">Data health · whole recording</div>
-      <div class="datainfo" id="ovHealthInfo">—</div>
-      <canvas id="ovHealthCv" class="ovhealthcv"></canvas>
-    </div>
-    <div class="grid ovgrid" id="ovGrid"></div>
-  </section>
-
-  <section class="mem" id="dataBlock" hidden>
-    <div class="memhead">
-      <div>
-        <div class="lbl">Dataset</div>
-        <div class="datainfo" id="dataInfo">—</div>
-        <div class="datainfo hlegend">health digits: <b>I</b>MU
-          <b>B</b>arometer <b>M</b>agnetometer <b>F</b>lash
-          <b>V</b>bat &nbsp;·&nbsp; 1 = working, 0 = down</div>
-      </div>
-      <div class="membtns">
-        <button id="btnDumpCsv" disabled>Save CSV</button>
-        <button id="btnToCloud" disabled>Use for mag calibration</button>
-        <button id="btnDataClear">Clear</button>
-      </div>
-    </div>
-    <div class="tablewrap" id="tableWrap">
-      <div class="thscroll">
-        <div class="thead">
-          <span>#</span><span>time</span><span>t (s)</span>
-          <span>ax (g)</span><span>ay (g)</span><span>az (g)</span>
-          <span>gx °/s</span><span>gy °/s</span><span>gz °/s</span>
-          <span>P (hPa)</span><span>T (°C)</span>
-          <span>mx µT</span><span>my µT</span><span>mz µT</span>
-          <span>Tdie °C</span><span>Vbat</span>
-          <span title="One digit per subsystem, in this order:&#10;I = IMU&#10;B = Barometer&#10;M = Magnetometer&#10;F = Flash&#10;V = Battery ADC&#10;&#10;1 = working, 0 = down for that sample">health <i class="hkey">IBMFV</i></span>
-        </div>
-        <div class="tscroll" id="tScroll"><div id="tSpacer"></div><div id="tRows"></div></div>
-      </div>
-    </div>
-  </section>
-
   <div class="stages">
-  <section class="scene" id="scene">
-    <div class="viewport">
-      <canvas id="mag3d"></canvas>
-      <div class="viewhint">Drag to rotate · scroll to zoom</div>
-    </div>
-    <div class="stats">
-      <div class="lbl" style="margin-bottom:8px">Magnetometer cloud</div>
-      <div class="statrow"><span>Points</span><b id="mCount">0</b></div>
-      <div class="statrow"><span>Radius</span><b id="mRad">—</b></div>
-      <div class="statrow"><span>Roundness</span><b id="mRound">—</b></div>
-      <div class="statrow"><span>Bad samples</span><b id="mOut">—</b></div>
-      <div class="statrow"><span>Coverage</span><b id="mCov">0%</b></div>
-      <div class="covbar"><i id="mCovBar"></i></div>
-      <div class="covnote" id="mCovNote">Turn the board through every orientation to fill the shell.</div>
-      <div class="sepline"></div>
-      <div class="lbl" style="margin-bottom:6px">Calibration</div>
-      <div class="statrow"><span>Hard iron X</span><b id="cBx">—</b></div>
-      <div class="statrow"><span>Hard iron Y</span><b id="cBy">—</b></div>
-      <div class="statrow"><span>Hard iron Z</span><b id="cBz">—</b></div>
-      <div class="statrow"><span>Semi-axes</span><b id="cAxes">—</b></div>
-      <div class="statrow"><span>Field</span><b id="cField">—</b></div>
-      <div class="statrow"><span>Residual</span><b id="cResid">—</b></div>
-      <div class="scenebtns">
-        <button id="btnFit">Calibrate</button>
-        <button id="btnApplyCal" disabled>Use calibration</button>
-        <button id="btnSaveCal" disabled>Save</button>
-        <button id="btnLoadCal">Load</button>
-        <input id="inpCal" type="file" accept=".json,application/json" hidden>
-      </div>
-      <div class="scenebtns">
-        <button id="btnSpin">Auto-rotate</button>
-        <button id="btnResetView">Reset view</button>
-        <button id="btnClearMag">Clear points</button>
-      </div>
-    </div>
-  </section>
-
   <section class="scene">
     <div class="viewport">
       <canvas id="att3d"></canvas>
@@ -724,8 +584,189 @@
     </div>
   </section>
   </div>
+  </div>
 
-  <div class="grid" id="grid"></div>
+  <div class="tabpage" id="tab-runs" data-tab="runs">
+  <section class="mem">
+    <div class="memhead">
+      <div class="lbl">On-board memory</div>
+      <div class="membtns">
+        <button id="btnDump" disabled>Read log</button>
+        <button id="btnHex" disabled>Browse raw</button>
+        <span class="vsep"></span>
+        <button id="btnUsage" disabled>Refresh usage</button>
+        <button id="btnVerify" disabled>Verify erased</button>
+        <button id="btnErase" class="arm" disabled>Erase memory</button>
+      </div>
+    </div>
+    <div class="usewrap">
+      <div class="usebar"><i id="useBar"></i></div>
+      <div class="usetext">
+        <span>Used <b id="useUsed">—</b></span>
+        <span>Capacity <b id="useCap">—</b></span>
+        <span>Records <b id="useRecs">—</b></span>
+        <span>Utilisation <b id="usePct">—</b></span>
+        <span>Time left <b id="useTime">—</b></span>
+        <span>Sessions <b id="useSess">—</b></span>
+        <span id="useNote"></span>
+      </div>
+    </div>
+    <div class="tablewrap m-ascii" id="hexWrap" hidden>
+      <div class="hexhead">
+        <span>Raw flash — 16 MB, whatever it contains</span>
+        <span class="hexnav">
+          <button id="btnModeAscii" class="active">ASCII</button>
+          <button id="btnModeBoth">Hex+ASCII</button>
+          <button id="btnModeHex">Hex</button>
+          <span class="vsep"></span>
+          <button id="btnHexData">Data start</button>
+          <button id="btnHexHdr">Header</button>
+          <button id="btnHexEnd">Log end</button>
+          <button id="btnHexReload">Reload</button>
+        </span>
+        <span id="hexAddr">0x000000</span>
+      </div>
+      <div class="tscroll" id="hScroll"><div id="hSpacer"></div><div id="hRows"></div></div>
+    </div>
+  </section>
+
+  <section class="mem" id="sessBlock">
+    <div class="memhead">
+      <div class="lbl">Recording sessions</div>
+      <div class="membtns">
+        <button id="btnSessRefresh" disabled>Refresh</button>
+        <button id="btnSessCsv" disabled>Save index CSV</button>
+        <button id="btnExportAll" disabled>Export everything (ZIP)</button>
+        <a id="lnkViz" class="btnlink" href="../visualizer/#latest-export"
+           target="_blank" rel="noopener" hidden>Open in visualizer</a>
+      </div>
+    </div>
+    <div class="expprog" id="expProg" hidden>
+      <div class="expbar"><div class="expfill" id="expFill"></div></div>
+      <div class="expinfo">
+        <span id="expPct">0%</span>
+        <span id="expWhat">preparing…</span>
+        <span id="expEta"></span>
+        <button id="btnExportCancel" class="expcancel">Cancel</button>
+      </div>
+    </div>
+    <div class="sesswrap">
+      <div class="sesshead">
+        <span>#</span><span>Type</span><span>Started</span><span>Location</span>
+        <span>Address</span><span>Records</span><span>Rate</span>
+        <span>Duration</span><span></span>
+      </div>
+      <div class="sessbody" id="sessRows">
+        <div class="sessempty">No sessions recorded yet.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mem" id="ovBlock" hidden>
+    <div class="memhead">
+      <div>
+        <div class="lbl">Recording overview</div>
+        <div class="datainfo" id="ovInfo">—</div>
+      </div>
+    </div>
+    <div class="ovsub">
+      <div class="lbl">Data health · whole recording</div>
+      <div class="datainfo" id="ovHealthInfo">—</div>
+      <canvas id="ovHealthCv" class="ovhealthcv"></canvas>
+    </div>
+    <div class="grid ovgrid" id="ovGrid"></div>
+  </section>
+
+  <section class="mem" id="dataBlock" hidden>
+    <div class="memhead">
+      <div>
+        <div class="lbl">Dataset</div>
+        <div class="datainfo" id="dataInfo">—</div>
+        <div class="datainfo hlegend">health digits: <b>I</b>MU
+          <b>B</b>arometer <b>M</b>agnetometer <b>F</b>lash
+          <b>V</b>bat &nbsp;·&nbsp; 1 = working, 0 = down</div>
+      </div>
+      <div class="membtns">
+        <button id="btnDumpCsv" disabled>Save CSV</button>
+        <button id="btnToCloud" disabled>Use for mag calibration</button>
+        <button id="btnDataClear">Clear</button>
+      </div>
+    </div>
+    <div class="tablewrap" id="tableWrap">
+      <div class="thscroll">
+        <div class="thead">
+          <span>#</span><span>time</span><span>t (s)</span>
+          <span>ax (g)</span><span>ay (g)</span><span>az (g)</span>
+          <span>gx °/s</span><span>gy °/s</span><span>gz °/s</span>
+          <span>P (hPa)</span><span>T (°C)</span>
+          <span>mx µT</span><span>my µT</span><span>mz µT</span>
+          <span>Tdie °C</span><span>Vbat</span>
+          <span title="One digit per subsystem, in this order:&#10;I = IMU&#10;B = Barometer&#10;M = Magnetometer&#10;F = Flash&#10;V = Battery ADC&#10;&#10;1 = working, 0 = down for that sample">health <i class="hkey">IBMFV</i></span>
+        </div>
+        <div class="tscroll" id="tScroll"><div id="tSpacer"></div><div id="tRows"></div></div>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <div class="tabpage" id="tab-cal" data-tab="cal">
+  <section class="controls">
+    <div class="ctlcard">
+      <div class="lbl">Calibration recording</div>
+      <div class="ctlrow">
+        <input id="inpNoteCal" class="notefield" type="text" maxlength="40"
+               placeholder="Calibration note (optional)"
+               aria-label="Note describing this calibration recording">
+      </div>
+      <div class="ctlrow">
+        <button id="btnRecCal" disabled>Record calibration</button>
+        <button id="btnStopCal" disabled>Stop</button>
+      </div>
+      <div class="recwhy" id="recWhyCal"></div>
+      <div class="ctlhint">Turn the probe slowly through every orientation while it records. Record
+        calibration turns the live stream on, so the cloud fills as you sweep. To fit a run already on
+        the probe, read it in Runs and press "Use for mag calibration".</div>
+    </div>
+  </section>
+  <section class="scene" id="scene">
+    <div class="viewport">
+      <canvas id="mag3d"></canvas>
+      <div class="viewhint">Drag to rotate · scroll to zoom</div>
+    </div>
+    <div class="stats">
+      <div class="lbl" style="margin-bottom:8px">Magnetometer cloud</div>
+      <div class="statrow"><span>Points</span><b id="mCount">0</b></div>
+      <div class="statrow"><span>Radius</span><b id="mRad">—</b></div>
+      <div class="statrow"><span>Roundness</span><b id="mRound">—</b></div>
+      <div class="statrow"><span>Bad samples</span><b id="mOut">—</b></div>
+      <div class="statrow"><span>Coverage</span><b id="mCov">0%</b></div>
+      <div class="covbar"><i id="mCovBar"></i></div>
+      <div class="covnote" id="mCovNote">Turn the board through every orientation to fill the shell.</div>
+      <div class="sepline"></div>
+      <div class="lbl" style="margin-bottom:6px">Calibration</div>
+      <div class="statrow"><span>Hard iron X</span><b id="cBx">—</b></div>
+      <div class="statrow"><span>Hard iron Y</span><b id="cBy">—</b></div>
+      <div class="statrow"><span>Hard iron Z</span><b id="cBz">—</b></div>
+      <div class="statrow"><span>Semi-axes</span><b id="cAxes">—</b></div>
+      <div class="statrow"><span>Field</span><b id="cField">—</b></div>
+      <div class="statrow"><span>Residual</span><b id="cResid">—</b></div>
+      <div class="scenebtns">
+        <button id="btnFit">Calibrate</button>
+        <button id="btnApplyCal" disabled>Use calibration</button>
+        <button id="btnSaveCal" disabled>Save</button>
+        <button id="btnLoadCal">Load</button>
+        <input id="inpCal" type="file" accept=".json,application/json" hidden>
+      </div>
+      <div class="scenebtns">
+        <button id="btnSpin">Auto-rotate</button>
+        <button id="btnResetView">Reset view</button>
+        <button id="btnClearMag">Clear points</button>
+      </div>
+    </div>
+  </section>
+
+  </div>
+
   <div class="console" id="console"></div>
 </main>
 
@@ -1404,6 +1445,36 @@ function applyRate(){
 /* ── ui wiring ───────────────────────────────────────────────────── */
 const el=id=>document.getElementById(id);
 
+/* ── tabs ──────────────────────────────────────────────────────────
+   Four pages, one per job. The open tab is in the address (#runs ...), so a
+   link or a reload lands on it, and remembered for the next visit. Panels in
+   a hidden page keep updating; their canvases are redrawn when it opens,
+   because a hidden canvas has no size. */
+const TABS = ['health','bore','runs','cal'];
+function showTab(t){
+  if(!TABS.includes(t)) t = 'health';
+  for(const p of document.querySelectorAll('.tabpage')) p.classList.toggle('on', p.dataset.tab===t);
+  for(const b of document.querySelectorAll('#tabs button')){
+    const on = b.dataset.tab===t;
+    b.setAttribute('aria-selected', on);
+    b.tabIndex = on ? 0 : -1;
+  }
+  try{ localStorage.setItem('bl_tab', t); }catch(e){}
+  if(location.hash !== '#'+t) history.replaceState(null, '', '#'+t);
+  dirty = true;
+  dispatchEvent(new Event('resize'));
+}
+for(const b of document.querySelectorAll('#tabs button')) b.onclick = () => showTab(b.dataset.tab);
+el('tabs').addEventListener('keydown', e => {
+  // arrow keys move between tabs, as in any tab list
+  const i = TABS.indexOf((document.activeElement.dataset||{}).tab);
+  if(i<0 || (e.key!=='ArrowRight' && e.key!=='ArrowLeft')) return;
+  const t = TABS[(i + (e.key==='ArrowRight' ? 1 : TABS.length-1)) % TABS.length];
+  showTab(t);
+  document.querySelector(`#tabs button[data-tab="${t}"]`).focus();
+});
+addEventListener('hashchange', () => showTab(location.hash.slice(1)));
+
 el('btnConnect').onclick=()=>{
   if(cable) cableClose();
   else if(onProbe) cableConnect();
@@ -1412,7 +1483,7 @@ el('btnConnect').onclick=()=>{
 el('btnCable').onclick=()=>{
   // leave Bluetooth first, so the probe is free for the cable app
   if(device&&device.gatt.connected) device.gatt.disconnect();
-  location.href='http://10.10.10.10/';
+  location.href='http://10.10.10.10/'+location.hash;
 };
 /* ── location ────────────────────────────────────────────────────────
    Watched continuously and cached, rather than requested when Record is
@@ -1494,7 +1565,7 @@ async function startRecording(kind){
              lat&0xFF,(lat>>8)&0xFF,(lat>>16)&0xFF,(lat>>>24)&0xFF,
              lon&0xFF,(lon>>8)&0xFF,(lon>>16)&0xFF,(lon>>>24)&0xFF,
              acc&0xFF,(acc>>8)&0xFF, st.ok?1:0,
-             ...encodeNote(el('inpNote').value)];
+             ...encodeNote(el(kind ? 'inpNoteCal' : 'inpNote').value)];
   // awaited, not fired and forgotten: two overlapping GATT writes throw
   await send(...pkt);
   log(`Recording ${kind?'CALIBRATION':'measurement'} — `+
@@ -1525,6 +1596,7 @@ async function startRecording(kind){
 el('btnRecMeas').onclick=()=>startRecording(0);
 el('btnRecCal').onclick=()=>startRecording(1);
 el('btnStop').onclick=()=>send(CMD.STOP);
+el('btnStopCal').onclick=()=>send(CMD.STOP);
 el('btnErase').onclick=()=>{
   if(!confirm('Erase all 16 MB of on-board memory? This cannot be undone, '+
               'and takes about 40 seconds.')) return;
@@ -1574,6 +1646,8 @@ function setButtons(){
   // the user must still be able to stop the board. Stopping when already
   // stopped is harmless.
   el('btnStop').disabled=!live;
+  el('btnStopCal').disabled=!live;
+  el('recWhyCal').textContent=el('recWhy').textContent;
   el('btnDump').disabled=!live||recording||dumpActive;
   el('btnRate').disabled=!live||dumpActive||recording;
   el('inpRate').disabled=!live||dumpActive||recording;
@@ -2055,6 +2129,7 @@ el('btnToCloud').onclick=()=>{
   log(`Loaded ${dumped.length.toLocaleString()} magnetometer samples into the `+
       `calibration cloud. Press Calibrate to fit.`,'ok');
   dirty=true;
+  showTab('cal');
 };
 el('btnDataClear').onclick=()=>{
   dumped=[]; dataSession=null; showDataset(); setButtons();
@@ -4236,6 +4311,7 @@ drawAttitude();
 drawCompass();
 requestAnimationFrame(tick);
 log('Ready. Connect to the board to start.');
+showTab(location.hash.slice(1) || (()=>{ try{ return localStorage.getItem('bl_tab'); }catch(e){ return null; } })());
 
 /* Served by the probe itself? Then connect over the cable straight away.
    (The GitHub copy is https; http plus a probe that answers /api/info with
