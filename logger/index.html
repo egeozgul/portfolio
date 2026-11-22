@@ -248,7 +248,7 @@
   .sesshead,.sessrow{
     display:grid;
     grid-template-columns:34px 72px minmax(140px,1.2fr) minmax(140px,1.2fr)
-                          78px 66px 62px 62px 58px;
+                          78px 66px 62px 62px 96px 58px;
     gap:8px;align-items:center;padding:7px 10px;
     font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums;
   }
@@ -270,6 +270,28 @@
   }
   .kind.cal{background:#3a2f16;color:#ffd479;border:1px solid #5c4a1f}
   .kind.meas{background:#1b2b33;color:#8fd2e8;border:1px solid #2b4653}
+  /* where a run's data is: probe only, kept on this device, waiting to upload, uploaded */
+  .st{display:inline-block;padding:2px 6px;border-radius:2px;font-size:9px;letter-spacing:.08em;
+    text-transform:uppercase;white-space:nowrap;border:1px solid}
+  .st.probe{color:#7c8fa0;border-color:#2a3743}
+  .st.local{color:#8fd2e8;background:#1b2b33;border-color:#2b4653}
+  .st.queued{color:#ffd479;background:#3a2f16;border-color:#5c4a1f}
+  .st.up{color:#a3e635;background:#1f2e16;border-color:#3c5a22}
+  .localrow{
+    display:grid;grid-template-columns:minmax(150px,1fr) minmax(110px,.8fr) minmax(120px,1.2fr) 74px 64px 96px auto;
+    gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid #172029;
+    font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums}
+  .localrow.head{background:#131a21;color:var(--dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+  .localrow .btns{display:flex;gap:5px;justify-content:flex-end}
+  .localrow button{padding:4px 8px;font-size:9.5px;letter-spacing:.08em}
+  .localrow .why{grid-column:1/-1;color:#ff8080;font-size:10.5px}
+  .dbform{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:10px;align-items:end}
+  .dbform[hidden]{display:none}     /* the grid display would otherwise beat [hidden] */
+  .dbform label{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
+  .dbform input,.dbform select{width:100%;box-sizing:border-box;background:#0e141a;color:var(--ink);
+    border:1px solid var(--rule);border-radius:3px;padding:7px 8px;font-family:var(--mono);font-size:12px}
+  .dbmsg{margin-top:9px;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .dbmsg .err{color:#ff8080}
   .sessempty{padding:16px 10px;color:var(--dim);font-family:var(--mono);font-size:11.5px}
 
   /* all-ok is the overwhelmingly common case, so it is dimmed -- a failed
@@ -654,12 +676,45 @@
       <div class="sesshead">
         <span>#</span><span>Type</span><span>Started</span><span>Location</span>
         <span>Address</span><span>Records</span><span>Rate</span>
-        <span>Duration</span><span></span>
+        <span>Duration</span><span>Copy</span><span></span>
       </div>
       <div class="sessbody" id="sessRows">
         <div class="sessempty">No sessions recorded yet.</div>
       </div>
     </div>
+  </section>
+
+  <section class="mem" id="localBlock">
+    <div class="memhead">
+      <div class="lbl">On this device</div>
+      <div class="membtns">
+        <button id="btnUploadAll" disabled>Upload all</button>
+      </div>
+    </div>
+    <div class="ctlhint" style="margin-top:6px">Every run you read is kept here, in this browser, until you delete it.
+      <b>Save file</b> puts a copy in your Downloads (a ZIP with the raw .bin and its details) — that copy is the safe one:
+      browsers can clear their storage, iPhones after a few weeks without use.</div>
+    <div class="sesswrap" id="localRows"><div class="sessempty">No runs kept on this device yet. Read a run above.</div></div>
+    <div class="dbmsg" id="localInfo"></div>
+  </section>
+
+  <section class="mem" id="dbBlock">
+    <div class="memhead">
+      <div class="lbl">Office database</div>
+      <div class="membtns" id="dbWho"></div>
+    </div>
+    <div id="dbSignin" class="dbform">
+      <div><label for="dbEmail">Email</label><input id="dbEmail" type="email" autocomplete="username"></div>
+      <div><label for="dbPass">Password</label><input id="dbPass" type="password" autocomplete="current-password"></div>
+      <div><button id="btnDbSignin" class="primary">Sign in</button></div>
+    </div>
+    <div id="dbTarget" class="dbform" hidden>
+      <div><label for="dbProj">Project</label><select id="dbProj"></select></div>
+      <div><label for="dbBore">Bore (used when a run's note names none)</label><select id="dbBore"></select></div>
+      <div><button id="btnDbRefresh">Refresh lists</button></div>
+    </div>
+    <div class="dbmsg" id="dbMsg">The BoreLogger office portal's database. Same login as the portal.
+      Uploads use this phone's or laptop's internet; without it they wait in the queue.</div>
   </section>
 
   <section class="mem" id="ovBlock" hidden>
@@ -888,6 +943,7 @@ let recording=false, windowSec=60, split=false;
 let logForeign=false, streamOn=true, verifying=false;
 let erasing=false, erasePct=0, streamAsked=null, storedRecords=0;
 let sessionsList=[], sessionCount=0, dataSession=null, devicePeriodMs=0;
+let dumpedRaw=[];        // the same records as `dumped`, as the probe's raw 32-byte chunks
 let lastDumpSent=0;
 let rateWarned=false, capacityKb=0, lastSampleAt=0;
 // declared here rather than beside makeProgress(): the frame handler
@@ -953,6 +1009,8 @@ function handle(f){
   }
   else if(type===0x20 && f.length>=REC_SIZE+1){
     // single-record frame, kept so older firmware still works
+    if(!dumped.length) dumpedRaw=[];
+    dumpedRaw.push(f.slice(1,1+REC_SIZE));
     dumped.push(decodeRec(f,1));
     if(exportProg) exportProg.onRecord();
     else if(readProg) readProg.onRecord();
@@ -963,6 +1021,8 @@ function handle(f){
     // from -- the link is limited by packets per second, not bytes.
     const n = f[1];
     if(f.length >= 2 + n*REC_SIZE){
+      if(!dumped.length) dumpedRaw=[];          // a new read: its raw bytes start here too
+      dumpedRaw.push(f.slice(2, 2 + n*REC_SIZE));
       for(let k=0;k<n;k++) dumped.push(decodeRec(f, 2 + k*REC_SIZE));
       const pr = exportProg || readProg;
       if(pr) for(let k=0;k<n;k++) pr.onRecord();
@@ -980,6 +1040,7 @@ function handle(f){
     if(lastDumpSent!==dumped.length)
       log(`Board sent ${lastDumpSent} records but ${dumped.length} arrived — `+
           `${lastDumpSent-dumped.length} lost in transit.`,'err');
+    if(dataSession && dumped.length===dataSession.count && dumped.length) keepRun(dataSession);
     dumpActive=false;
     setButtons();
     if(dumpResolve){ const r=dumpResolve; dumpResolve=null; r(); }
@@ -1625,8 +1686,17 @@ el('btnRecCal').onclick=()=>startRecording(1);
 el('btnStop').onclick=()=>send(CMD.STOP);
 el('btnStopCal').onclick=()=>send(CMD.STOP);
 el('btnErase').onclick=()=>{
-  if(!confirm('Erase all 16 MB of on-board memory? This cannot be undone, '+
-              'and takes about 40 seconds.')) return;
+  const meta = x => localIndex.get(runKey(x)) || {};
+  const unsafe = sessionsList.filter(x => DB_UPLOAD ? meta(x).uploaded == null : !meta(x).fileSaved);
+  const notKept = unsafe.filter(x => !localIndex.has(runKey(x))).length;
+  if(!confirm((unsafe.length
+        ? (DB_UPLOAD
+            ? `${unsafe.length} of the ${sessionsList.length} runs on the probe are NOT uploaded to the office database`+
+              ` (${notKept} not even kept on this device). `
+            : `${unsafe.length} of the ${sessionsList.length} runs on the probe are NOT saved as a file`+
+              ` (${notKept} not even kept on this device). `)
+        : '')+
+      'Erase all 16 MB of on-board memory? This cannot be undone, and takes about 40 seconds.')) return;
   erasing=true; erasePct=0; setButtons();
   el('useNote').textContent='erasing 0%';
   el('useNote').style.color='var(--dim)';
@@ -1690,6 +1760,7 @@ function setButtons(){
   for(const b of document.querySelectorAll('button.sessRead'))
     b.disabled=!live||recording||dumpActive;
   el('btnVerify').disabled=busy;
+  if(window.localIndex) el('btnUploadAll').disabled=![...localIndex.values()].some(m=>m.uploaded==null);
   el('btnDumpCsv').disabled=dumped.length===0;
 }
 
@@ -2209,7 +2280,8 @@ function renderSessions(){
       `<span>0x${s.start.toString(16).toUpperCase().padStart(6,'0')}</span>`+
       `<span>${s.count.toLocaleString()}</span>`+
       `<span>${hz?hz.toFixed(2)+' Hz':'—'}</span>`+
-      `<span>${fmtDur(hz?s.count/hz:0)}</span>`;
+      `<span>${fmtDur(hz?s.count/hz:0)}</span>`+
+      `<span>${runStatusPill(s)}</span>`;
     const b=document.createElement('button');
     b.textContent='Read';
     b.className='sessRead';
@@ -2263,7 +2335,7 @@ function makeZip(files){
   const dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF;
   const dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
   for(const f of files){
-    const name=enc.encode(f.name), data=enc.encode(f.text), crc=zipCrc(data);
+    const name=enc.encode(f.name), data=f.data || enc.encode(f.text), crc=zipCrc(data);
     const lh=new DataView(new ArrayBuffer(30));
     lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true);
     lh.setUint16(10,dt,true); lh.setUint16(12,dd,true);
@@ -4370,6 +4442,433 @@ drawScene();
 drawAttitude();
 drawCompass();
 requestAnimationFrame(tick);
+/* ── runs kept on this device, and the office database ────────────────
+   Save locally first, then upload from that copy: in the field there is
+   often no signal, uploads break, and the probe's memory is erased sooner or
+   later. So every complete run read off the probe is kept here (IndexedDB,
+   raw bytes plus its index entry), can be saved as a file, and is uploaded
+   from here -- now if there is internet and a login, else when there is.
+
+   The upload is the office portal's own sequence (the probe's field page
+   does the same): sign in -> add_field_run(bore, filename, size, sha256,
+   note) gives a storage path -> the raw .bin goes there -> confirm_field_upload
+   checks the checksum. add_field_run answers already_uploaded for a file it
+   has, so pressing Upload twice is harmless. */
+var localIndex = new Map();          // run key -> meta (no bytes)
+var LDB = null;
+const DB_NAME = 'borelogger', DB_VER = 1;
+
+function runKey(s){
+  // the probe's name plus where and when the run started: unique per run
+  return [el('brandName').textContent || 'probe', s.epoch, s.start].join('|');
+}
+function runStatus(m){
+  if(!m) return 'probe';
+  if(m.uploaded) return 'up';
+  if(m.queued && DB_UPLOAD) return 'queued';
+  return 'local';
+}
+const fmtSize = n => n < 100000 ? (n/1000).toFixed(1)+' kB' : (n/1e6).toFixed(2)+' MB';
+const ST_TEXT = {probe:'on probe', local:'on this device', queued:'queued', up:'uploaded ✓'};
+function runStatusPill(s){
+  const st = runStatus(window.localIndex && localIndex.get(runKey(s)));
+  return `<span class="st ${st}">${ST_TEXT[st]}</span>`;
+}
+
+function ldbOpen(){
+  if(LDB) return Promise.resolve(LDB);
+  return new Promise((res, rej) => {
+    let r;
+    try{ r = indexedDB.open(DB_NAME, DB_VER); }catch(e){ return rej(e); }
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if(!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', {keyPath:'key'});
+      if(!db.objectStoreNames.contains('data')) db.createObjectStore('data');   // key -> ArrayBuffer
+    };
+    r.onsuccess = () => { LDB = r.result; res(LDB); };
+    r.onerror = () => rej(r.error);
+  });
+}
+function ldbTx(stores, mode, fn){
+  return ldbOpen().then(db => new Promise((res, rej) => {
+    const t = db.transaction(stores, mode);
+    let out;
+    t.oncomplete = () => res(out);
+    t.onerror = t.onabort = () => rej(t.error || new Error('storage transaction failed'));
+    out = fn(t);
+  }));
+}
+function ldbReq(req){ return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); }
+async function ldbLoadIndex(){
+  const all = await ldbTx(['meta'], 'readonly', t => ldbReq(t.objectStore('meta').getAll()));
+  const rows = await all;
+  localIndex = new Map(rows.map(m => [m.key, m]));
+}
+function ldbPutMeta(m){
+  localIndex.set(m.key, m);
+  return ldbTx(['meta'], 'readwrite', t => { t.objectStore('meta').put(m); });
+}
+function ldbGetBytes(key){
+  return ldbTx(['data'], 'readonly', t => ldbReq(t.objectStore('data').get(key))).then(p => p);
+}
+
+/* SHA-256: the browser's own where it may (https), else in plain JS -- the
+   probe's page is http, where crypto.subtle does not exist. */
+async function sha256Hex(buf){
+  if(window.crypto && crypto.subtle && window.isSecureContext){
+    const d = await crypto.subtle.digest('SHA-256', buf);
+    return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+  return sha256Js(buf);
+}
+function sha256Js(buf){
+  const K=new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+   0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,
+   0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+   0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,
+   0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+   0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+  const b=new Uint8Array(buf), n=b.length, l=((n+72)>>6)<<6, m=new Uint8Array(l); m.set(b); m[n]=0x80;
+  const dv=new DataView(m.buffer); dv.setUint32(l-8,Math.floor(n/0x20000000)); dv.setUint32(l-4,(n*8)>>>0);
+  const H=new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]), W=new Uint32Array(64);
+  for(let o=0;o<l;o+=64){
+    for(let t=0;t<16;t++) W[t]=dv.getUint32(o+t*4);
+    for(let t=16;t<64;t++){ const x=W[t-15], y=W[t-2];
+      W[t]=W[t-16]+((x>>>7|x<<25)^(x>>>18|x<<14)^(x>>>3))+W[t-7]+((y>>>17|y<<15)^(y>>>19|y<<13)^(y>>>10)); }
+    let a=H[0],c1=H[1],c2=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(let t=0;t<64;t++){
+      const t1=(h+((e>>>6|e<<26)^(e>>>11|e<<21)^(e>>>25|e<<7))+((e&f)^(~e&g))+K[t]+W[t])>>>0,
+            t2=(((a>>>2|a<<30)^(a>>>13|a<<19)^(a>>>22|a<<10))+((a&c1)^(a&c2)^(c1&c2)))>>>0;
+      h=g; g=f; f=e; e=(d+t1)>>>0; d=c2; c2=c1; c1=a; a=(t1+t2)>>>0;
+    }
+    H[0]+=a; H[1]+=c1; H[2]+=c2; H[3]+=d; H[4]+=e; H[5]+=f; H[6]+=g; H[7]+=h;
+  }
+  return Array.from(H, x => x.toString(16).padStart(8,'0')).join('');
+}
+
+// the run's own local start time (the probe stores epoch and the phone's offset)
+function runStamp(s){
+  if(!s.epoch) return 'noclock';
+  const d = new Date((s.epoch + (s.tz||0)*60) * 1000);
+  return d.getUTCFullYear()+pad2(d.getUTCMonth()+1)+pad2(d.getUTCDate())+pad2(d.getUTCHours())+pad2(d.getUTCMinutes());
+}
+function runFileName(m){
+  return (runStamp(m.session)+'_'+(m.session.note || 'run'+(m.session.seq+1))+'_'+m.probe)
+           .replace(/[^A-Za-z0-9_.-]/g,'_') + '.bin';
+}
+
+/* Called when a read of one whole run has finished. */
+async function keepRun(s){
+  const n = dumped.length, raw = dumpedRaw;
+  let total = 0; for(const c of raw) total += c.length;
+  if(total !== n*REC_SIZE){ log(`Not kept on this device: ${total} raw bytes for ${n} records.`,'err'); return; }
+  const bytes = new Uint8Array(total); let o = 0;
+  for(const c of raw){ bytes.set(c, o); o += c.length; }
+  const key = runKey(s), old = localIndex.get(key);
+  const sha = await sha256Hex(bytes.buffer);
+  if(old && old.sha256 === sha) return;                       // already kept, same bytes
+  const m = {
+    key, probe: el('brandName').textContent || 'probe',
+    serial: (probeInfo && probeInfo.serial) || null,
+    session: {seq:s.seq, start:s.start, epoch:s.epoch, tz:s.tz, sampleMs:s.sampleMs, count:s.count,
+              kind:s.kind, lat:s.lat, lon:s.lon, acc:s.acc, gps:s.gps, note:s.note||''},
+    calibration: CAL ? {device_id:CAL.id ?? null, cal_version:CAL.ver ?? null, cal_date:CAL.date || null} : null,
+    bytes: total, sha256: sha, keptAt: new Date().toISOString(),
+    fileSaved: null, queued: null, uploaded: null, lastError: null,
+  };
+  try{
+    await ldbTx(['meta','data'], 'readwrite', t => {
+      t.objectStore('data').put(bytes.buffer, key);
+      t.objectStore('meta').put(m);
+    });
+    localIndex.set(key, m);
+    if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+    log(`Kept run ${s.seq+1}${s.note?' ('+s.note+')':''} on this device — ${(total/1e6).toFixed(2)} MB.`,'ok');
+  }catch(e){
+    log('Could not keep the run on this device: '+e.message+'. Use Save file.','err');
+  }
+  renderSessions(); renderLocal(); setButtons();
+}
+
+function runJson(m){
+  const s = m.session;
+  return JSON.stringify({
+    file: runFileName(m), format: 'BoreLogger raw records, 32 bytes each, little-endian <IhhhhhhihhhhhH>',
+    probe: m.probe, serial: m.serial, records: s.count, bytes: m.bytes, sha256: m.sha256,
+    type: s.kind ? 'calibration' : 'measurement', note: s.note,
+    started_utc: s.epoch ? new Date(s.epoch*1000).toISOString() : null, utc_offset_min: s.tz,
+    sample_hz: s.sampleMs ? +(1000/s.sampleMs).toFixed(3) : null,
+    gps: s.gps ? {lat: s.lat, lon: s.lon, accuracy_m: s.acc} : null,
+    flash_start: s.start, calibration: m.calibration, kept: m.keptAt, uploaded: m.uploaded,
+  }, null, 2) + '\n';
+}
+
+async function saveRunFile(key){
+  const m = localIndex.get(key); if(!m) return;
+  const buf = await ldbGetBytes(key);
+  if(!buf){ log('That run\'s data is gone from this browser\'s storage.','err'); return; }
+  const base = runFileName(m).replace(/\.bin$/,'');
+  const zip = makeZip([{name: base+'.bin', data: new Uint8Array(buf)}, {name: base+'.json', text: runJson(m)}]);
+  const url = URL.createObjectURL(new Blob([zip], {type:'application/zip'}));
+  const a = document.createElement('a'); a.href = url; a.download = base+'.zip'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  m.fileSaved = new Date().toISOString();
+  await ldbPutMeta(m);
+  log('Saved '+base+'.zip','ok');
+  renderLocal();
+}
+
+async function deleteRun(key){
+  const m = localIndex.get(key); if(!m) return;
+  if(!m.uploaded && !confirm('This run is NOT uploaded to the office database'+(m.fileSaved?'':' and was never saved as a file')+
+       '. Delete it from this device anyway?')) return;
+  await ldbTx(['meta','data'], 'readwrite', t => { t.objectStore('meta').delete(key); t.objectStore('data').delete(key); });
+  localIndex.delete(key);
+  renderSessions(); renderLocal(); setButtons();
+}
+
+function renderLocal(){
+  const box = el('localRows');
+  const rows = [...localIndex.values()].sort((a,b) => (b.session.epoch||0) - (a.session.epoch||0));
+  if(!rows.length){
+    box.innerHTML = '<div class="sessempty">No runs kept on this device yet. Read a run above.</div>';
+  } else {
+    const frag = document.createDocumentFragment();
+    const h = document.createElement('div'); h.className = 'localrow head';
+    h.innerHTML = '<span>Started</span><span>Probe</span><span>Note</span><span>Records</span><span>Size</span><span>Status</span><span></span>';
+    frag.appendChild(h);
+    for(const m of rows){
+      const s = m.session, d = document.createElement('div'), st = runStatus(m);
+      d.className = 'localrow';
+      const when = s.epoch ? new Date(s.epoch*1000).toLocaleString() : 'no clock';
+      d.innerHTML = `<span>${when}</span><span></span><span></span><span>${s.count.toLocaleString()}</span>`+
+        `<span>${fmtSize(m.bytes)}</span><span class="st ${st}" title="${m.uploaded ? 'as '+(m.uploaded.run_name||'')+' on '+m.uploaded.at : ''}">${ST_TEXT[st]}</span>`;
+      d.children[1].textContent = m.probe;
+      d.children[2].textContent = (s.kind ? '[cal] ' : '') + (s.note || '—');
+      const btns = document.createElement('span'); btns.className = 'btns';
+      const mk = (txt, fn, dis) => { const b = document.createElement('button'); b.textContent = txt; b.onclick = fn; b.disabled = !!dis; btns.appendChild(b); };
+      mk('Save file', () => saveRunFile(m.key));
+      if(DB_UPLOAD) mk(m.uploaded ? 'Uploaded' : 'Upload', () => requestUpload(m.key), !!m.uploaded);
+      mk('Delete', () => deleteRun(m.key));
+      d.appendChild(btns);
+      if(m.lastError && !m.uploaded){ const w = document.createElement('div'); w.className = 'why'; w.textContent = 'last try: '+m.lastError; d.appendChild(w); }
+      frag.appendChild(d);
+    }
+    box.replaceChildren(frag);
+  }
+  const up = rows.filter(m => m.uploaded).length, q = rows.filter(m => m.queued && !m.uploaded).length;
+  const saved = rows.filter(m => m.fileSaved).length;
+  el('localInfo').textContent = rows.length
+    ? `${rows.length} run${rows.length>1?'s':''} on this device · `+
+      (DB_UPLOAD ? `${up} uploaded · ${q} queued` : `${saved} saved as a file`)
+    : '';
+  if(navigator.storage && navigator.storage.estimate) navigator.storage.estimate().then(e => {
+    if(rows.length) el('localInfo').textContent += ` · browser storage ${(e.usage/1e6).toFixed(1)} of ${(e.quota/1e6).toFixed(0)} MB`;
+  }).catch(()=>{});
+}
+
+/* ── the office database (Supabase) ── */
+// The address may only be changed for testing on the laptop itself, never by a
+// link: the sign-in form would send the password wherever SB points.
+const SB_DEFAULT = 'https://zqucjogarhnhalyxihim.supabase.co';
+const SB_KEY_DEFAULT = 'sb_publishable_BPNyIbZKtELJ6x-waN2ogw_IBfylSZg';   // public by design (the portal ships it)
+const SB_LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const SB = (SB_LOCAL && new URLSearchParams(location.search).get('sb')) || SB_DEFAULT;
+const SB_KEY = (SB_LOCAL && new URLSearchParams(location.search).get('sbkey')) || SB_KEY_DEFAULT;
+// Upload stays switched off until it has been tried once against the real office
+// database (login and a test project from the portal team). Until then it only
+// runs in local tests, against a stand-in: http://localhost...?sb=<stand-in>.
+// To switch it on for everyone: const DB_UPLOAD = true;
+const DB_UPLOAD = SB_LOCAL && new URLSearchParams(location.search).has('sb');
+const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const lsSet = (k, v) => { try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){} };
+// same storage key and format as the probe's field page, so one sign-in serves both
+const sbSession = () => { try{ return JSON.parse(lsGet('bl_sb') || 'null'); }catch(e){ return null; } };
+
+async function sbAuth(body, grant){
+  let r;
+  try{ r = await fetch(SB+'/auth/v1/token?grant_type='+grant,
+         {method:'POST', headers:{apikey:SB_KEY, 'Content-Type':'application/json'}, body:JSON.stringify(body)}); }
+  catch(e){ throw new Error('no internet'); }
+  const d = await r.json().catch(() => ({}));
+  if(!r.ok){
+    if(grant==='refresh_token') lsSet('bl_sb', null);
+    throw new Error(d.error_description || d.msg || d.message || 'sign-in failed ('+r.status+')');
+  }
+  const s = {at:d.access_token, rt:d.refresh_token, exp:Date.now()/1000+(d.expires_in||3600)-60,
+             email:(d.user&&d.user.email) || body.email || ''};
+  lsSet('bl_sb', JSON.stringify(s));
+  return s;
+}
+async function sb(path, opt, retried){
+  opt = opt || {};
+  let s = sbSession();
+  if(!s || !s.at) throw new Error('not signed in');
+  if(Date.now()/1000 > s.exp) s = await sbAuth({refresh_token:s.rt}, 'refresh_token');
+  let r;
+  try{ r = await fetch(SB+path, Object.assign({}, opt, {headers:Object.assign({apikey:SB_KEY, Authorization:'Bearer '+s.at}, opt.headers||{})})); }
+  catch(e){ throw new Error('no internet'); }
+  if(r.status===401 && !retried && s.rt){
+    // the server ended the login before its own expiry: renew it once and try again
+    try{ await sbAuth({refresh_token:s.rt}, 'refresh_token'); }
+    catch(e){ renderDb(); throw new Error('signed out by the server — sign in again'); }
+    return sb(path, opt, true);
+  }
+  const txt = await r.text(); let d = null; try{ d = txt ? JSON.parse(txt) : null; }catch(e){}
+  if(!r.ok) throw new Error((d && (d.message || d.error || d.msg)) || 'HTTP '+r.status);
+  return d;
+}
+const sbRpc = (fn, args) => sb('/rest/v1/rpc/'+fn, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(args)});
+
+function dbMsg(t, err){ el('dbMsg').innerHTML = err ? '<span class="err"></span>' : ''; if(err) el('dbMsg').firstChild.textContent = t; else el('dbMsg').textContent = t; }
+
+let dbProjects = [], dbBores = [];
+function renderDb(){
+  const s = sbSession(), on = !!(s && s.at);
+  el('dbSignin').hidden = on;
+  el('dbTarget').hidden = !on;
+  const who = el('dbWho'); who.innerHTML = '';
+  if(on){
+    const t = document.createElement('span'); t.className = 'covnote'; t.textContent = 'signed in as '+s.email; who.appendChild(t);
+    const b = document.createElement('button'); b.textContent = 'Sign out';
+    b.onclick = () => { lsSet('bl_sb', null); renderDb(); dbMsg('Signed out.'); };
+    who.appendChild(b);
+  } else if(!el('dbEmail').value) el('dbEmail').value = lsGet('bl_sb_email') || '';
+}
+async function dbLoadLists(){
+  try{
+    dbProjects = await sb('/rest/v1/projects?select=id,name,field_code&order=created_at.desc') || [];
+    lsSet('bl_sb_projects', JSON.stringify(dbProjects));
+  }catch(e){
+    dbProjects = JSON.parse(lsGet('bl_sb_projects') || '[]');
+    if(!dbProjects.length){ dbMsg('Could not load projects: '+e.message, 1); return; }
+  }
+  const sel = el('dbProj'), want = lsGet('bl_sb_proj');
+  sel.innerHTML = '';
+  for(const p of dbProjects){ const o = document.createElement('option'); o.value = p.id; o.textContent = p.name + (p.field_code ? ' ('+p.field_code+')' : ''); sel.appendChild(o); }
+  if(!dbProjects.length){ dbMsg('This login sees no projects. Ask the office to add you to one.', 1); return; }
+  sel.value = dbProjects.some(p => p.id===want) ? want : dbProjects[0].id;
+  await dbLoadBores();
+}
+async function dbLoadBores(){
+  const pid = el('dbProj').value; lsSet('bl_sb_proj', pid);
+  const cacheKey = 'bl_sb_bores_'+pid;
+  try{
+    dbBores = await sb('/rest/v1/bores?select=id,name&project_id=eq.'+encodeURIComponent(pid)+'&order=name') || [];
+    lsSet(cacheKey, JSON.stringify(dbBores));
+  }catch(e){ dbBores = JSON.parse(lsGet(cacheKey) || '[]'); }
+  const sel = el('dbBore'), want = lsGet('bl_sb_bore');
+  sel.innerHTML = '';
+  for(const b of dbBores){ const o = document.createElement('option'); o.value = b.id; o.textContent = b.name; sel.appendChild(o); }
+  if(dbBores.length) sel.value = dbBores.some(b => b.id===want) ? want : dbBores[0].id;
+  dbMsg(dbBores.length ? `${dbBores.length} bore${dbBores.length>1?'s':''} in this project. A run whose note starts with a bore's name (e.g. BX-59-R1) goes to that bore.`
+                       : 'This project has no bores yet — add them in the portal.', !dbBores.length);
+}
+// a run goes to the bore its note names ("BX-59-R2", "BX-59-R2-T2"), else the selected one
+function boreFor(m){
+  const note = (m.session.note || '').toUpperCase();
+  const named = dbBores.filter(b => note === b.name.toUpperCase() || note.startsWith(b.name.toUpperCase()+'-'))
+                       .sort((a,b) => b.name.length - a.name.length)[0];
+  if(named) return {id:named.id, name:named.name, how:'named in the note'};
+  const sel = el('dbBore'), opt = sel.selectedOptions[0];
+  return opt ? {id:sel.value, name:opt.textContent, how:'selected'} : null;
+}
+
+async function uploadRun(key){
+  const m = localIndex.get(key);
+  if(!m || m.uploaded) return true;
+  const bore = boreFor(m);
+  if(!bore) throw new Error('no bore to upload to — pick a project with bores');
+  const buf = await ldbGetBytes(key);
+  if(!buf) throw new Error('the run\'s data is gone from this browser');
+  const sha = await sha256Hex(buf);
+  if(sha !== m.sha256) throw new Error('the stored copy no longer matches its checksum');
+  const s = m.session, name = runFileName(m);
+  const note = 'uploaded from the logger app: '+(s.note || 'run '+(s.seq+1))+' ('+m.probe+(m.serial?', '+m.serial:'')+')'+
+               (s.kind ? ' · calibration run' : '')+
+               (s.gps ? ` · GPS ${(s.lat).toFixed(6)}, ${(s.lon).toFixed(6)} ±${s.acc} m` : ' · no GPS')+
+               (m.calibration && m.calibration.cal_version!=null ? ' · probe cal v'+m.calibration.cal_version : '');
+  const made = await sbRpc('add_field_run', {p_bore:bore.id, p_filename:name, p_size:buf.byteLength, p_sha256:sha, p_note:note});
+  if(!made || (!made.already_uploaded && (!made.bucket || !made.storage_path || !made.run_id)))
+    throw new Error('the database answered add_field_run without a storage path');
+  if(!made.already_uploaded){
+    try{
+      await sb('/storage/v1/object/'+made.bucket+'/'+made.storage_path.split('/').map(encodeURIComponent).join('/'),
+               {method:'POST', headers:{'Content-Type':'application/octet-stream', 'x-upsert':'false'}, body:buf});
+    }catch(e){ if(!/exists|duplicate/i.test(e.message)) throw e; }     // a retry finds it already there: fine
+    await sbRpc('confirm_field_upload', {p_run:made.run_id, p_sha256:sha});
+  }
+  m.uploaded = {at:new Date().toISOString(), run_name:made.run_name || null, run_id:made.run_id || null,
+                bore:bore.name, project:el('dbProj').selectedOptions[0] ? el('dbProj').selectedOptions[0].textContent : null,
+                already:!!made.already_uploaded};
+  m.queued = null; m.lastError = null;
+  await ldbPutMeta(m);
+  log(`Uploaded ${name} to ${bore.name} (${bore.how})`+(made.already_uploaded ? ' — it was already on file as '+(made.run_name||'a run') : ' as '+(made.run_name||'a new run'))+'.','ok');
+  return true;
+}
+
+// Upload now if possible, else queue it; the queue empties itself when it can.
+async function requestUpload(key){
+  const m = localIndex.get(key); if(!m || m.uploaded) return;
+  m.queued = m.queued || new Date().toISOString();
+  await ldbPutMeta(m);
+  renderLocal(); renderSessions();
+  const s = sbSession();
+  if(!s || !s.at){ dbMsg('Queued. Sign in below and it uploads.'); showTab('runs'); el('dbEmail').focus(); return; }
+  if(!navigator.onLine){ dbMsg('Queued. It uploads when this device is back online.'); return; }
+  processQueue();
+}
+let queueBusy = false;
+async function processQueue(){
+  if(queueBusy || !DB_UPLOAD) return;
+  const s = sbSession(); if(!s || !s.at || !navigator.onLine) return;
+  const todo = [...localIndex.values()].filter(m => m.queued && !m.uploaded);
+  if(!todo.length) return;
+  queueBusy = true;
+  try{
+    if(!dbBores.length) await dbLoadLists();
+    for(const m of todo){
+      dbMsg(`Uploading ${runFileName(m)} (${(m.bytes/1e6).toFixed(2)} MB)…`);
+      try{ await uploadRun(m.key); }
+      catch(e){
+        m.lastError = e.message; await ldbPutMeta(m);
+        dbMsg('Upload of '+runFileName(m)+' failed: '+e.message+(e.message==='no internet' ? ' — it stays queued.' : ''), 1);
+        if(e.message==='no internet' || e.message==='not signed in') break;
+      }
+      renderLocal(); renderSessions();
+    }
+    const left = [...localIndex.values()].filter(m => m.queued && !m.uploaded).length;
+    if(!left) dbMsg('All queued runs are uploaded.');
+  } finally { queueBusy = false; setButtons(); }
+}
+
+el('btnDbSignin').onclick = async () => {
+  const em = el('dbEmail').value.trim(); lsSet('bl_sb_email', em);
+  dbMsg('Signing in…');
+  try{ await sbAuth({email:em, password:el('dbPass').value}, 'password'); el('dbPass').value = ''; }
+  catch(e){ dbMsg(e.message, 1); return; }
+  renderDb(); await dbLoadLists(); processQueue();
+};
+el('dbPass').addEventListener('keydown', e => { if(e.key==='Enter') el('btnDbSignin').click(); });
+el('dbProj').onchange = () => dbLoadBores();
+el('dbBore').onchange = () => lsSet('bl_sb_bore', el('dbBore').value);
+el('btnDbRefresh').onclick = () => dbLoadLists();
+el('btnUploadAll').onclick = async () => {
+  for(const m of localIndex.values()) if(!m.uploaded && !m.queued){ m.queued = new Date().toISOString(); await ldbPutMeta(m); }
+  renderLocal(); renderSessions();
+  const s = sbSession();
+  if(!s || !s.at){ dbMsg('Queued. Sign in below and they upload.'); el('dbEmail').focus(); return; }
+  processQueue();
+};
+addEventListener('online', () => processQueue());
+setInterval(processQueue, 60000);
+el('dbBlock').hidden = !DB_UPLOAD;
+el('btnUploadAll').style.display = DB_UPLOAD ? '' : 'none';
+ldbLoadIndex().then(() => { renderLocal(); renderSessions(); setButtons();
+  if(DB_UPLOAD && sbSession()) dbLoadLists().then(processQueue); })
+  .catch(e => { el('localInfo').textContent = 'This browser cannot keep runs ('+e.message+') — use Save file after each read.'; });
+renderDb();
+
 log('Ready. Connect to the board to start.');
 showTab(location.hash.slice(1) || (()=>{ try{ return localStorage.getItem('bl_tab'); }catch(e){ return null; } })());
 
