@@ -422,6 +422,54 @@
   .console .err{color:#ff8080}
   .console .ok{color:#8fe388}
 
+  /* ─ from the calibration/debug page: validation panel, calibration wizard, chart filters ─ */
+  .filt{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;
+        font-family:var(--mono);font-size:10px;color:var(--dim)}
+  .filt select,.filt input,.dbg input,.dbg select{
+    background:var(--bg);color:var(--ink);border:1px solid var(--rule);border-radius:3px;
+    font-family:var(--mono);font-size:10.5px;padding:3px 5px}
+  .filt input{width:58px}
+  .readout em{font-style:normal;color:var(--dim);font-size:10px;margin-right:5px}
+  .readout small{color:var(--dim);font-size:10px;margin-left:5px}
+  .dbg{background:var(--panel);border:1px solid var(--rule);border-radius:4px;
+       padding:12px 14px;margin:0 0 14px}
+  .dbg .row{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+  .dbg label{font-family:var(--mono);font-size:11px;color:var(--dim);
+             display:flex;gap:6px;align-items:center}
+  .dbg input{width:64px}
+  .dbg button{padding:6px 10px;font-size:10px}
+  .dbgread{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+           gap:4px 16px;margin-top:12px;font-family:var(--mono);font-size:12px;
+           font-variant-numeric:tabular-nums}
+  .dbgread div{display:flex;justify-content:space-between;gap:8px;
+               border-bottom:1px solid var(--rule);padding:3px 0}
+  .dbgread span{color:var(--dim)}
+  .dbgwarn{color:#ffb020;font-family:var(--mono);font-size:11px;margin-top:8px;min-height:1em}
+  .dbgnote{color:var(--dim);font-size:11px;line-height:1.5;margin-top:8px}
+  .cbsteps{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;font-family:var(--mono);font-size:11px}
+  .cbsteps span,.cbcover span{padding:3px 7px;border:1px solid var(--rule);border-radius:3px;color:var(--dim)}
+  .cbsteps .on,.cbcover .on{border-color:#3fbf7f;color:#8fe388}
+  .cbstep{border-top:1px solid var(--rule);margin-top:14px;padding-top:10px}
+  .cbh{font-family:var(--mono);font-size:12px;color:var(--ink)}
+  .cbcover{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-family:var(--mono);font-size:11px;align-items:center}
+  .cbout{font-family:var(--mono);font-size:11.5px;line-height:1.55;margin-top:8px;white-space:pre-wrap}
+  .cbtwo{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+  .cbbad td{color:#ff8080}
+  .cbx{padding:1px 7px;font-size:11px}
+  .cbplot{width:260px;height:200px;max-width:100%;border:1px solid var(--rule);border-radius:3px;margin-top:8px}
+  .cbjson{width:100%;min-height:330px;background:var(--bg);color:var(--ink);border:1px solid var(--rule);border-radius:3px;
+          font-family:var(--mono);font-size:11.5px;padding:8px;box-sizing:border-box}
+  .cbtab{border-collapse:collapse;font-family:var(--mono);font-size:11.5px;margin-top:6px}
+  .cbtab td,.cbtab th{padding:3px 12px 3px 0;text-align:left;border-bottom:1px solid var(--rule)}
+  .cbtab th{color:var(--dim);font-weight:normal}
+  .calrow{display:grid;grid-template-columns:150px minmax(200px,1fr) 70px 280px;gap:8px;align-items:center;
+    padding:7px 10px;border-bottom:1px solid #172029;font-family:var(--mono);font-size:11.5px}
+  .calrow.head{background:#131a21;color:var(--dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+  .calrow .btns{display:flex;gap:5px;justify-content:flex-end}
+  .calrow button{padding:4px 8px;font-size:9.5px;letter-spacing:.08em}
+  pre.calfile{margin:10px 0 0;padding:10px;background:#0e141a;border:1px solid var(--rule);border-radius:3px;
+    font-family:var(--mono);font-size:11px;color:var(--ink);max-height:360px;overflow:auto;white-space:pre-wrap}
+  pre.calfile[hidden]{display:none}
   /* ─ tabs: one page per job ─ */
   .tabs{
     display:flex;gap:2px;margin:0 0 14px;border-bottom:1px solid var(--rule);
@@ -516,28 +564,47 @@
       <div class="bigread"><span>Pitch</span><b id="aPitch">—</b></div>
       <div class="bigread"><span>Roll</span><b id="aRoll">—</b></div>
       <div class="heading" id="aCard">—</div>
+      <div class="statrow"><span>Tube tilt</span><b id="aTubeTilt">—</b></div>
+      <div class="statrow"><span>Lean azimuth</span><b id="aTubeLean">—</b></div>
+      <div class="statrow"><span>Spin about axis</span><b id="aTubeSpin">—</b></div>
       <div class="sepline"></div>
       <div class="lbl" style="margin-bottom:6px">Reference</div>
       <div class="scenebtns" id="modeBtns">
         <button data-mode="grav">Gravity</button>
         <button data-mode="gyro">+ Gyro</button>
         <button data-mode="fuse">+ Mag</button>
+        <button data-mode="accmag">Accel + Mag</button>
       </div>
       <div class="statrow"><span>Total a</span><b id="aG">—</b></div>
       <div class="statrow"><span>Linear a</span><b id="aLin">—</b></div>
       <div class="statrow"><span>Gyro bias</span><b id="aBias">—</b></div>
       <div class="statrow"><span>Uncertainty</span><b id="aSig">—</b></div>
       <div class="statrow"><span>State</span><b id="aTrust">—</b></div>
+      <div class="statrow"><span>Check</span><b id="aCheck">—</b></div>
       <div class="sepline"></div>
       <div class="statrow"><span>Mag axes</span></div>
       <div class="mapfield">
         <input id="inpMap" value="x,-y,-z" spellcheck="false"
                aria-label="Magnetometer axis mapping">
       </div>
+      <div class="sepline"></div>
+      <div class="statrow"><span>Input filters</span></div>
+      <div class="filt"><label><input type="checkbox" id="vfAccOn" style="width:auto"> accel</label>
+        <select id="vfAccType"><option value="ema">exponential</option><option value="ma">moving average</option></select>
+        <span id="vfAccLab">α</span><input id="vfAccP" type="number"> <span id="vfAccHint"></span></div>
+      <div class="filt"><label><input type="checkbox" id="vfMagOn" style="width:auto"> mag</label>
+        <select id="vfMagType"><option value="ema">exponential</option><option value="ma">moving average</option></select>
+        <span id="vfMagLab">α</span><input id="vfMagP" type="number"> <span id="vfMagHint"></span></div>
+      <div class="covnote" style="margin-top:6px">Smoothing steadies a still tube but lags a turning
+        one -- at 40°/s, 0.15 s of lag costs about 6°. The gyro is never filtered.</div>
       <div class="covnote" id="aNote">Heading uses raw magnetometer data until you calibrate.</div>
       <div class="scenebtns">
         <button id="btnResetCam">Reset camera</button>
+        <button id="btnSelfTest">Viewer self-test</button>
+        <button id="btnPoseCheck">Pose check</button>
+        <button id="btnArrows">Hide check arrows</button>
       </div>
+      <div class="covnote" id="aPose" style="margin-top:8px;font-family:var(--mono)"></div>
     </div>
   </section>
 
@@ -847,6 +914,161 @@
       <div id="calView" class="calview"><div class="covnote">No calibration file loaded.</div></div>
     </div>
   </section>
+  <section class="mem" id="calFilesBlock">
+    <div class="memhead">
+      <div class="lbl">Calibration files on this probe</div>
+      <div class="membtns"><button id="btnCalFilesRefresh" disabled>Refresh</button></div>
+    </div>
+    <div class="ctlhint" style="margin-top:6px">Every calibration saved to the probe is kept, named after the probe and the
+      time it was done. Saving adds a file; nothing is overwritten or deleted. The probe only stores them; they are
+      applied when the data is processed.</div>
+    <div class="sesswrap" id="calFilesRows"><div class="sessempty">Connect to a probe to see its calibration files.</div></div>
+    <div class="dbmsg" id="calFilesMsg"></div>
+    <pre class="calfile" id="calFileView" hidden></pre>
+  </section>
+
+  <section class="dbg" id="calSec">
+    <div class="lbl" style="margin-bottom:6px">Device calibration</div>
+    <div class="dbgnote">Stream at the full sample rate, then work through the four steps. Everything is computed here from
+      the raw data: nothing the board records changes. The result can be <b>saved to the probe</b>, where it is added to its calibration files (nothing is overwritten), and downloaded.
+      Load the board's current config first, so its device ID and any steps you skip are kept.</div>
+    <div class="row" style="margin-top:10px">
+      <label>Earlier calibration (config.json) <input type="file" id="cbLoad" accept=".json,application/json" style="width:auto"></label>
+      <span class="covnote" id="cbLoaded"></span>
+      <button id="cbRecCal">Record a calibration session on the board</button>
+    </div>
+    <div class="cbout" id="cbLoadedVals"></div>
+    <div class="row" style="margin-top:8px">
+      <button id="cbSaveCap">Save captured data</button>
+      <label>Load captured data <input type="file" id="cbLoadCap" accept=".json,application/json" style="width:auto"></label>
+      <span class="covnote">the poses, rolled positions and magnetometer cloud, to recompute later</span>
+    </div>
+    <div class="cbsteps" id="cbSteps"></div>
+
+    <div class="cbstep">
+      <div class="cbh">1 · Accelerometer bias and scale</div>
+      <div class="dbgnote">Hold the tube completely still in <b>12 or more</b> orientations, about 3 s each — every axis
+        pointing roughly <b>up once and down once</b>, plus some in between. A pose is captured automatically after 2 s of
+        stillness, if it is at least 20° from every earlier one.</div>
+      <div class="row" style="margin-top:8px"><button id="cb1Start">Start capturing</button><button id="cb1Now">Capture now</button>
+        <button id="cb1Undo">Remove last</button><button id="cb1Clear">Clear</button><button id="cb1Fit">Compute</button>
+        <span class="covnote" id="cb1Live"></span></div>
+      <div class="cbcover" id="cb1Cover"></div>
+      <div class="covnote" id="cb1Need" style="margin-top:6px"></div>
+      <div class="covnote" id="cb1NowTxt" style="margin-top:4px;font-family:var(--mono)"></div>
+      <div id="cb1Table" style="overflow-x:auto"></div>
+      <div class="cbout" id="cb1Out"></div>
+    </div>
+
+    <div class="cbstep">
+      <div class="cbh">2 · Magnetometer hard and soft iron</div>
+      <div class="dbgnote">Uses the <b>magnetometer cloud</b> in the <a href="#cal">Field Calibration</a> tab (Fit now works from here): tumble the tube through every direction until
+        the coverage is high, then fit. Do it <b>outdoors, away from metal</b>, with the tube fully assembled as deployed
+        and the battery above 3.6 V.</div>
+      <div class="row" style="margin-top:8px"><button id="cb3Fit">Fit now</button><button id="cb3Use">Use the current fit</button></div>
+      <div class="cbout" id="cb3Out"></div>
+    </div>
+
+    <div class="cbstep">
+      <div class="cbh">3 · Accelerometer alignment in the tube</div>
+      <div class="dbgnote">Hold the tube in a fixed stand <b>at any angle</b> — upright, leaning, or lying in a
+        <b>V-block</b> — and <b>roll it about its own axis</b>, roughly 30° each time, pausing about 3 s, for
+        <b>8–12 positions</b> over at least three-quarters of a turn. Keep the stand or V-block fixed: only the tube turns,
+        and neither needs to be level or vertical. Rolling makes the measured "up" direction trace a circle whose axis is the
+        tube's axis: the chip's tilt relative to that axis is the result, and the setup's own angle is excluded.
+        Uses step 1's bias and scale. Upright, it also uses step 2's magnetometer fit to tell how far the tube has turned;
+        in a V-block it doesn't need the magnetometer at all.</div>
+      <div class="row" style="margin-top:8px"><button id="cb2Start">Start capturing</button><button id="cb2Now">Capture now</button>
+        <button id="cb2Undo">Remove last</button><button id="cb2Clear">Clear</button><button id="cb2Fit">Compute</button>
+        <span class="covnote" id="cb2Count"></span> <span class="covnote" id="cb2Live"></span></div>
+      <div class="cbtwo"><canvas id="cb2Plot" class="cbplot"></canvas><div class="cbout" id="cb2Out"></div></div>
+      <div class="covnote" id="cb2NowTxt" style="margin-top:4px;font-family:var(--mono)"></div>
+    </div>
+
+    <div class="cbstep">
+      <div class="cbh">4 · Magnetometer alignment to the accelerometer</div>
+      <div class="dbgnote">Uses step 1's still poses, which recorded both sensors. Finds the small rotation between the two
+        chips that makes the dip the same in every pose. Do steps 1 and 2 first — and take step 1's poses outdoors too,
+        or the dip will vary with the room, not the chips.</div>
+      <div class="row" style="margin-top:8px"><button id="cb4Fit">Compute</button></div>
+      <div class="cbout" id="cb4Out"></div>
+    </div>
+
+    <div class="cbstep">
+      <div class="cbh">Check</div>
+      <div class="dbgnote">The calibration being built, applied live to the stream — display only. Turn the tube and watch
+        the calibrated column hold steady.</div>
+      <div id="cbVerify"></div>
+    </div>
+
+    <div class="cbstep">
+      <div class="cbh">config.json</div>
+      <textarea id="cbJson" class="cbjson" readonly spellcheck="false"></textarea>
+      <div class="covnote" id="cbWarn" style="white-space:pre-wrap"></div>
+      <div class="covnote" id="cbSaveMsg" style="margin-top:6px"></div>
+      <div class="row" style="margin-top:8px"><button id="cbCopy">Copy</button><button id="cbSaveProbe" class="primary" disabled>Save to probe</button><button id="cbSave">Download</button></div>
+    </div>
+  </section>
+
+  <section class="dbg" id="dbg">
+    <div class="lbl" style="margin-bottom:10px">Validation · gyro, accelerometer, magnetometer</div>
+    <div class="row">
+      <label>Complementary τ <input id="dbgTau" type="number" value="1.0" step="0.1" min="0.05"> s</label>
+      <label>Accel gate ± <input id="dbgGate" type="number" value="10" step="1" min="1"> %</label>
+      <label>Heading axis
+        <select id="dbgUp">
+          <option value="+x">+x</option>
+          <option value="-x" selected>−x (probe axis, x pointing down)</option>
+          <option value="+y">+y</option>
+          <option value="-y">−y</option>
+          <option value="+z">+z</option>
+          <option value="-z">−z</option>
+        </select></label>
+      <label>Declination <input id="dbgDecl" type="number" value="0" step="0.1"> °</label>
+      <label>Heading tilt from
+        <select id="dbgTiltSrc">
+          <option value="c">combined</option>
+          <option value="a">accelerometer</option>
+          <option value="g">gyro only</option>
+          <option value="n">none (flat)</option>
+        </select></label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnBias">Zero gyro bias (hold still 2 s)</button>
+      <button id="btnAngles">Reset angles to gravity</button>
+      <button id="btnSensorPlots">Hide sensor plots</button>
+      <button id="btnMagAxes">Auto-detect mag axes (15 s)</button>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label><input type="checkbox" id="amOn" checked style="width:auto"> Accel + Mag glitch rejection</label>
+      <label>spike = <input id="amK" type="number" step="0.5" min="1"> × neighbours' spread</label>
+      <label>but at least <input id="amA" type="number" step="0.01" min="0.001"> g</label>
+      <label><input id="amB" type="number" step="0.1" min="0.1"> µT</label>
+      <label><input id="amD" type="number" step="0.5" min="0.1"> ° dip</label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label>neighbours <input id="amWin" type="number" step="1" min="3" max="31"></label>
+      <label>jump <input id="amJ" type="number" step="1" min="1"> °</label>
+      <label>motion limit ± <input id="amAbs" type="number" step="1" min="1"> %</label>
+      <label>max hold <input id="amHold" type="number" step="1" min="0"> samples</label>
+      <button id="btnAmDefaults">Defaults</button>
+    </div>
+    <div class="dbgread" id="dbgRead"></div>
+    <div class="dbgwarn" id="dbgWarn"></div>
+    <div class="dbgnote">
+      <b>acc</b> = from gravity alone. <b>gyro</b> = gyro integrated from the last reset, no correction, so it
+      drifts — its drift rate is the gyro's bias. <b>comb</b> = complementary filter: gyro for fast motion,
+      gravity pulling it back with time constant τ. Gravity is ignored while |a| is outside 1 g ± the gate,
+      because the accelerometer is then measuring motion as well as gravity.
+      <b>Heading axis</b> is the axis the device turns about — for a probe, its long axis. Tilt is
+      measured from that axis to vertical, and heading uses the magnetometer's other two axes
+      (for +x: My and Mz). Pick the sign the axis points when the probe hangs normally: the
+      accelerometer should read +1 g along it. Heading assumes the magnetometer axes match the IMU
+      axes — use the Mag axes field in the orientation panel if they don't.
+    </div>
+  </section>
+
+  <div class="grid" id="gridDbg"></div>
   </div>
 
   <div class="console" id="console"></div>
@@ -905,6 +1127,28 @@ const GROUPS = [
   {title:'IMU die temp', unit:'°C', keys:['itemp'], dp:2},
   {title:'Battery', unit:'V · moving average of 50', keys:['vbat'], dp:3}
 ];
+/* debug-only derived channels. Colour encodes the SOURCE consistently:
+   accelerometer amber, gyro-only blue, combined pink. */
+Object.assign(CH, {
+  tiltA:{n:'acc',c:'--x'}, tiltG:{n:'gyro',c:'--y'}, tiltC:{n:'comb',c:'--z'},
+  rollA:{n:'acc',c:'--x'}, rollG:{n:'gyro',c:'--y'}, rollC:{n:'comb',c:'--z'},
+  pitchA:{n:'acc',c:'--x'}, pitchG:{n:'gyro',c:'--y'}, pitchC:{n:'comb',c:'--z'},
+  hdgF:{n:'flat',c:'--x'}, hdgT:{n:'tilt-comp',c:'--z'},
+  bRaw:{n:'raw',c:'--x'}, bCal:{n:'cal',c:'--z'},
+  dip:{n:'dip',c:'--p'}, aMag:{n:'|a|',c:'--p'}
+});
+GROUPS.unshift(
+  {title:'Tilt from vertical (angle to gravity)', unit:'° · acc / gyro / comb',
+   keys:['tiltA','tiltG','tiltC'], dp:2, dbg:true},
+  {title:'Roll', unit:'° about x', keys:['rollA','rollG','rollC'], dp:2, dbg:true},
+  {title:'Pitch', unit:'° about y', keys:['pitchA','pitchG','pitchC'], dp:2, dbg:true},
+  {title:'Heading (magnetometer)', unit:'° clockwise from north',
+   keys:['hdgF','hdgT'], dp:1, dbg:true, wrap:true},
+  {title:'Field magnitude |B|', unit:'µT · raw / calibrated',
+   keys:['bRaw','bCal'], dp:2, dbg:true},
+  {title:'Magnetic dip', unit:'° below horizontal', keys:['dip'], dp:2, dbg:true},
+  {title:'Total acceleration |a|', unit:'g', keys:['aMag'], dp:4, dbg:true}
+);
 const CSV_KEYS = ['ax','ay','az','gx','gy','gz','press','temp',
                   'mx','my','mz','itemp','vbat'];
 // written as a column but not a number, so it is formatted separately
@@ -1154,6 +1398,7 @@ function handle(f){
     cfgRx.chunks[f[1]] = f.slice(2);
   }
   else if(type===0x61 && f.length>=5){ cfgDone(f); }
+  else if(type>=0x62 && type<=0x66){ calFrame(f); }   // calibration files on the probe
   else if(type===0x10 && f.length>=14){ decodeStatus(f); }
 }
 
@@ -1294,6 +1539,7 @@ function decodeStatus(f){
 }
 
 function addSample(s){
+  derive(s);                                              // validation angles + calibration capture, raw
   s.raw = {vbat:s.vbat};                                  // kept for saving
   if(s.health[4]==='1'){                                   // never average in a sentinel
     vbatBuf.push(s.vbat);
@@ -1308,7 +1554,7 @@ function addSample(s){
   updateAttitude(corr ? sc : s);
   updateHeading(corr ? sc : s, HDG);
   if(calBoth && sc){                           // the raw estimate, alongside
-    attSwap(ATT2); updateAttitude(s); attSwap(ATT2);
+    attSwap(ATT2); attPass2=true; updateAttitude(s); attPass2=false; attSwap(ATT2);
     updateHeading(s, HDG2);
   }
   if(samples.length===1) setButtons();
@@ -1362,6 +1608,7 @@ async function connect(){
     await chStat.startNotifications();
     requestIndex();
     requestConfig();
+    calListRequest();
     el('lampLink').classList.add('on');
     el('hint').style.display='none';
     el('mtu').textContent='streaming 4 Hz';
@@ -1378,6 +1625,7 @@ function onDisconnect(){
   el('lampRec').classList.remove('on');
   el('mtu').textContent='—';
   chData=chCtrl=chStat=null;
+  calFiles=null; renderCalFiles();
   frag.data.buf=null; frag.stat.buf=null;
   memPending.clear();
   recording=false; dumpActive=false;
@@ -1463,6 +1711,7 @@ async function cableConnect(){
   cableRx(me);
   requestIndex();
   requestConfig();
+  calListRequest();
   await send(CMD.STATUS);
   setButtons();
 }
@@ -1551,6 +1800,7 @@ function showTab(t){
   if(location.hash !== '#'+t) history.replaceState(null, '', '#'+t);
   dirty = true;
   dispatchEvent(new Event('resize'));
+  if(t==='devcal' && chCtrl && (!calFiles || calFiles.done)) calListRequest();
 }
 for(const b of document.querySelectorAll('#tabs button')) b.onclick = () => showTab(b.dataset.tab);
 el('tabs').addEventListener('keydown', e => {
@@ -1745,6 +1995,8 @@ function setButtons(){
   el('btnStop').disabled=!live;
   el('btnStopCal').disabled=!live;
   el('btnCalBoard').disabled=!live;
+  el('btnCalFilesRefresh').disabled=!live;
+  el('cbSaveProbe').disabled=!live||recording;
   el('recWhyCal').textContent=el('recWhy').textContent;
   el('btnDump').disabled=!live||recording||dumpActive;
   el('btnRate').disabled=!live||dumpActive||recording;
@@ -3421,6 +3673,7 @@ function quatToR(qq){
 }
 
 function resetAttitude(){
+  amReset(); vfReset();
   q=[1,0,0,0]; bias=[0,0,0];
   Pm=mEye(6);
   for(let i=0;i<3;i++){ Pm[i][i]=Math.pow(20*Math.PI/180,2); Pm[i+3][i+3]=Math.pow(3*Math.PI/180,2); }
@@ -3508,6 +3761,9 @@ function update1(h,r,Rv){
 }
 
 function updateAttitude(s){
+  if(selfTest){ lastT = s.t; return; }
+  if(attMode!=='accmag' && !attPass2) s = vfFilterSample(s);   // Accel + Mag filters after its glitch check
+  // app: attPass2 is the raw view beside a corrected one -- the filters keep one state, for the main view
   const dt = lastT===null ? 0.25 : Math.min(1,Math.max(0.01,s.t-lastT));
   lastT=s.t;
 
@@ -3521,6 +3777,16 @@ function updateAttitude(s){
   else{ gLP[0]+=aA*(s.ax-gLP[0]); gLP[1]+=aA*(s.ay-gLP[1]); gLP[2]+=aA*(s.az-gLP[2]); }
   linAcc=[s.ax-gLP[0],s.ay-gLP[1],s.az-gLP[2]];
 
+  // accel + mag only: solved fresh each sample; isolated glitches skipped
+  if(attMode==='accmag'){
+    if(attPass2) return;
+    if(s.health && (s.health[0]!=='1' || s.health[2]!=='1')) return;   // hold on a sensor dropout
+    const qd=amStep(amSt, [s.ax,s.ay,s.az], magBody(s), s.t);
+    amSt.rate = amSt.rate*0.97 + 0.03*(qd?1:0);
+    magOK=!!qd; isStill=false; accScale=1;
+    if(qd){ q=qd; attReady=true; }                // otherwise the last good one is held
+    return;
+  }
   if(!attReady || !Pm){ resetAttitude(); q=quatFromAccel([s.ax,s.ay,s.az]); attReady=true; lastT=s.t; return; }
 
   const useGyro=attMode!=='grav';
@@ -3756,6 +4022,7 @@ function calLoadText(txt, src){
   if(!o || typeof o!=='object' || Array.isArray(o) || (!o.accel && !o.mag)){
     log('That file has no accel or mag calibration in it.','err'); return false; }
   CAL=calBuild(o); CAL.src = src || 'file'; CAL.json = o;
+  CALB.loaded = o; cbRender();          // the calibration wizard starts from it
   el('chkCalUse').disabled=false; el('chkCalBoth').disabled=false;
   calStatus();
   log('Calibration loaded '+(CAL.src==='board'?'from the board':'from a file')+': device '+(o.device_id ?? '?')+', version '+(o.cal_version ?? '?')+
@@ -3845,7 +4112,7 @@ function cfgDone(f){
 function attFresh(){ return {q:[1,0,0,0], bias:[0,0,0], Pm:null, gLP:null, linAcc:[0,0,0], aMag:1, gTrust:1,
   lastT:null, attReady:false, isStill:false, gyrSd:0, gyrBuf:[], magOK:false, accScale:1, magScale:1,
   refField:null, refDip:null, refReady:false, rejectStreak:0, seedN:0, seedF:0, seedS:0, seedC:0}; }
-let ATT2=attFresh();
+let ATT2=attFresh(), attPass2=false;
 function attSwap(o){ let t;
   t=q; q=o.q; o.q=t;                 t=bias; bias=o.bias; o.bias=t;       t=Pm; Pm=o.Pm; o.Pm=t;
   t=gLP; gLP=o.gLP; o.gLP=t;         t=linAcc; linAcc=o.linAcc; o.linAcc=t;
@@ -4003,6 +4270,8 @@ function drawAttitude(){
   g.setTransform(dpr,0,0,dpr,0,0);
   g.clearRect(0,0,w,h);
 
+  const st = selfTest ? selfTestPose() : null;
+  if(st){ q = st.p.q; attReady = true; }
   const a=attAngles();
   if(!a){
     g.fillStyle='#48596a'; g.font='12px '+css('--mono'); g.textAlign='center';
@@ -4117,6 +4386,32 @@ function drawAttitude(){
   g.fillStyle='#5a6b7a'; g.font='10px '+css('--mono'); g.textAlign='center';
   g.fillText('g',gp1[0],gp1[1]+13);
 
+  // measured gravity and field, taken into the world by the CURRENT estimate
+  let chk = '—';
+  const ls = samples.length ? samples[samples.length-1] : null;
+  if(showArrows && !st && ls && (!ls.health || (ls.health[0]==='1' && ls.health[2]==='1'))){
+    const an=Math.hypot(ls.ax,ls.ay,ls.az), mb=magBody(ls), mnn=Math.hypot(...mb);
+    if(an>0 && mnn>0){
+      const gw=toWorld([-ls.ax/an,-ls.ay/an,-ls.az/an]), mw=toWorld(mb.map(v=>v/mnn));
+      const arrow=(v,len,col,label)=>{
+        const p0=S([0,0,0]), p1=S([v[0]*len,v[1]*len,v[2]*len]);
+        g.strokeStyle=col; g.lineWidth=2.5; g.setLineDash([2,3]);
+        g.beginPath(); g.moveTo(p0[0],p0[1]); g.lineTo(p1[0],p1[1]); g.stroke(); g.setLineDash([]);
+        g.fillStyle=col; g.font='10px '+css('--mono'); g.textAlign='center'; g.fillText(label,p1[0],p1[1]-7);
+      };
+      arrow(gw,1.25,css('--x'),'g meas');
+      arrow(mw,1.5,css('--y'),'B meas');
+      const gErr=Math.acos(Math.max(-1,Math.min(1,-gw[2])))*180/Math.PI;
+      const bAz=((Math.atan2(-mw[1],mw[0])*180/Math.PI)%360+360)%360;
+      const bDip=Math.atan2(-mw[2],Math.hypot(mw[0],mw[1]))*180/Math.PI;
+      chk = attMode==='accmag' ? 'n/a: Accel + Mag uses them directly'
+          : 'g off '+gErr.toFixed(1)+'° · B az '+(bAz>180?bAz-360:bAz).toFixed(0)+'°, dip '+bDip.toFixed(0)+'°';
+    }
+  }
+  el('aCheck').textContent = st ? 'self-test' : chk;
+  el('vfAccHint').textContent = vfLagText('acc');
+  el('vfMagHint').textContent = vfLagText('mag');
+
   // linear acceleration, gravity removed, drawn in the world frame
   const lw=toWorld(linAcc);
   const lmag=Math.hypot(lw[0],lw[1],lw[2]);
@@ -4134,17 +4429,38 @@ function drawAttitude(){
   el('aYaw').textContent=deg(a.yaw).toFixed(1)+'°';
   el('aPitch').textContent=deg(a.pitch).toFixed(1)+'°';
   el('aRoll').textContent=deg(a.roll).toFixed(1)+'°';
-  el('aCard').textContent=attMode==='fuse'?CARD[Math.round(deg(a.yaw)/22.5)%16]:'—';
+  // survey angles around the chosen heading axis -- unaffected by the
+  // pitch-90 problem the Euler readouts have for a vertical tube
+  const ta=tubeAngles(quatToR(q), dbg.up);
+  el('aTubeTilt').textContent=ta.tilt.toFixed(2)+'°';
+  el('aTubeLean').textContent=isNaN(ta.lean)?'— (vertical)':ta.lean.toFixed(1)+'°';
+  el('aTubeSpin').textContent=isNaN(ta.spin)?'—':ta.spin.toFixed(1)+'°';
+  el('aCard').textContent=(attMode==='fuse'||attMode==='accmag')?CARD[Math.round(deg(a.yaw)/22.5)%16]:'—';
   el('aG').textContent=aMag.toFixed(3)+' g';
   el('aLin').textContent=lmag.toFixed(3)+' g';
   el('aBias').textContent=bias.map(v=>(v*180/Math.PI).toFixed(2)).join(' ');
   const sg=attSigmaDeg();
-  el('aSig').textContent='±'+Math.max(sg[0],sg[1],sg[2]).toFixed(2)+'°';
+  el('aSig').textContent=attMode==='accmag' ? 'no filter' : '±'+Math.max(sg[0],sg[1],sg[2]).toFixed(2)+'°';
   const tags=[];
   if(isStill) tags.push('still');
   if(accScale>25) tags.push('accel held');
   if(attMode==='fuse') tags.push(!refReady?'mag seeding':(magOK?'mag ok':'mag held'));
+  if(attMode==='accmag'){
+    tags.push(amSt.why ? (amSt.why==='taken despite motion' ? 'moving' : 'skipped: '+amSt.why) : 'accel + mag');
+    tags.push(Math.round(amSt.rate*100)+'% clean');
+    el('aNote').textContent = MODE_NOTE.accmag + (AM.on && amSt.hist.length>=AM.win && amSt.rate<0.6
+      ? ' Most samples are disturbed ('+amSt.why+'). While the tube is moved by hand that is '+
+        'expected: without the gyro, motion pushes the accelerometer off true gravity, so tilt and '+
+        'heading wander until it settles -- hold it still to judge accuracy. If this persists while it '+
+        'is STILL, the sensor itself is spiking: check the Total acceleration plot.' : '');
+  }
   el('aTrust').textContent=tags.length?tags.join(', '):'tracking';
+  if(st){
+    el('aNote').textContent='SELF-TEST '+(st.k+1)+'/'+SELF_POSES.length+' -- '+st.p.name+'. Expect: '+st.p.expect;
+    g.fillStyle='#ffb020'; g.font='12px '+css('--mono'); g.textAlign='center';
+    g.fillText('SELF-TEST '+(st.k+1)+'/'+SELF_POSES.length+': '+st.p.name, w/2, 16);
+    dirty = true;
+  }
 }
 
 function shade(hex,k){
@@ -4186,7 +4502,10 @@ const MODE_NOTE={
   gyro:'The gyro propagates and gravity corrects tilt. Bias is estimated '+
        'whenever the board sits still. Yaw drifts with no heading reference.',
   fuse:'Full fusion. Gyro propagates, gravity corrects tilt, the '+
-       'magnetometer holds heading when it passes the field checks.'
+       'magnetometer holds heading when it passes the field checks.',
+  accmag:'Accelerometer and magnetometer only, no gyro: orientation is solved from '+
+       'gravity and north on every sample, so it cannot drift. Samples taken while '+
+       'moving, or with a disturbed field, are skipped and the last good one held.'
 };
 function setMode(m){
   attMode=m;
@@ -4228,13 +4547,15 @@ let plots=[], dirty=true;
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 function buildPlots(){
-  const grid=el('grid');
-  grid.innerHTML='';
+  const grid=el('grid'), gridDbg=el('gridDbg');
+  grid.innerHTML=''; gridDbg.innerHTML='';   // app: validation charts live in Device Calibration
   plots=[];
   const defs=[];
   for(const g of GROUPS){
+    if(!showSensor && !g.dbg) continue;
     if(split&&g.keys.length>1){
-      for(const k of g.keys) defs.push({title:g.title+' '+CH[k].n,unit:g.unit,keys:[k],dp:g.dp});
+      for(const k of g.keys) defs.push({title:g.title+' '+CH[k].n,unit:g.unit,keys:[k],
+                                        dp:g.dp,wrap:g.wrap,dbg:g.dbg});
     } else defs.push(g);
   }
   for(const d of defs){
@@ -4247,14 +4568,43 @@ function buildPlots(){
     ro.className='readout';
     for(const k of d.keys){
       const line=document.createElement('div');
-      line.innerHTML=`<i style="background:${css(CH[k].c)}"></i><span>—</span>`;
+      line.innerHTML=`<i style="background:${css(CH[k].c)}"></i><em>${CH[k].n}</em><span>—</span><small></small>`;
       ro.appendChild(line);
     }
     head.appendChild(ro);
+
+    const f = filtSettings[d.title] || (filtSettings[d.title] = {type:'none', n:10, a:0.2});
+    const fc=document.createElement('div');
+    fc.className='filt';
+    fc.innerHTML=`filter <select>
+        <option value="none">none</option>
+        <option value="ma">moving average</option>
+        <option value="ema">exponential</option>
+      </select>
+      <span class="plab"></span><input type="number">
+      <span class="phint"></span>`;
+    const sel=fc.querySelector('select'), inp=fc.querySelector('input'),
+          lab=fc.querySelector('.plab'), hint=fc.querySelector('.phint');
+    sel.value=f.type;
+    const sync=()=>{
+      const on=f.type!=='none';
+      inp.hidden=!on; lab.textContent= f.type==='ma' ? 'N' : f.type==='ema' ? 'α' : '';
+      if(f.type==='ma'){ inp.min=1; inp.max=2000; inp.step=1; inp.value=f.n; }
+      if(f.type==='ema'){ inp.min=0.001; inp.max=1; inp.step=0.01; inp.value=f.a; }
+    };
+    sel.onchange=()=>{ f.type=sel.value; sync(); dirty=true; };
+    inp.onchange=()=>{
+      const v=+inp.value;
+      if(f.type==='ma' && v>=1) f.n=Math.round(v);
+      if(f.type==='ema' && v>0 && v<=1) f.a=v;
+      sync(); dirty=true;
+    };
+    sync();
+
     const cv=document.createElement('canvas');
-    cell.appendChild(head); cell.appendChild(cv);
-    grid.appendChild(cell);
-    plots.push({def:d,canvas:cv,readout:ro});
+    cell.appendChild(head); cell.appendChild(fc); cell.appendChild(cv);
+    (d.dbg ? gridDbg : grid).appendChild(cell);
+    plots.push({def:d,canvas:cv,readout:ro,filt:f,hint});
   }
   dirty=true;
 }
@@ -4353,7 +4703,6 @@ function drawPlot(p){
   const padL=44, padR=4, padT=6, padB=13;
   const pw=w-padL-padR, ph=h-padT-padB;
 
-  // graticule
   g.strokeStyle=css('--rule'); g.lineWidth=1;
   g.beginPath();
   for(let i=0;i<=4;i++){ const y=Math.round(padT+ph*i/4)+.5; g.moveTo(padL,y); g.lineTo(padL+pw,y); }
@@ -4364,47 +4713,80 @@ function drawPlot(p){
   const tStart = tEnd - windowSec;
   let i0=samples.length;
   while(i0>0 && samples[i0-1].t>=tStart) i0--;
-  const view=samples.slice(i0);
 
-  // y range across every channel in this cell
+  // pull in some history before the window so a filter has settled by
+  // the time it reaches the left edge
+  const f=p.filt;
+  const warm = !f || f.type==='none' ? 0 :
+               f.type==='ma' ? Math.round(f.n) : Math.ceil(5/Math.max(0.001,f.a));
+  const iw=Math.max(0, i0-Math.min(warm, 5000));
+  const ext=samples.slice(iw), off=i0-iw;
+  const filtering = f && f.type!=='none';
+  const series=p.def.keys.map(k=>{
+    const raw=ext.map(s=>{ const v=s[k]; return (typeof v==='number')?v:NaN; });
+    return {k, raw, flt: filterSeries(raw, f, p.def.wrap)};
+  });
+
   let lo=Infinity, hi=-Infinity;
-  for(const s of view) for(const k of p.def.keys){
-    const v=s[k]; if(v<lo)lo=v; if(v>hi)hi=v;
+  if(p.def.wrap){ lo=0; hi=360; }
+  else {
+    for(const sr of series) for(let i=off;i<ext.length;i++){
+      for(const v of (filtering?[sr.flt[i],sr.raw[i]]:[sr.raw[i]])){
+        if(isNaN(v)) continue;
+        if(v<lo)lo=v; if(v>hi)hi=v;
+      }
+    }
+    if(!isFinite(lo)){ lo=-1; hi=1; }
+    if(hi-lo<1e-6){ lo-=.5; hi+=.5; }
+    const pad=(hi-lo)*.12; lo-=pad; hi+=pad;
   }
-  if(!isFinite(lo)){ lo=-1; hi=1; }
-  if(hi-lo<1e-6){ lo-=.5; hi+=.5; }
-  const pad=(hi-lo)*.12; lo-=pad; hi+=pad;
 
   const X=t=>padL+((t-tStart)/windowSec)*pw;
   const Y=v=>padT+ph-((v-lo)/(hi-lo))*ph;
 
-  // axis text
   g.fillStyle=css('--dim');
   g.font='10px '+css('--mono');
   g.textAlign='right';
-  g.fillText(hi.toFixed(p.def.dp),padL-6,padT+8);
-  g.fillText(lo.toFixed(p.def.dp),padL-6,padT+ph);
+  g.fillText(hi.toFixed(p.def.wrap?0:p.def.dp),padL-6,padT+8);
+  g.fillText(lo.toFixed(p.def.wrap?0:p.def.dp),padL-6,padT+ph);
   g.textAlign='left';
   g.fillText('-'+windowSec+'s',padL,h-3);
   g.textAlign='right';
   g.fillText('now',padL+pw,h-3);
 
-  // traces
-  g.lineWidth=1.5; g.lineJoin='round';
-  p.def.keys.forEach((k,ki)=>{
-    g.strokeStyle=css(CH[k].c);
+  // a path that lifts the pen across gaps, and across the 360 -> 0 seam
+  const trace=(vals)=>{
     g.beginPath();
-    let started=false;
-    for(const s of view){
-      const x=X(s.t), y=Y(s[k]);
-      if(!started){ g.moveTo(x,y); started=true; } else g.lineTo(x,y);
+    let pen=false, prev=NaN;
+    for(let i=off;i<ext.length;i++){
+      const v=vals[i];
+      if(isNaN(v)){ pen=false; prev=NaN; continue; }
+      if(p.def.wrap && !isNaN(prev) && Math.abs(v-prev)>180) pen=false;
+      const x=X(ext[i].t), y=Y(v);
+      if(!pen){ g.moveTo(x,y); pen=true; } else g.lineTo(x,y);
+      prev=v;
     }
     g.stroke();
-    const last=view.length?view[view.length-1][k]:null;
-    const span=p.readout.children[ki].querySelector('span');
-    span.textContent = last===null?'—':last.toFixed(p.def.dp);
-    span.style.color=css(CH[k].c);
+  };
+
+  g.lineJoin='round';
+  series.forEach((sr,ki)=>{
+    const col=css(CH[sr.k].c);
+    if(filtering){                       // raw faintly underneath, for comparison
+      g.globalAlpha=.28; g.lineWidth=1; g.strokeStyle=col; trace(sr.raw);
+      g.globalAlpha=1;
+    }
+    g.lineWidth=1.5; g.strokeStyle=col; trace(sr.flt);
+
+    const lastOf=a=>{ for(let i=a.length-1;i>=off;i--) if(!isNaN(a[i])) return a[i]; return NaN; };
+    const line=p.readout.children[ki];
+    const span=line.querySelector('span'), small=line.querySelector('small');
+    const vf=lastOf(sr.flt), vr=lastOf(sr.raw);
+    span.textContent = isNaN(vf) ? '—' : vf.toFixed(p.def.dp);
+    span.style.color=col;
+    small.textContent = filtering && !isNaN(vr) ? 'raw '+vr.toFixed(p.def.dp) : '';
   });
+  if(p.hint) p.hint.textContent=filterHint(f);
 }
 
 let lastDraw=0;
@@ -4412,6 +4794,8 @@ function tick(ts){
   if(spinning){ yaw+=0.006; dirty=true; }
   if(dirty && ts-lastDraw>70){
     plots.forEach(drawPlot);
+    cbLiveTick();
+    updateDbgPanel();
     drawHealth();
     drawScene();
     drawAttitude();
@@ -4433,6 +4817,1634 @@ el('btnCalDownload').addEventListener('click', calDownload);
 el('chkCalBoth').addEventListener('change', e => { calBoth=e.target.checked; calRestart(); });
 el('inpDecl').addEventListener('change', e => { const v=+e.target.value;
   hdgDecl = isFinite(v) && Math.abs(v)<=90 ? v : 0; e.target.value=hdgDecl; dirty=true; });
+/* ════ ported from the calibration/debug page (logger_debug.html), 2026-11-22 ════
+   The validation panel and the four-step device calibration as they were there;
+   changes for this app are marked 'app:'. Fixed on the way: the live 'now:' lines shared
+   their ids with the Capture now buttons (cb1Now/cb2Now), so the text replaced the buttons' labels. */
+
+/* ── debug: angles, heading and field from each live sample ─────────
+   Body axes: x forward, y left, z up. At rest and level the accelerometer
+   reads +1 g on z. Roll is about x, pitch about y, both right-handed, so a
+   positive gyro x rate increases roll and a positive y rate increases pitch.
+
+     roll  = atan2(ay, az)
+     pitch = atan2(-ax, sqrt(ay^2 + az^2))
+     tilt  = acos(az / |a|)            angle between device z and vertical
+           = acos(cos(roll) cos(pitch)) for the gyro and combined estimates
+
+   The gyro is integrated with the full Euler-rate kinematics rather than
+   "roll += gx dt", which is only right when the other angle is near zero. */
+const D2R = Math.PI/180, R2D = 180/Math.PI;
+const dbg = {
+  tau: 1.0, gate: 0.10, decl: 0, tiltSrc: 'c',
+  bias: [0,0,0], biasBuf: null, biasEnd: 0,
+  rG: null, pG: null, rC: null, pC: null, lastT: null,
+  gated: false, last: null, dt: 0,
+  up: '-x',
+  axCap: null, axEnd: null, poseCap: null, poseEnd: null
+};
+/* Re-express a board-frame vector in a working frame whose z is the
+   heading axis. Each entry gives, for working x, y, z, which board axis
+   to take and with what sign. All six are proper rotations (cyclic
+   permutations, with two signs flipped for the negative cases), so the
+   frame stays right-handed and the gyro rates transform correctly too. */
+const UP_MAP = {
+  '+z': [[0, 1],[1, 1],[2, 1]],
+  '-z': [[0, 1],[1,-1],[2,-1]],
+  '+x': [[1, 1],[2, 1],[0, 1]],
+  '-x': [[1, 1],[2,-1],[0,-1]],
+  '+y': [[2, 1],[0, 1],[1, 1]],
+  '-y': [[2, 1],[0,-1],[1,-1]]
+};
+const AXN = ['x','y','z'];
+function remap(v){ return UP_MAP[dbg.up].map(([i,sg]) => v[i]*sg); }
+function axisName(k){                        // board axis behind working axis k
+  const [i,sg] = UP_MAP[dbg.up][k]; return (sg<0?'−':'+') + AXN[i];
+}
+const DERIVED = ['tiltA','tiltG','tiltC','rollA','rollG','rollC',
+                 'pitchA','pitchG','pitchC','hdgF','hdgT','bRaw','bCal','dip','aMag'];
+const wrapPi = x => Math.atan2(Math.sin(x), Math.cos(x));
+const wrap360 = d => ((d % 360) + 360) % 360;
+const tiltOf = (r,p) => Math.acos(Math.max(-1, Math.min(1, Math.cos(r)*Math.cos(p)))) * R2D;
+
+function eulerStep(r, p, gx, gy, gz, dt){
+  const tp = Math.tan(Math.max(-1.55, Math.min(1.55, p)));   // clamp near +/-90 deg
+  return [r + (gx + tp*(Math.sin(r)*gy + Math.cos(r)*gz)) * dt,
+          p + (Math.cos(r)*gy - Math.sin(r)*gz) * dt];
+}
+
+function derive(s){
+  for(const k of DERIVED) s[k] = NaN;
+  if(CALB.mode) cbFeed(s);                     // calibration capture, raw values
+  if(dbg.poseCap && (!s.health || (s.health[0]==='1' && s.health[2]==='1'))){
+    if(dbg.poseEnd === null) dbg.poseEnd = s.t + 2;
+    const mb = magBody(s);
+    dbg.poseCap.push([s.ax, s.ay, s.az, mb[0], mb[1], mb[2]]);
+    el('aPose').style.color='';
+    el('aPose').textContent='Pose check: measuring, hold still... '+Math.max(0,dbg.poseEnd-s.t).toFixed(1)+' s';
+    if(s.t >= dbg.poseEnd) finishPoseCheck();
+  }
+  if(dbg.axCap && (!s.health || (s.health[0]==='1' && s.health[2]==='1'))){
+    if(dbg.axEnd === null) dbg.axEnd = s.t + 15;
+    dbg.axCap.push([[s.ax, s.ay, s.az], magCal(s)]);
+    if(s.t >= dbg.axEnd) finishMagAxes();
+  }
+  // sensor-down sentinels must never enter an integral
+  const imuOK = !s.health || s.health[0] === '1';
+  const magOK = !s.health || s.health[2] === '1';
+
+  if(imuOK){
+    const A = remap([s.ax, s.ay, s.az]);      // working frame: A[2] is the heading axis
+    const am = Math.hypot(A[0], A[1], A[2]);
+    s.aMag = am;
+    const rA = Math.atan2(A[1], A[2]);
+    const pA = Math.atan2(-A[0], Math.hypot(A[1], A[2]));
+    s.rollA = rA*R2D; s.pitchA = pA*R2D;
+    s.tiltA = Math.acos(Math.max(-1, Math.min(1, A[2]/am))) * R2D;
+
+    if(dbg.biasBuf){
+      if(dbg.biasEnd === null) dbg.biasEnd = s.t + 2;
+      dbg.biasBuf.push([s.gx, s.gy, s.gz]);
+      if(s.t >= dbg.biasEnd) finishBias();
+    }
+
+    // bias is held in BOARD axes (it belongs to the sensor), then the rate
+    // vector is rotated into the working frame like any other vector
+    const G = remap([(s.gx - dbg.bias[0])*D2R, (s.gy - dbg.bias[1])*D2R,
+                     (s.gz - dbg.bias[2])*D2R]);
+    const gx = G[0], gy = G[1], gz = G[2];
+    const dt = dbg.lastT === null ? 0 : s.t - dbg.lastT;
+    dbg.lastT = s.t; dbg.dt = dt;
+
+    if(dbg.rG === null){
+      dbg.rG = rA; dbg.pG = pA; dbg.rC = rA; dbg.pC = pA;      // seed from gravity
+    } else if(dt > 0 && dt < 0.5){                             // skip gaps and resets
+      [dbg.rG, dbg.pG] = eulerStep(dbg.rG, dbg.pG, gx, gy, gz, dt);
+      let [rc, pc] = eulerStep(dbg.rC, dbg.pC, gx, gy, gz, dt);
+      dbg.gated = Math.abs(am - 1) > dbg.gate;
+      if(!dbg.gated){
+        const a = dbg.tau / (dbg.tau + dt);
+        rc = rA + a*wrapPi(rc - rA);      // shortest way round near +/-180
+        pc = pA + a*(pc - pA);
+      }
+      dbg.rG = wrapPi(dbg.rG); dbg.rC = wrapPi(rc); dbg.pC = pc;
+    }
+    s.rollG = dbg.rG*R2D; s.pitchG = dbg.pG*R2D; s.tiltG = tiltOf(dbg.rG, dbg.pG);
+    s.rollC = dbg.rC*R2D; s.pitchC = dbg.pC*R2D; s.tiltC = tiltOf(dbg.rC, dbg.pC);
+  }
+
+  if(magOK){
+    s.bRaw = Math.hypot(s.mx, s.my, s.mz);
+    const m = remap(magBody(s));                // calibration + axis map, then working frame
+                                                // (for +x: m[0]=My, m[1]=Mz, m[2]=Mx)
+    if(calApplied && cal) s.bCal = Math.hypot(m[0], m[1], m[2]);
+    s.hdgF = wrap360(Math.atan2(m[1], m[0])*R2D + dbg.decl);
+    if(imuOK){
+      const src = dbg.tiltSrc;
+      const r = src==='a' ? s.rollA*D2R : src==='g' ? dbg.rG : src==='n' ? 0 : dbg.rC;
+      const p = src==='a' ? s.pitchA*D2R : src==='g' ? dbg.pG : src==='n' ? 0 : dbg.pC;
+      const cr = Math.cos(r), sr = Math.sin(r), cp = Math.cos(p), sp = Math.sin(p);
+      // de-rotate the field into a level frame: Ry(pitch) * Rx(roll) * m
+      const v  = m[1]*sr + m[2]*cr;
+      const Xh = m[0]*cp + v*sp;
+      const Yh = m[1]*cr - m[2]*sr;
+      const Zh = -m[0]*sp + v*cp;
+      s.hdgT = wrap360(Math.atan2(Yh, Xh)*R2D + dbg.decl);
+      // dip: how far the field points below horizontal. Should stay constant
+      // however the device is turned -- if it doesn't, the magnetometer and
+      // accelerometer disagree about orientation.
+      s.dip = Math.atan2(-Zh, Math.hypot(Xh, Yh))*R2D;
+    }
+  }
+  dbg.last = s;
+}
+
+function startBias(){
+  // the 2 s window starts at the first sample captured, so this works
+  // whether or not anything has been streamed yet
+  dbg.biasBuf = [];
+  dbg.biasEnd = null;
+  log('Measuring gyro bias -- keep the board completely still for 2 s');
+}
+function finishBias(){
+  const b = dbg.biasBuf; dbg.biasBuf = null;
+  if(b.length < 10){ log('Too few samples for a bias estimate -- stream faster','err'); return; }
+  const m = [0,1,2].map(i => b.reduce((a,v)=>a+v[i],0) / b.length);
+  const sd = [0,1,2].map(i => Math.sqrt(b.reduce((a,v)=>a+(v[i]-m[i])**2,0) / b.length));
+  if(Math.max(...sd) > 2){
+    log('Board moved during bias capture (sd '+sd.map(x=>x.toFixed(2)).join(' ')+' °/s) -- try again','err');
+    return;
+  }
+  dbg.bias = m;
+  resetAngles();
+  log('Gyro bias set to '+m.map(x=>x.toFixed(3)).join(', ')+' °/s from '+b.length+' samples','ok');
+}
+function startMagAxes(){
+  dbg.axCap = []; dbg.axEnd = null;
+  noDataWatch('axCap', 'Auto-detect mag axes');
+  log('Recording for 15 s: turn the tube through as many orientations as you can -- '+
+      'tip it in different directions, not just spin it');
+}
+function finishMagAxes(){
+  const r = detectMagAxes(dbg.axCap); dbg.axCap = null;
+  if(r.error){ log('Axis detection: '+r.error, 'err'); return; }
+  if(!r.enoughMotion){
+    log('Axis detection: not enough variety -- the tube was not tipped. Spinning about one axis '+
+        'cannot tell the mappings apart. Try again, tipping it in several directions.', 'err');
+    return;
+  }
+  magMap = r.best.map;
+  el('inpMap').value = r.best.str;
+  setMode(attMode); resetAngles();
+  log('Magnetometer axes set to '+r.best.str+': dip varies '+r.best.sd.toFixed(2)+
+      '° (next best '+r.second.sd.toFixed(1)+'°), dip '+r.best.dip.toFixed(1)+'° -- '+
+      'positive in the northern hemisphere, negative in the southern', 'ok');
+  if(r.best.sd > 2)
+    log('Even the best mapping varies '+r.best.sd.toFixed(1)+'°: calibrate the magnetometer '+
+        '(Fit, then Apply) and run this again.', 'err');
+  if(r.second.sd < 3*r.best.sd)
+    log('Low confidence -- the runner-up is close. Record again with more varied orientations.', 'err');
+}
+function resetAngles(){ dbg.rG = null; dbg.lastT = null; dirty = true; }
+
+/* ── display filters ───────────────────────────────────────────────
+   Applied to the plotted values only -- nothing is changed in the data.
+   Moving average: mean of the last N samples (trailing, so causal, with a
+   lag of about (N-1)/2 samples). Exponential: y += a*(x - y), time constant
+   about 1/a samples. Both restart after a gap (sensor down). Angles that
+   wrap at 360 are filtered as unit vectors so 359 and 1 average to 0, not
+   180. */
+const filtSettings = {};
+function filterSeries(vals, f, wrap){
+  if(!f || f.type === 'none') return vals;
+  if(wrap){
+    const fc = filterSeries(vals.map(v => Math.cos(v*D2R)), f, false);
+    const fs = filterSeries(vals.map(v => Math.sin(v*D2R)), f, false);
+    return fc.map((c,i) => isNaN(c) ? NaN : wrap360(Math.atan2(fs[i], c)*R2D));
+  }
+  const out = new Array(vals.length);
+  if(f.type === 'ma'){
+    const N = Math.max(1, Math.round(f.n));
+    let sum = 0, run = 0;                       // run = index where this gap-free stretch began
+    for(let i=0;i<vals.length;i++){
+      const v = vals[i];
+      if(isNaN(v)){ sum = 0; run = i+1; out[i] = NaN; continue; }
+      sum += v;
+      if(i - N >= run) sum -= vals[i-N];
+      out[i] = sum / Math.min(N, i - run + 1);
+    }
+  } else {
+    const a = Math.min(1, Math.max(0.001, f.a));
+    let y = NaN;
+    for(let i=0;i<vals.length;i++){
+      const v = vals[i];
+      if(isNaN(v)){ y = NaN; out[i] = NaN; continue; }
+      y = isNaN(y) ? v : y + a*(v - y);
+      out[i] = y;
+    }
+  }
+  return out;
+}
+function measuredRate(){
+  const n = samples.length;
+  if(n < 10) return 0;
+  const k = Math.min(n-1, 200), dt = samples[n-1].t - samples[n-1-k].t;
+  return dt > 0 ? k/dt : 0;
+}
+function filterHint(f){
+  const hz = measuredRate();
+  if(!f || f.type === 'none' || !hz) return '';
+  if(f.type === 'ma') return '≈ ' + ((Math.round(f.n)-1)/2/hz).toFixed(2) + ' s lag';
+  return 'τ ≈ ' + ((1/Math.max(0.001,f.a) - 1)/hz).toFixed(2) + ' s';
+}
+
+function updateAxisLabels(){
+  const set = (title, unit) => { const g = GROUPS.find(g => g.title === title); if(g) g.unit = unit; };
+  set('Roll', '° about ' + axisName(0));
+  set('Pitch', '° about ' + axisName(1));
+  set('Heading (magnetometer)', '° about ' + axisName(2) + ' · from M' +
+      AXN[UP_MAP[dbg.up][0][0]] + ' and M' + AXN[UP_MAP[dbg.up][1][0]]);
+  set('Tilt from vertical (angle to gravity)', '° of ' + axisName(2) + ' from up · acc / gyro / comb');
+}
+
+/* ── debug panel ── */
+let showSensor = true;
+const fmt = (v,d) => (v===undefined || isNaN(v)) ? '—' : v.toFixed(d);
+function updateDbgPanel(){
+  const s = dbg.last;
+  const rows = s ? [
+    ['tilt acc', fmt(s.tiltA,2)+'°'], ['tilt gyro', fmt(s.tiltG,2)+'°'], ['tilt comb', fmt(s.tiltC,2)+'°'],
+    ['roll acc', fmt(s.rollA,2)+'°'], ['roll gyro', fmt(s.rollG,2)+'°'], ['roll comb', fmt(s.rollC,2)+'°'],
+    ['pitch acc', fmt(s.pitchA,2)+'°'], ['pitch gyro', fmt(s.pitchG,2)+'°'], ['pitch comb', fmt(s.pitchC,2)+'°'],
+    ['heading flat', fmt(s.hdgF,1)+'°'], ['heading tilt-comp', fmt(s.hdgT,1)+'°'],
+    ['|B| raw', fmt(s.bRaw,2)+' µT'], ['|B| cal', fmt(s.bCal,2)+' µT'], ['dip', fmt(s.dip,2)+'°'],
+    ['|a|', fmt(s.aMag,4)+' g'],
+    ['gravity used', dbg.gated ? 'NO (moving)' : 'yes'],
+    ['gyro bias', dbg.bias.map(x=>x.toFixed(2)).join(' ')+' °/s'],
+    ['dt', fmt(dbg.dt*1000,1)+' ms'],
+    ['heading axis', dbg.up + '  (heading from M' + AXN[UP_MAP[dbg.up][0][0]] +
+                     ', M' + AXN[UP_MAP[dbg.up][1][0]] + ')']
+  ] : [['waiting for samples','']];
+  el('dbgRead').innerHTML = rows.map(r => `<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
+
+  const warn = [];
+  const hz = measuredRate(), dev = devicePeriodMs ? 1000/devicePeriodMs : 0;
+  if(hz && dev && hz < 0.9*dev)
+    warn.push('Streaming '+hz.toFixed(1)+' Hz but sampling '+dev.toFixed(1)+' Hz: the gyro is integrated '+
+              'from skipped samples, so gyro and combined angles will be wrong. Set the stream rate to the sample rate.');
+  if(dbg.biasBuf) warn.push('Measuring gyro bias -- hold still...');
+  if(dbg.axCap) warn.push('Axis detection: keep turning and tipping the tube' +
+     (dbg.axEnd!==null && samples.length ? ' -- '+Math.max(0,dbg.axEnd-samples[samples.length-1].t).toFixed(0)+' s left' : ''));
+  if(s && !isNaN(s.bRaw) && !(calApplied && cal))
+    warn.push('Magnetometer uncalibrated: heading is from raw data.');
+  el('dbgWarn').textContent = warn.join('   ');
+  cbVerifyRender();
+  if(CALB.mode) cbRender();
+}
+
+
+const CB_MIN_POSES1 = 9, CB_MIN_POSES4 = 8, CB_GOOD_POSES = 12;   // see cbFitBiasScale and cbFitMagAlign
+/* ── calibration fits (pure functions: no page state) ───────────────── */
+const CB_D2R = Math.PI/180, CB_R2D = 180/Math.PI;
+const cbDot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cbNorm=a=>Math.hypot(a[0],a[1],a[2]);
+const cbUnit=a=>{ const n=cbNorm(a); return [a[0]/n,a[1]/n,a[2]/n]; };
+const cbCross=(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const cbMv=(M,v)=>[M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2], M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2],
+                   M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]];
+const cbMm=(A,B)=>A.map((r,i)=>[0,1,2].map(j=>r[0]*B[0][j]+r[1]*B[1][j]+r[2]*B[2][j]));
+// solve A x = y (small dense systems), partial pivoting; null if singular
+function cbSolve(A, y){
+  const n=y.length, M=A.map((r,i)=>r.concat([y[i]]));
+  for(let c=0;c<n;c++){
+    let p=c; for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[p][c])) p=r;
+    if(Math.abs(M[p][c])<1e-300) return null;
+    [M[c],M[p]]=[M[p],M[c]];
+    for(let r=0;r<n;r++){ if(r===c) continue; const f=M[r][c]/M[c][c];
+      for(let k=c;k<=n;k++) M[r][k]-=f*M[c][k]; }
+  }
+  return M.map((r,i)=>r[n]/r[i]);
+}
+function cbInv(A){
+  const n=A.length; const out=[];
+  for(let j=0;j<n;j++){ const e=new Array(n).fill(0); e[j]=1; const c=cbSolve(A,e); if(!c) return null; out.push(c); }
+  return A.map((_,i)=>out.map(c=>c[i]));
+}
+// Rodrigues: rotation vector (rad) -> matrix
+function cbExp(w){
+  const th=cbNorm(w); if(th<1e-12) return [[1,-w[2],w[1]],[w[2],1,-w[0]],[-w[1],w[0],1]];
+  const k=w.map(x=>x/th), c=Math.cos(th), s=Math.sin(th), C=1-c;
+  return [[c+k[0]*k[0]*C, k[0]*k[1]*C-k[2]*s, k[0]*k[2]*C+k[1]*s],
+          [k[1]*k[0]*C+k[2]*s, c+k[1]*k[1]*C, k[1]*k[2]*C-k[0]*s],
+          [k[2]*k[0]*C-k[1]*s, k[2]*k[1]*C+k[0]*s, c+k[2]*k[2]*C]];
+}
+// matrix -> rotation vector (rad)
+function cbLog(R){
+  const c=Math.max(-1,Math.min(1,(R[0][0]+R[1][1]+R[2][2]-1)/2)), th=Math.acos(c);
+  const v=[R[2][1]-R[1][2], R[0][2]-R[2][0], R[1][0]-R[0][1]];
+  if(th<1e-9) return v.map(x=>x/2);
+  return v.map(x=>x*th/(2*Math.sin(th)));
+}
+
+/* STEP 1 -- accelerometer bias and scale.
+   Every still pose measures gravity, exactly 1 g. Find bias b and scale s
+   so that |(raw - b) / s| = 1 in every pose (Levenberg-Marquardt, 6 values).
+   Also reports each axis's up/down coverage: an axis never pointed both up
+   and down cannot have its bias and scale told apart. */
+function cbFitBiasScale(raws){
+  const N=raws.length;
+  /* 6 values are solved for, so 6 poses always fit EXACTLY -- whatever they
+     contain -- leaving nothing to check the answer with: zero error and zero
+     uncertainty that mean 'unknown', not 'perfect'. 9 leaves 3 spare poses,
+     the least that gives a meaningful uncertainty; 12+ is recommended. */
+  if(N<CB_MIN_POSES1) return {err:'need at least '+CB_MIN_POSES1+' still poses ('+N+' so far) -- with fewer, the fit '+
+    'matches every pose exactly whatever they contain, so the result cannot be checked. 12 or more is recommended.'};
+  const cover=[0,1,2].map(j=>{
+    let up=0, dn=0; for(const r of raws){ const u=r[j]/cbNorm(r); if(u>0.5) up++; if(u<-0.5) dn++; }
+    return {up, dn};
+  });
+  let p=[0,0,0,1,1,1], lam=1e-3;
+  const evalAt=q=>{ const f=[], J=[];
+    for(const r of raws){
+      const u=[0,1,2].map(j=>(r[j]-q[j])/q[3+j]), n=cbNorm(u);
+      f.push(n-1);
+      J.push([0,1,2].map(j=>-u[j]/(n*q[3+j])).concat([0,1,2].map(j=>-u[j]*u[j]/(n*q[3+j]))));
+    }
+    return {f, J, cost:f.reduce((a,v)=>a+v*v,0)};
+  };
+  let cur=evalAt(p);
+  for(let it=0; it<100; it++){
+    const JTJ=[...Array(6)].map((_,i)=>[...Array(6)].map((_,k)=>cur.J.reduce((a,row)=>a+row[i]*row[k],0)));
+    const JTf=[...Array(6)].map((_,i)=>cur.J.reduce((a,row,n)=>a+row[i]*cur.f[n],0));
+    const A=JTJ.map((r,i)=>r.map((v,k)=>v+(i===k?lam*(JTJ[i][i]+1e-12):0)));
+    const d=cbSolve(A, JTf.map(v=>-v)); if(!d) break;
+    const q=p.map((v,i)=>v+d[i]);
+    if(q.slice(3).some(v=>!(v>0.5 && v<1.5))){ lam*=10; continue; }
+    const nx=evalAt(q);
+    if(nx.cost<cur.cost){ p=q; cur=nx; lam=Math.max(lam/3,1e-9); if(d.every(v=>Math.abs(v)<1e-10)) break; }
+    else { lam*=5; if(lam>1e8) break; }
+  }
+  const dof=Math.max(1,N-6), s2=cur.cost/dof;
+  // The noise is estimated from the fit's own leftovers, so with few spare
+  // poses it is itself uncertain. sqrt(dof/(dof-2)) is the exact Student-t
+  // correction; without it the reported uncertainty came out 16% too small
+  // at 14 poses (measured over 3000 simulated calibrations).
+  const tfac = dof>2 ? Math.sqrt(dof/(dof-2)) : 3;
+  const JTJ=[...Array(6)].map((_,i)=>[...Array(6)].map((_,k)=>cur.J.reduce((a,row)=>a+row[i]*row[k],0)));
+  const inv=cbInv(JTJ);
+  const sd = inv ? inv.map((r,i)=>Math.sqrt(Math.max(0,r[i]*s2))*tfac) : null;
+  const res=raws.map(r=>{ const u=[0,1,2].map(j=>(r[j]-p[j])/p[3+j]); return (cbNorm(u)-1)*1000; });
+  const before=raws.map(r=>(cbNorm(r)-1)*1000);
+  return {bias:p.slice(0,3), scale:p.slice(3), rmsMg:Math.sqrt(res.reduce((a,v)=>a+v*v,0)/N),
+          beforeRmsMg:Math.sqrt(before.reduce((a,v)=>a+v*v,0)/N), res, before, cover,
+          sdBiasMg: sd ? sd.slice(0,3).map(v=>v*1000) : null, sdScalePct: sd ? sd.slice(3).map(v=>v*100) : null,
+          weak: cover.map((c,j)=>c.up===0||c.dn===0 ? 'xyz'[j] : null).filter(Boolean)};
+}
+
+/* STEP 2 -- accelerometer alignment in the tube.
+   Bias- and scale-corrected readings taken while the tube turns about its
+   own axis. Expressed as small angles on the two other board axes, they
+   trace a circle: its CENTRE is the chip's tilt in the tube (fixed to the
+   tube), its RADIUS is the lean of the stand (fixed to the room). */
+function cbFitCircle(pts){
+  const n=pts.length, mx=pts.reduce((a,p)=>a+p[0],0)/n, my=pts.reduce((a,p)=>a+p[1],0)/n;
+  const spread=Math.sqrt(pts.reduce((a,p)=>a+(p[0]-mx)**2+(p[1]-my)**2,0)/n);
+  if(spread<0.03) return {cx:mx, cy:my, r:0, rms:spread, degenerate:true};
+  // algebraic fit (Kasa): x^2+y^2 + D x + E y + F = 0, centred for conditioning
+  const A=[[0,0,0],[0,0,0],[0,0,0]], y=[0,0,0];
+  for(const [x0,y0] of pts){ const x=x0-mx, yy=y0-my, row=[x,yy,1], rhs=-(x*x+yy*yy);
+    for(let i=0;i<3;i++){ for(let k=0;k<3;k++) A[i][k]+=row[i]*row[k]; y[i]+=row[i]*rhs; } }
+  const s=cbSolve(A,y); if(!s) return {cx:mx, cy:my, r:0, rms:spread, degenerate:true};
+  const cx=-s[0]/2+mx, cy=-s[1]/2+my, r=Math.sqrt(Math.max(0,s[0]*s[0]/4+s[1]*s[1]/4-s[2]));
+  const rms=Math.sqrt(pts.reduce((a,p)=>a+(Math.hypot(p[0]-cx,p[1]-cy)-r)**2,0)/n);
+  return {cx, cy, r, rms, degenerate:false};
+}
+/* Any-angle version: upright, leaning or in a V-block.
+   Rolling the tube about its own axis moves the measured "up" direction
+   round a circle on the unit sphere, and the circle's AXIS is the tube's
+   axis as the chip sees it -- however the tube is held. The points lie on
+   a plane through that circle, so the plane's normal is the tube axis
+   (least squares: the smallest-variance direction of the points). The
+   angle between the axis and the points is the tube's angle from vertical:
+   a property of the stand or V-block, reported and then excluded.
+   Needs no turn angles, so the magnetometer plays no part here. Near
+   vertical the circle shrinks to almost nothing and the plane is poorly
+   defined -- the small-angle fit with turn angles takes over there. */
+function cbEigvecMin(C){
+  const ev=cbSymEig3(C), l=ev[0];
+  const M=C.map((r,i)=>r.map((v,k)=>v-(i===k?l:0)));
+  const cands=[cbCross(M[0],M[1]), cbCross(M[0],M[2]), cbCross(M[1],M[2])];
+  let best=cands[0];
+  for(const c of cands) if(cbNorm(c)>cbNorm(best)) best=c;
+  return cbNorm(best)>0 ? cbUnit(best) : null;
+}
+function cbFitAxisSphere(U, axisK, axisSign){
+  const n=U.length, mu=[0,1,2].map(i=>U.reduce((a,u)=>a+u[i],0)/n);
+  const C=[0,1,2].map(i=>[0,1,2].map(k=>U.reduce((a,u)=>a+(u[i]-mu[i])*(u[k]-mu[k]),0)/n));
+  let t=cbEigvecMin(C); if(!t) return null;
+  if(t[axisK]*axisSign<0) t=t.map(v=>-v);               // point along the tube's "up" axis
+  const ang=U.map(u=>Math.acos(Math.max(-1,Math.min(1,cbDot(u,t))))*CB_R2D);
+  const theta=ang.reduce((a,v)=>a+v,0)/n;
+  const rms=Math.sqrt(ang.reduce((a,v)=>a+(v-theta)**2,0)/n);
+  // how far round the circle the positions go, measured about the axis itself
+  const ref=Math.abs(t[0])<0.9?[1,0,0]:[0,1,0], b1=cbUnit(cbCross(t,ref)), b2=cbCross(t,b1);
+  const az=U.map(u=>(Math.atan2(cbDot(u,b2),cbDot(u,b1))*CB_R2D+360)%360).sort((x,y)=>x-y);
+  let gap=0; for(let i=0;i<az.length;i++) gap=Math.max(gap,(i?az[i]-az[i-1]:az[0]+360-az[az.length-1]));
+  const [p,q]=[0,1,2].filter(j=>j!==axisK), tk=t[axisK]*axisSign;
+  return {t, theta, rms, coverDeg:360-gap, b1, b2,
+          align:[Math.atan2(t[p],tk)*CB_R2D, Math.atan2(t[q],tk)*CB_R2D]};
+}
+const CB_SPHERE_MIN = 8;   // deg from vertical: above this, the any-angle fit is used
+
+function cbFitAlign(raws, turnDeg, bias, scale, axisK, axisSign){
+  if(raws.length<6) return {err:'need at least 6 positions ('+raws.length+' so far)'};
+  // away from vertical -- leaning, or lying in a V-block -- fit the circle on the sphere
+  const U=raws.map(r=>cbUnit([0,1,2].map(j=>(r[j]-bias[j])/scale[j])));
+  const e=[0,0,0]; e[axisK]=axisSign;
+  // the average of each reading's own angle from the tube axis -- NOT the angle of
+  // the averaged reading, which cancels round the circle and leaves only the chip's
+  // small tilt, so a leaning tube or a V-block would wrongly look upright
+  const tilt0=U.reduce((a,u)=>a+cbAngleBetween(u,e),0)/U.length;
+  if(tilt0 > CB_SPHERE_MIN){
+    const s=cbFitAxisSphere(U, axisK, axisSign);
+    if(!s) return {err:'positions do not determine the axis -- roll the tube further round'};
+    return {align:s.align, leanDeg:s.theta, rmsDeg:s.rms, coverDeg:s.coverDeg,
+            axes:[0,1,2].filter(j=>j!==axisK), method:'circle on the sphere', sphere:s, U};
+  }
+  const [p,q]=[0,1,2].filter(j=>j!==axisK);
+  const pts=raws.map(r=>{ const u=[0,1,2].map(j=>(r[j]-bias[j])/scale[j]), ak=u[axisK]*axisSign;
+    return [Math.atan2(u[p],ak)*CB_R2D, Math.atan2(u[q],ak)*CB_R2D]; });
+  /* The turn angles come from the magnetometer, so the circle need not be
+     guessed from the points' shape. In the board's frame the stand's lean
+     turns with the tube, by the same angle as the field does:
+        pt_k = centre + lean * [cos(th_k + phi), sin(th_k + phi)]
+     which is LINEAR in (cx, cy, A = lean cos phi, B = lean sin phi). That
+     stays well-posed even when the lean is zero, where fitting a circle to
+     the points alone lets noise drag the centre around. Both senses of
+     rotation are tried, since the axis mapping can reverse it. */
+  let best=null;
+  for(const sg of [1,-1]){
+    const A=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], y=[0,0,0,0];
+    pts.forEach(([x0,y0],k)=>{ const th=sg*turnDeg[k]*CB_D2R, c=Math.cos(th), s=Math.sin(th);
+      const rows=[[1,0,c,-s, x0],[0,1,s,c, y0]];
+      for(const r of rows) for(let i=0;i<4;i++){ y[i]+=r[i]*r[4]; for(let j=0;j<4;j++) A[i][j]+=r[i]*r[j]; } });
+    const sol=cbSolve(A,y); if(!sol) continue;
+    const [cx,cy,Aa,Bb]=sol;
+    let ss=0; pts.forEach(([x0,y0],k)=>{ const th=sg*turnDeg[k]*CB_D2R, c=Math.cos(th), s=Math.sin(th);
+      ss+=(x0-(cx+Aa*c-Bb*s))**2+(y0-(cy+Aa*s+Bb*c))**2; });
+    const rms=Math.sqrt(ss/pts.length);
+    if(!best || rms<best.rms) best={cx,cy,r:Math.hypot(Aa,Bb),rms};
+  }
+  if(!best) return {err:'positions do not determine the tilt -- turn the tube further'};
+  /* When the stand leans enough to draw a clear circle, the circle's own
+     shape is the better witness: it does not depend on the turn angles at
+     all, so an imperfect magnetometer cannot bias it. When the lean is
+     small the shape is mostly noise -- but then errors in the turn angles
+     hardly matter either, since they only move a lean that is near zero. */
+  const geo=cbFitCircle(pts);
+  let method='turn angles';
+  if(!geo.degenerate && geo.r>0.2 && geo.r>4*geo.rms){
+    const ang=pts.map(p=>Math.atan2(p[1]-geo.cy,p[0]-geo.cx)*CB_R2D).map(v=>(v+360)%360).sort((x,y)=>x-y);
+    let gmax=0; for(let i=0;i<ang.length;i++) gmax=Math.max(gmax,(i?ang[i]-ang[i-1]:ang[0]+360-ang[ang.length-1]));
+    if(gmax<=120){ best={cx:geo.cx, cy:geo.cy, r:geo.r, rms:geo.rms}; method='circle shape'; }
+  }
+  const a=turnDeg.map(v=>((v%360)+360)%360).sort((x,y)=>x-y);
+  let gap=0; for(let i=0;i<a.length;i++) gap=Math.max(gap, (i? a[i]-a[i-1] : a[0]+360-a[a.length-1]));
+  return {align:[best.cx, best.cy], leanDeg:best.r, rmsDeg:best.rms, coverDeg:360-gap, pts, axes:[p,q], method};
+}
+
+/* STEP 4 -- magnetometer onto the accelerometer frame.
+   The dip (angle between field and gravity) is fixed by geography, so it
+   must be identical in every pose. Find the small rotation of the
+   magnetometer vector that makes it so (Gauss-Newton, rotation + one
+   constant). Inputs are unit vectors: accelerometer after bias/scale,
+   magnetometer after hard/soft iron AND axis mapping. */
+function cbFitMagAlign(aUnits, mUnits){
+  const N=aUnits.length;
+  // 4 values solved for (3 angles and the common dip): 8 leaves 4 spare poses
+  if(N<CB_MIN_POSES4) return {err:'need at least '+CB_MIN_POSES4+' still poses ('+N+' so far) -- step 4 uses step 1\'s poses; '+
+    '12 or more is recommended.'};
+  const dips=R=>mUnits.map((m,i)=>Math.asin(Math.max(-1,Math.min(1,-cbDot(cbMv(R,m),aUnits[i]))))*CB_R2D);
+  /* spread corrected for the values each estimate used up: 1 (the mean) before
+     the fit, 4 after it. Dividing by the pose count instead made the 'after'
+     spread look better than it was -- by 1.7x with 6 poses. */
+  const stat=(d,used)=>{ const m=d.reduce((a,v)=>a+v,0)/d.length;
+    return {mean:m, sd:Math.sqrt(d.reduce((a,v)=>a+(v-m)**2,0)/Math.max(1,d.length-used))}; };
+  const I=[[1,0,0],[0,1,0],[0,0,1]];
+  let R=I, c=mUnits.reduce((a,m,i)=>a+cbDot(m,aUnits[i]),0)/N, JTJ=null;
+  for(let it=0; it<50; it++){
+    const J=[], f=[];
+    for(let i=0;i<N;i++){ const v=cbMv(R,mUnits[i]); f.push(cbDot(v,aUnits[i])-c); J.push(cbCross(v,aUnits[i]).concat([-1])); }
+    JTJ=[...Array(4)].map((_,i)=>[...Array(4)].map((_,k)=>J.reduce((a,row)=>a+row[i]*row[k],0)));
+    const JTf=[...Array(4)].map((_,i)=>J.reduce((a,row,n)=>a+row[i]*f[n],0));
+    const d=cbSolve(JTJ.map((r,i)=>r.map((v,k)=>v+(i===k?1e-9:0))), JTf.map(v=>-v)); if(!d) break;
+    R=cbMm(cbExp(d.slice(0,3)), R); c+=d[3];
+    if(Math.hypot(d[0],d[1],d[2])<1e-12) break;
+  }
+  // how well each direction of the rotation is pinned down: smallest vs largest curvature
+  const ev=cbSymEig3(JTJ.map(r=>r.slice(0,3)).slice(0,3));
+  const w=cbLog(R).map(v=>v*CB_R2D);
+  const b=stat(dips(I),1), a=stat(dips(R),4);
+  // what matters is the spread on NEW poses, which also carries the fitted
+  // rotation's own error: about sqrt(1 + 4/N) times the leftover spread here
+  a.sd *= Math.sqrt(1 + 4/N);
+  return {align:w, dipBefore:b, dipAfter:a, conditioned: ev[0] > 1e-4*ev[2]};
+}
+// eigenvalues of a symmetric 3x3 (ascending), closed form
+function cbSymEig3(A){
+  const p1=A[0][1]**2+A[0][2]**2+A[1][2]**2;
+  if(p1<1e-30) return [A[0][0],A[1][1],A[2][2]].sort((x,y)=>x-y);
+  const q=(A[0][0]+A[1][1]+A[2][2])/3;
+  const p2=(A[0][0]-q)**2+(A[1][1]-q)**2+(A[2][2]-q)**2+2*p1, p=Math.sqrt(p2/6);
+  const B=A.map((r,i)=>r.map((v,k)=>(v-(i===k?q:0))/p));
+  const detB=B[0][0]*(B[1][1]*B[2][2]-B[1][2]*B[2][1])-B[0][1]*(B[1][0]*B[2][2]-B[1][2]*B[2][0])+B[0][2]*(B[1][0]*B[2][1]-B[1][1]*B[2][0]);
+  const r=Math.max(-1,Math.min(1,detB/2)), phi=Math.acos(r)/3;
+  const e1=q+2*p*Math.cos(phi), e3=q+2*p*Math.cos(phi+2*Math.PI/3), e2=3*q-e1-e3;
+  return [e1,e2,e3].sort((x,y)=>x-y);
+}
+
+/* ── device calibration: capture, fitting, verification, config ──────
+   Works only on RAW live samples, and changes nothing the board records.
+   Values are computed here and leave as a config.json for the board. */
+const CALB = { mode:null, win:[], poses:[], rot:[], res1:null, res2:null, res3:null, res4:null,
+               loaded:null, live:'' };
+const CB_STILL_N = 52;          // ~2 s at 26.3 Hz
+const CB_GYRO_MAX = 3;          // deg/s: above this the tube is turning
+const CB_ACC_JUMP = 0.03;       // g: a sample this far from the window mean is motion.
+                                // 0.015 g was too tight: the accelerometer's own 4 mg noise
+                                // crossed it now and then and restarted the count
+const CB_POSE_SEP = 20;         // deg between poses (step 1)
+const CB_TURN_SEP = 20;         // deg of turn between positions (step 3)
+const CB_SAME_SETUP = 10;       // deg: step 2 positions must share one tilt
+
+function cbMapVec(m){ return magMap.map(([i,sg])=>m[i]*sg); }     // raw mag -> IMU axes
+function cbTubeAxis(){ const [k,sg]=UP_MAP[dbg.up][2]; return {k, sg}; }
+const cbAngDiff=(a,b)=>Math.abs(((a-b)%360+540)%360-180);
+const cbAngleBetween=(u,v)=>Math.acos(Math.max(-1,Math.min(1,cbDot(cbUnit(u),cbUnit(v)))))*CB_R2D;
+// how far the tube has turned about its own axis, from the field across it.
+// Uses the magnetometer calibration once step 2 is done: uncalibrated, an
+// offset as large as the horizontal field bends these angles badly.
+function cbTurnAngle(m){
+  const {k}=cbTubeAxis(), [p,q]=[0,1,2].filter(j=>j!==k), v=cbMagApply(m, cbMagCorr());
+  return Math.atan2(v[q], v[p])*CB_R2D;
+}
+// the corrections in force for later steps: this session's result, else the loaded config, else none
+function cbAccCorr(){
+  if(CALB.res1 && !CALB.res1.err) return {b:CALB.res1.bias, s:CALB.res1.scale, src:'step 1'};
+  const a=CALB.loaded && CALB.loaded.accel;
+  if(a && Array.isArray(a.bias_g) && Array.isArray(a.scale)) return {b:a.bias_g, s:a.scale, src:'loaded config'};
+  return {b:[0,0,0], s:[1,1,1], src:'none yet'};
+}
+function cbMagCorr(){
+  if(CALB.res3) return {h:CALB.res3.h, W:CALB.res3.W, src:'step 3'};
+  const m=CALB.loaded && CALB.loaded.mag;
+  if(m && Array.isArray(m.hard_iron_uT) && Array.isArray(m.soft_iron)) return {h:m.hard_iron_uT, W:m.soft_iron, src:'loaded config'};
+  return {h:[0,0,0], W:[[1,0,0],[0,1,0],[0,0,1]], src:'none yet'};
+}
+function cbMagApply(raw, mc){ return cbMapVec(cbMv(mc.W, raw.map((v,i)=>v-mc.h[i]))); }
+
+/* ── capture: wait for 2 s of stillness, then take the average ── */
+function cbStart(mode){
+  CALB.mode = mode; CALB.win = [];
+  CALB.live = mode==='pose' ? 'capturing -- hold still in a new orientation' : 'capturing -- turn the tube to a new position and hold';
+  cbRender();
+}
+function cbStop(){ CALB.mode=null; CALB.win=[]; CALB.live='stopped'; cbRender(); }
+function cbMean(win, key){ const n=win.length; return [0,1,2].map(i=>win.reduce((a,w)=>a+w[key][i],0)/n); }
+function cbCapture(force){
+  const w=CALB.win, a=cbMean(w,'a'), m=cbMean(w,'m');
+  const pose={a, m, t:w[w.length-1].t, it:w.reduce((s,x)=>s+x.it,0)/w.length, n:w.length, turn:cbTurnAngle(m)};
+  if(CALB.mode==='pose'){
+    if(!force){
+      const near=CALB.poses.findIndex(p=>cbAngleBetween(p.a,a)<CB_POSE_SEP);
+      if(near>=0){ CALB.live='still, but within '+CB_POSE_SEP+'° of pose '+(near+1)+' -- turn it to a new orientation'; return false; }
+    }
+    CALB.poses.push(pose); CALB.live='captured pose '+CALB.poses.length;
+  } else {
+    // Rolling the tube about its own axis keeps the angle between gravity and
+    // that axis fixed -- in a V-block the chip's view of gravity swings right
+    // round, so comparing the full direction would reject every position.
+    const {k:ak, sg:asg}=cbTubeAxis(), e=[0,0,0]; e[ak]=asg;
+    if(CALB.rot.length && Math.abs(cbAngleBetween(a,e)-cbAngleBetween(CALB.rot[0].a,e))>CB_SAME_SETUP){
+      CALB.live='its slope changed by more than '+CB_SAME_SETUP+'° -- keep the stand or V-block fixed and only roll the tube about its own axis';
+      return false;
+    }
+    if(!force){
+      const near=CALB.rot.findIndex(p=>cbAngDiff(p.turn,pose.turn)<CB_TURN_SEP);
+      if(near>=0){ CALB.live='still, but within '+CB_TURN_SEP+'° of position '+(near+1)+' -- turn it further'; return false; }
+    }
+    CALB.rot.push(pose); CALB.live='captured position '+CALB.rot.length;
+  }
+  CALB.win=[]; cbRender(); return true;
+}
+function cbFeed(s){
+  if(s.health && (s.health[0]!=='1' || s.health[2]!=='1')){ CALB.win=[]; CALB.live='a sensor is down -- waiting'; return; }
+  const smp={a:[s.ax,s.ay,s.az], g:[s.gx,s.gy,s.gz], m:[s.mx,s.my,s.mz], t:s.t, it:s.itemp};
+  const w=CALB.win;
+  const moving = Math.hypot(...smp.g) > CB_GYRO_MAX ||
+    (w.length>3 && Math.hypot(...smp.a.map((v,i)=>v-cbMean(w,'a')[i])) > CB_ACC_JUMP);
+  if(moving){ CALB.win=[smp]; CALB.live='moving'; return; }
+  w.push(smp);
+  if(w.length < CB_STILL_N){ CALB.live='hold still... '+((CB_STILL_N-w.length)/26.3).toFixed(1)+' s'; return; }
+  const a=cbMean(w,'a'), an=cbNorm(a);
+  if(an<0.9 || an>1.1){ CALB.live='total acceleration '+an.toFixed(3)+' g -- not a clean still reading'; w.shift(); return; }
+  if(!cbCapture(false)) w.shift();
+}
+
+/* ── the four computations ── */
+function cb1Fit(){ CALB.res1 = cbFitBiasScale(CALB.poses.map(p=>p.a)); cbRender(); }
+function cb2Fit(){
+  const ac=cbAccCorr(), {k,sg}=cbTubeAxis();
+  // turn angles recomputed now, with whatever magnetometer calibration exists
+  const r=cbFitAlign(CALB.rot.map(p=>p.a), CALB.rot.map(p=>cbTurnAngle(p.m)), ac.b, ac.s, k, sg);
+  if(!r.err) r.used=ac.src;
+  CALB.res2=r; cbRender();
+}
+function cb3Use(){
+  if(!cal){ CALB.res3=null; CALB.live3='no magnetometer fit yet -- tumble the tube, then press Fit now'; cbRender(); return; }
+  CALB.res3={h:cal.b.slice(), W:[cal.W.slice(0,3), cal.W.slice(3,6), cal.W.slice(6,9)], field:cal.field, resid:cal.resid};
+  CALB.live3=''; cbRender();
+}
+function cb3Fit(){ runFit(); cb3Use(); }
+function cb4Fit(){
+  const ac=cbAccCorr(), mc=cbMagCorr();
+  const aU=CALB.poses.map(p=>cbUnit(p.a.map((v,i)=>(v-ac.b[i])/ac.s[i])));
+  const mU=CALB.poses.map(p=>cbUnit(cbMagApply(p.m, mc)));
+  const r=cbFitMagAlign(aU, mU);
+  if(!r.err){ r.usedA=ac.src; r.usedM=mc.src; }
+  CALB.res4=r; cbRender();
+}
+
+/* ── config: load, build, check, save ── */
+const CB_RULES = [   // the same limits the firmware enforces
+  ['accel','bias_g',3,-0.2,0.2], ['accel','scale',3,0.8,1.2], ['accel','align_deg',2,-10,10],
+  ['mag','hard_iron_uT',3,-500,500], ['mag','align_deg',3,-10,10]];
+function cbLoadFile(file){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    let o; try{ o=JSON.parse(rd.result); }catch(e){ log('That config.json is not valid JSON: '+e.message,'err'); return; }
+    if(!o || typeof o!=='object' || Array.isArray(o)){ log('That config.json is not a JSON object.','err'); return; }
+    CALB.loaded=o;
+    if(o.mag && typeof o.mag.axis_map==='string' && parseMap(o.mag.axis_map)){
+      el('inpMap').value=o.mag.axis_map; el('inpMap').dispatchEvent(new Event('change'));
+    }
+    log('Loaded config.json: device '+(o.device_id ?? '?')+', calibration v'+(o.cal_version||0),'ok');
+    cbRender();
+  };
+  rd.readAsText(file);
+}
+const cbRound=(v,d)=>Number(v.toFixed(d));
+function cbBuildConfig(){
+  const L=CALB.loaded||{}, la=L.accel||{}, lm=L.mag||{};
+  const nameId=(el('brandName').textContent.match(/ESP32-LOG-(\d+)/)||[])[1];
+  const did = (Number.isInteger(L.device_id) ? L.device_id : (nameId ? +nameId : null));
+  const src=[], kept=[];
+  const pick=(fresh, loaded, dflt, label)=>{
+    if(fresh!=null){ src.push(label); return fresh; }
+    if(loaded!=null){ kept.push(label); return loaded; }
+    return dflt;
+  };
+  const r1=CALB.res1 && !CALB.res1.err ? CALB.res1 : null, r2=CALB.res2 && !CALB.res2.err ? CALB.res2 : null;
+  const r4=CALB.res4 && !CALB.res4.err ? CALB.res4 : null;
+  const out = Object.assign({}, L, {
+    device_id: did,
+    cal_version: (Number.isInteger(L.cal_version)? L.cal_version : 0) + 1,
+    cal_date: new Date().toISOString().slice(0,10),
+    accel: Object.assign({}, la, {
+      bias_g:    pick(r1 && r1.bias.map(v=>cbRound(v,5)), la.bias_g, [0,0,0], 'accelerometer bias'),
+      scale:     pick(r1 && r1.scale.map(v=>cbRound(v,5)), la.scale, [1,1,1], 'accelerometer scale'),
+      align_deg: pick(r2 && r2.align.map(v=>cbRound(v,3)), la.align_deg, [0,0], 'accelerometer alignment') }),
+    mag: Object.assign({}, lm, {
+      // the mapping the fits actually USED, not the field's text, which can be
+      // mid-edit or invalid -- the file must describe the numbers in it
+      axis_map:     mapToStr(magMap),
+      hard_iron_uT: pick(CALB.res3 && CALB.res3.h.map(v=>cbRound(v,2)), lm.hard_iron_uT, [0,0,0], 'magnetometer hard iron'),
+      soft_iron:    pick(CALB.res3 && CALB.res3.W.map(r=>r.map(v=>cbRound(v,5))), lm.soft_iron, [[1,0,0],[0,1,0],[0,0,1]], 'magnetometer soft iron'),
+      align_deg:    pick(r4 && r4.align.map(v=>cbRound(v,3)), lm.align_deg, [0,0,0], 'magnetometer alignment') })
+  });
+  const stamped=calStamp(out);           // app: format, which probe, when it was done
+  const warn=[];
+  if(out.device_id==null) warn.push('device_id unknown -- load the board\'s config.json, or connect so its name shows the ID');
+  for(const [sec,key,n,lo,hi] of CB_RULES){
+    const v=out[sec][key];
+    if(!(Array.isArray(v) && v.length===n && v.every(x=>typeof x==='number' && x>=lo && x<=hi)))
+      warn.push(sec+'.'+key+' is outside the firmware\'s limits ('+lo+' to '+hi+') -- it would be ignored');
+  }
+  const si=out.mag.soft_iron;
+  if(!(Array.isArray(si) && si.length===3 && si.every(r=>Array.isArray(r)&&r.length===3&&r.every(x=>typeof x==='number'&&Math.abs(x)<=10))))
+    warn.push('mag.soft_iron is not a valid 3x3 within +/-10 -- it would be ignored');
+  // one number array per line, so the file stays readable
+  const txt=JSON.stringify(stamped,null,2).replace(/\[\s+([-\d.e+,\s]+?)\s+\]/g,(_,s)=>'['+s.split(/,\s*/).join(', ')+']');
+  return {txt, warn, src, kept};
+}
+function cbDownload(txt, name){
+  name = name || 'config.json';
+  const blob=new Blob([txt+'\n'],{type:'application/json'});
+  if(typeof saveFile==='function'){ saveFile(name, blob); return; }
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
+}
+
+/* ── live verification: the candidate calibration applied to the stream ── */
+function cbVerify(){
+  const n=Math.min(13, samples.length); if(n<3) return null;
+  const sl=samples.slice(-n).filter(s=>!s.health || (s.health[0]==='1' && s.health[2]==='1'));
+  if(sl.length<3) return null;
+  const mean=k=>[0,1,2].map(i=>sl.reduce((a,s)=>a+s[k[i]],0)/sl.length);
+  const a=mean(['ax','ay','az']), m=mean(['mx','my','mz']);
+  const ac=cbAccCorr(), mc=cbMagCorr(), {k,sg}=cbTubeAxis(), [p,q]=[0,1,2].filter(j=>j!==k);
+  const r2=CALB.res2 && !CALB.res2.err ? CALB.res2.align : (CALB.loaded&&CALB.loaded.accel&&CALB.loaded.accel.align_deg)||[0,0];
+  const r4=CALB.res4 && !CALB.res4.err ? CALB.res4.align : (CALB.loaded&&CALB.loaded.mag&&CALB.loaded.mag.align_deg)||[0,0,0];
+  const ax0=[0,0,0]; ax0[k]=sg;
+  const ref=[0,0,0]; ref[k]=sg; ref[p]=Math.tan(r2[0]*CB_D2R); ref[q]=Math.tan(r2[1]*CB_D2R);
+  const aC=a.map((v,i)=>(v-ac.b[i])/ac.s[i]);
+  const mRaw=cbMapVec(m), mC=cbMv(cbExp(r4.map(v=>v*CB_D2R)), cbMagApply(m, mc));
+  const dip=(mm,aa)=>Math.asin(Math.max(-1,Math.min(1,-cbDot(cbUnit(mm),cbUnit(aa)))))*CB_R2D;
+  return [['|a|', cbNorm(a).toFixed(4)+' g', cbNorm(aC).toFixed(4)+' g', '1.0000 g in every orientation'],
+          ['tilt of the tube', cbAngleBetween(a,ax0).toFixed(3)+'°', cbAngleBetween(aC,ref).toFixed(3)+'°', 'constant while it turns in the stand'],
+          ['|B|', cbNorm(m).toFixed(2)+' µT', cbNorm(mC).toFixed(2)+' µT', 'constant in every orientation'],
+          ['dip', dip(mRaw,a).toFixed(2)+'°', dip(mC,aC).toFixed(2)+'°', 'constant, about 66–67° here']];
+}
+
+/* ── drawing ── */
+function cbRender(){
+  const S=CALB, f=(v,d)=>v.toFixed(d);
+  const chip=(name,done,q)=>`<span class="${done?'on':''}">${name}${done?' ✓ '+q:''}</span>`;
+  const q1=S.res1&&!S.res1.err ? (S.res1.weak.length?'weak':S.poses.length<CB_GOOD_POSES?'fair: few poses':S.res1.rmsMg<1?'good':'fair') : '';
+  const q2=S.res2&&!S.res2.err ? (S.res2.coverDeg>=270&&S.res2.rmsDeg<0.1?'good':'fair') : '';
+  const q3=S.res3 ? (S.res3.field>45&&S.res3.field<58?'good':'check field') : '';
+  const q4=S.res4&&!S.res4.err ? (S.poses.length<CB_GOOD_POSES?'fair: few poses':S.res4.conditioned&&S.res4.dipAfter.sd<0.3?'good':'fair') : '';
+  el('cbSteps').innerHTML=chip('1 bias & scale',!!q1,q1)+chip('2 iron',!!q3,q3)+chip('3 alignment',!!q2,q2)+chip('4 mag alignment',!!q4,q4);
+  el('cbLoaded').textContent = S.loaded ? 'loaded: device '+(S.loaded.device_id ?? '?')+', calibration v'+(S.loaded.cal_version||0)+
+      (S.loaded.cal_date?' ('+S.loaded.cal_date+')':'') : 'no config loaded -- starting from defaults';
+  for(const [b,m] of [['cb1Start','pose'],['cb2Start','rot']]){
+    el(b).textContent = S.mode===m ? 'Stop capturing' : 'Start capturing';
+  }
+  el('cb1Live').textContent = S.mode==='pose' ? S.live : '';
+  el('cb2Live').textContent = S.mode==='rot' ? S.live : '';
+  // step 1: which ends of each axis have been covered
+  const cov=[0,1,2].map(j=>({up:S.poses.filter(p=>p.a[j]/cbNorm(p.a)>0.5).length, dn:S.poses.filter(p=>p.a[j]/cbNorm(p.a)<-0.5).length}));
+  el('cb1Cover').innerHTML = S.poses.length+' poses &nbsp;'+cov.map((c,j)=>
+      `<span class="${c.up?'on':''}">+${'xyz'[j]} ${c.up}</span><span class="${c.dn?'on':''}">−${'xyz'[j]} ${c.dn}</span>`).join('');
+  cbPoseTable(); cbLoadedSummary();
+  const r1=S.res1;
+  el('cb1Out').textContent = !r1 ? '' : r1.err ? r1.err :
+    'bias   '+r1.bias.map((v,j)=>'xyz'[j]+' '+f(v*1000,2)+' ± '+f(r1.sdBiasMg?r1.sdBiasMg[j]:NaN,2)).join('   ')+' mg\n'+
+    'scale  '+r1.scale.map((v,j)=>'xyz'[j]+' '+f(v,5)+' ± '+f(r1.sdScalePct?r1.sdScalePct[j]/100:NaN,5)).join('   ')+'\n'+
+    '|a| error  '+f(r1.beforeRmsMg,2)+' mg before  ->  '+f(r1.rmsMg,2)+' mg after (rms over '+S.poses.length+' poses)\n'+
+    (S.poses.length<CB_GOOD_POSES ? 'FEW POSES: '+S.poses.length+' -- only '+(S.poses.length-6)+' more than the 6 values solved for, so this is '+
+      'only loosely checked. Add poses until there are 12 or more.\n' : '')+
+    (r1.weak.length ? 'WEAK: axis '+r1.weak.join(', ')+' never pointed both up and down -- its bias and scale cannot be told apart. Add those poses.\n' : '')+
+    (r1.res.some(v=>Math.abs(v)>Math.max(3*r1.rmsMg,1.5)) ? 'Pose(s) '+r1.res.map((v,i)=>Math.abs(v)>Math.max(3*r1.rmsMg,1.5)?i+1:0).filter(Boolean).join(', ')+
+      ' fit badly -- probably not quite still. Remove and retake them.' : '');
+  // step 2
+  const r2=S.res2;
+  el('cb2Count').textContent = S.rot.length+' positions';
+  el('cb2Out').textContent = !r2 ? '' : r2.err ? r2.err :
+    'chip tilt in the tube  '+'xyz'[r2.axes[0]]+' '+f(r2.align[0],3)+'°   '+'xyz'[r2.axes[1]]+' '+f(r2.align[1],3)+'°   (align_deg)\n'+
+    (r2.method==='circle on the sphere'
+      ? 'tube at '+f(r2.leanDeg,2)+'° from vertical'+(r2.leanDeg>45?' -- V-block slope '+f(90-r2.leanDeg,2)+'° from level':'')+
+        '   -- excluded: it belongs to the setup, not the tube\n'
+      : 'stand lean             '+f(r2.leanDeg,3)+'°   -- excluded: it belongs to the stand, not the tube\n')+
+    'fit rms '+f(r2.rmsDeg,3)+'°   turn covered '+f(r2.coverDeg,0)+'°'+(r2.coverDeg<270?'  -- turn it further, at least three-quarters of a turn':'')+
+    '\nfitted from the '+r2.method+'   bias and scale used: '+r2.used+
+    (r2.method==='circle on the sphere' ? '   (no magnetometer needed)' : '   magnetometer used for the turn: '+cbMagCorr().src);
+  cbPlot2();
+  // step 3
+  const r3=S.res3;
+  el('cb3Out').textContent = S.live3 ? S.live3 : !r3 ? '' :
+    'hard iron  '+r3.h.map(v=>f(v,2)).join(', ')+' µT\nsoft iron  '+r3.W.map(r=>'['+r.map(v=>f(v,4)).join(', ')+']').join('  ')+
+    '\nfitted field '+f(r3.field,1)+' µT'+(r3.field>45&&r3.field<58?'':'  -- far from the local 51–52 µT: indoors or near metal? Repeat outdoors.')+
+    (r3.resid!=null?'   fit spread '+f(r3.resid*100,2)+'%':'');
+  // step 4
+  const r4=S.res4;
+  el('cb4Out').textContent = !r4 ? '' : r4.err ? r4.err :
+    'rotation onto the accelerometer  '+r4.align.map((v,i)=>'xyz'[i]+' '+f(v,3)+'°').join('   ')+'   (mag.align_deg)\n'+
+    'dip  '+f(r4.dipBefore.mean,2)+' ± '+f(r4.dipBefore.sd,3)+'° before  ->  '+f(r4.dipAfter.mean,2)+' ± '+f(r4.dipAfter.sd,3)+'° after\n'+
+    (r4.conditioned?'':'POORLY DETERMINED: the poses do not vary enough -- add more orientations in step 1.\n')+
+    (CALB.poses.length<CB_GOOD_POSES ? 'FEW POSES: '+CALB.poses.length+' -- only '+(CALB.poses.length-4)+' more than the 4 values solved for, so this is '+
+      'only loosely checked. Add poses in step 1 until there are 12 or more, then compute again.\n' : '')+
+    'corrections used: accelerometer '+r4.usedA+', magnetometer '+r4.usedM;
+  // output
+  const c=cbBuildConfig();
+  el('cbJson').value=c.txt;
+  el('cbWarn').textContent = (c.src.length?'new: '+c.src.join(', ')+'. ':'')+(c.kept.length?'kept from the loaded config: '+c.kept.join(', ')+'. ':'')+
+    (c.warn.length?'\n'+c.warn.join('\n'):'');
+}
+/* ── live guidance: where the tube is NOW, relative to what is captured ──
+   Redrawn every frame from the latest raw sample, so the plot and the text
+   follow the tube while you position it -- not only when a pose is taken. */
+function cbLatest(){
+  for(let i=samples.length-1;i>=Math.max(0,samples.length-5);i--){
+    const s=samples[i];
+    if(!s.health || (s.health[0]==='1' && s.health[2]==='1')) return s;
+  }
+  return null;
+}
+// a pose described the way you'd hold the tube
+function cbPoseWords(a){
+  const u=cbUnit(a), {k,sg}=cbTubeAxis();
+  let j=0; for(let i=1;i<3;i++) if(Math.abs(u[i])>Math.abs(u[j])) j=i;
+  const off=Math.acos(Math.min(1,Math.abs(u[j])))*CB_R2D;
+  const up=(u[j]>0?'+':'−')+'xyz'[j]+' up';
+  const tube = j===k ? (u[j]*sg>0 ? 'upright' : 'upside down') : 'lying, '+up;
+  return {j, up, tube, off};
+}
+function cbGap(angles){                     // biggest empty arc, degrees
+  const a=angles.map(v=>((v%360)+360)%360).sort((x,y)=>x-y);
+  if(a.length<2) return null;
+  let best={size:0,from:0,to:0};
+  for(let i=0;i<a.length;i++){
+    const from=a[i], to=i+1<a.length?a[i+1]:a[0]+360, size=to-from;
+    if(size>best.size) best={size,from,to};
+  }
+  return best;
+}
+// roll angle about the tube axis: from gravity when far from vertical (no
+// magnetometer needed), from the field across the tube when near vertical
+function cbRollState(){
+  const ac=cbAccCorr(), {k,sg}=cbTubeAxis(), e=[0,0,0]; e[k]=sg;
+  const r2=CALB.res2 && !CALB.res2.err ? CALB.res2 : null;
+  const U=CALB.rot.map(r=>cbUnit(r.a.map((v,i)=>(v-ac.b[i])/ac.s[i])));
+  const s=cbLatest(), uL=s ? cbUnit([s.ax,s.ay,s.az].map((v,i)=>(v-ac.b[i])/ac.s[i])) : null;
+  const ref = U.length ? U : (uL ? [uL] : []);
+  const far = (r2 && r2.method==='circle on the sphere') ||
+    (ref.length && ref.reduce((a,u)=>a+cbAngleBetween(u,e),0)/ref.length > CB_SPHERE_MIN);
+  let b1, b2;
+  if(r2 && r2.sphere){ b1=r2.sphere.b1; b2=r2.sphere.b2; }
+  else { const rf=Math.abs(e[0])<0.9?[1,0,0]:[0,1,0]; b1=cbUnit(cbCross(e,rf)); b2=cbCross(e,b1); }
+  const azOf=u=>Math.atan2(cbDot(u,b2),cbDot(u,b1))*CB_R2D;
+  const roll = far ? U.map(azOf) : CALB.rot.map(p=>p.turn);
+  const rollNow = !s ? null : far ? azOf(uL) : cbTurnAngle([s.mx,s.my,s.mz]);
+  return {far, U, uL, b1, b2, roll, rollNow, r2, ac, k, sg};
+}
+function cbPlot2(){
+  const cv=el('cb2Plot'); if(!cv.getContext) return;
+  const dpr=devicePixelRatio||1, w=cv.clientWidth||260, h=cv.clientHeight||200;
+  if(cv.width!==w*dpr){ cv.width=w*dpr; cv.height=h*dpr; }
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,h);
+  const st=cbRollState(), {k,sg,r2,ac}=st, [p,q]=[0,1,2].filter(j=>j!==k);
+  const live=css('--z');
+  const ring=(x,y)=>{ g.strokeStyle=live; g.lineWidth=2; g.beginPath(); g.arc(x,y,7,0,2*Math.PI); g.stroke();
+    g.beginPath(); g.moveTo(x-11,y); g.lineTo(x-4,y); g.moveTo(x+4,y); g.lineTo(x+11,y);
+    g.moveTo(x,y-11); g.lineTo(x,y-4); g.moveTo(x,y+4); g.lineTo(x,y+11); g.stroke();
+    g.fillStyle=live; g.font='10px '+css('--mono'); g.fillText('now', x+10, y-9); };
+  if(st.far){
+    const R=Math.min(w,h)/2-18, cx=w/2, cy=h/2, P=a=>[cx+R*Math.cos(a*CB_D2R), cy-R*Math.sin(a*CB_D2R)];
+    g.strokeStyle=css('--rule'); g.lineWidth=1; g.beginPath(); g.arc(cx,cy,R,0,2*Math.PI); g.stroke();
+    const gap=cbGap(st.roll);
+    if(gap && gap.size>40){                 // the biggest empty arc: where to roll next
+      g.strokeStyle='#ffb020'; g.lineWidth=5; g.globalAlpha=0.35; g.beginPath();
+      g.arc(cx,cy,R,-gap.to*CB_D2R,-gap.from*CB_D2R); g.stroke(); g.globalAlpha=1;
+    }
+    g.fillStyle=css('--dim'); g.font='10px '+css('--mono');
+    g.fillText('rolled positions, seen along the tube', 4, 12);
+    if(r2) g.fillText('covered '+r2.coverDeg.toFixed(0)+'°', 4, h-4);
+    g.fillStyle=css('--x');
+    for(const a of st.roll){ const [x,y]=P(a); g.beginPath(); g.arc(x,y,4,0,2*Math.PI); g.fill(); }
+    if(st.rollNow!=null){ const [x,y]=P(st.rollNow); ring(x,y); }
+    return;
+  }
+  const ang=u=>{ const ak=u[k]*sg; return [Math.atan2(u[p],ak)*CB_R2D, Math.atan2(u[q],ak)*CB_R2D]; };
+  const pts=st.U.map(ang), nowPt=st.uL ? ang(st.uL) : null;
+  const all=pts.concat(r2?[[r2.align[0],r2.align[1]]]:[]).concat(nowPt && Math.hypot(...nowPt)<8 ? [nowPt] : []);
+  const span=Math.max(0.3, ...all.map(v=>Math.max(Math.abs(v[0]),Math.abs(v[1]))), r2?Math.hypot(...r2.align)+r2.leanDeg:0)*1.2;
+  const X=v=>w/2+v/span*(Math.min(w,h)/2-10), Y=v=>h/2-v/span*(Math.min(w,h)/2-10);
+  g.strokeStyle=css('--rule'); g.lineWidth=1; g.beginPath(); g.moveTo(X(-span),Y(0)); g.lineTo(X(span),Y(0)); g.moveTo(X(0),Y(-span)); g.lineTo(X(0),Y(span)); g.stroke();
+  g.fillStyle=css('--dim'); g.font='10px '+css('--mono');
+  g.fillText('xyz'[p]+' °', w-28, Y(0)-4); g.fillText('xyz'[q]+' °', X(0)+4, 12); g.fillText('±'+span.toFixed(2)+'°', 4, h-4);
+  if(r2){
+    g.strokeStyle=css('--z'); g.lineWidth=1.5; g.beginPath();
+    g.arc(X(r2.align[0]),Y(r2.align[1]), Math.max(1,r2.leanDeg/span*(Math.min(w,h)/2-10)),0,2*Math.PI); g.stroke();
+    g.fillStyle=css('--z'); g.beginPath(); g.arc(X(r2.align[0]),Y(r2.align[1]),4,0,2*Math.PI); g.fill();
+  }
+  g.fillStyle=css('--x'); for(const v of pts){ g.beginPath(); g.arc(X(v[0]),Y(v[1]),3,0,2*Math.PI); g.fill(); }
+  if(nowPt){                                 // clamp to the edge, with an arrow, if off the plot
+    const lim=span*0.95, cx=Math.max(-lim,Math.min(lim,nowPt[0])), cy=Math.max(-lim,Math.min(lim,nowPt[1]));
+    ring(X(cx),Y(cy));
+    if(cx!==nowPt[0]||cy!==nowPt[1]){ g.fillStyle=live; g.fillText('off scale', X(cx)-20, Y(cy)+20); }
+  }
+}
+// the text lines that go with the plot (step 3) and with the poses (step 1)
+function cbLiveText(){
+  const s=cbLatest();
+  // step 1: what the tube is doing now, and whether it would count as new
+  if(!s){ el('cb1NowTxt').textContent=''; el('cb2NowTxt').textContent=''; return; }
+  const a=[s.ax,s.ay,s.az], w=cbPoseWords(a);
+  let near=-1, nd=1e9;
+  CALB.poses.forEach((p,i)=>{ const d=cbAngleBetween(p.a,a); if(d<nd){ nd=d; near=i; } });
+  el('cb1NowTxt').textContent = 'now: '+w.tube+', '+w.off.toFixed(0)+'° off vertical  ·  '+
+    (near<0 ? 'first pose' : nd>=CB_POSE_SEP ? 'NEW orientation -- nearest is pose '+(near+1)+', '+nd.toFixed(0)+'° away'
+                                              : 'within '+CB_POSE_SEP+'° of pose '+(near+1)+' -- turn it further');
+  // step 3: roll angle now, nearest captured position, and the gap to fill
+  const st=cbRollState();
+  if(st.rollNow==null){ el('cb2NowTxt').textContent=''; return; }
+  const dists=st.roll.map(r=>cbAngDiff(r,st.rollNow));
+  const ni=dists.length ? dists.indexOf(Math.min(...dists)) : -1;
+  const gap=cbGap(st.roll);
+  el('cb2NowTxt').textContent = 'now: rolled '+(((st.rollNow%360)+360)%360).toFixed(0)+'°'+
+    (st.far ? ' (from gravity)' : ' (from the magnetometer)')+'  ·  '+
+    (ni<0 ? 'no positions yet' : dists[ni]>=CB_TURN_SEP ? 'NEW position -- nearest is '+(ni+1)+', '+dists[ni].toFixed(0)+'° away'
+                                                       : 'within '+CB_TURN_SEP+'° of position '+(ni+1)+' -- roll further')+
+    (gap && gap.size>40 ? '  ·  biggest gap '+gap.size.toFixed(0)+'°: roll to about '+(((gap.from+gap.size/2)%360)).toFixed(0)+'°' : '');
+}
+function cbLiveTick(){ if(!el('calSec')) return; cbPlot2(); cbLiveText(); }
+
+/* ── step 1: one line per pose ── */
+function cbPoseTable(){
+  const r1=CALB.res1 && !CALB.res1.err ? CALB.res1 : null;
+  const bad=i=>r1 && Math.abs(r1.res[i])>Math.max(3*r1.rmsMg,1.5);
+  const rows=CALB.poses.map((p,i)=>{
+    const w=cbPoseWords(p.a), u=cbUnit(p.a);
+    return '<tr'+(bad(i)?' class="cbbad"':'')+'><td>'+(i+1)+'</td><td>'+w.tube+'</td><td>'+w.off.toFixed(0)+'°</td>'+
+      '<td>'+u.map(v=>(v>=0?'+':'')+v.toFixed(2)).join(' ')+'</td>'+
+      '<td>'+((cbNorm(p.a)-1)*1000).toFixed(2)+'</td>'+
+      '<td>'+(r1 ? r1.res[i].toFixed(2) : '—')+'</td>'+
+      '<td>'+(bad(i)?'fits badly':'')+'</td>'+
+      '<td><button class="cbx" data-del="'+i+'" title="remove this pose">×</button></td></tr>';
+  }).join('');
+  el('cb1Table').innerHTML = !CALB.poses.length ? '' :
+    '<table class="cbtab"><tr><th>#</th><th>held</th><th>off vertical</th><th>gravity x y z</th>'+
+    '<th>|a| error before, mg</th><th>after fit, mg</th><th></th><th></th></tr>'+rows+'</table>';
+  // which directions are still missing, in words
+  const {k,sg}=cbTubeAxis(), need=[];
+  for(let j=0;j<3;j++) for(const s of [1,-1]){
+    const n=CALB.poses.filter(p=>s*p.a[j]/cbNorm(p.a)>0.5).length;
+    if(n>=2) continue;
+    const words = j===k ? (s*sg>0 ? 'upright' : 'upside down') : 'lying with '+(s>0?'+':'−')+'xyz'[j]+' up';
+    need.push((n===0?'none ':'only one ')+words);
+  }
+  el('cb1Need').textContent = CALB.poses.length && need.length ? 'still worth adding: '+need.join(' · ') : '';
+}
+
+/* ── earlier calibrations ── */
+function cbLoadedSummary(){
+  const L=CALB.loaded; if(!L){ el('cbLoadedVals').textContent=''; return; }
+  const f=v=>Array.isArray(v) ? '['+v.map(x=>Array.isArray(x)?'['+x.join(', ')+']':x).join(', ')+']' : (v ?? '—');
+  const a=L.accel||{}, m=L.mag||{};
+  el('cbLoadedVals').textContent =
+    'from the file -- used by any step you do not redo, and kept in the new config.json:\n'+
+    '  accel  bias_g '+f(a.bias_g)+'   scale '+f(a.scale)+'   align_deg '+f(a.align_deg)+'\n'+
+    '  mag    axis_map '+f(m.axis_map)+'   hard_iron_uT '+f(m.hard_iron_uT)+'   align_deg '+f(m.align_deg)+'\n'+
+    '         soft_iron '+f(m.soft_iron);
+}
+/* The CAPTURED data -- poses, rolled positions, the magnetometer cloud -- as
+   one file, so an earlier calibration can be recomputed later without taking
+   every pose again: the raw data behind a calibration is kept, as with the
+   recordings themselves. */
+function cbCaptureFile(){
+  const cloudPts=[]; for(let i=0;i<pN;i++) cloudPts.push([P[i*3],P[i*3+1],P[i*3+2]].map(v=>+v.toFixed(3)));
+  return JSON.stringify({format:'borelogger-calibration-capture', version:1, saved:new Date().toISOString(),
+    device:el('brandName').textContent, axis_map:mapToStr(magMap), heading_axis:dbg.up,
+    poses:CALB.poses, rot:CALB.rot, cloud:cloudPts});
+}
+function cbLoadCapture(file){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    let o; try{ o=JSON.parse(rd.result); }catch(e){ log('Not valid JSON: '+e.message,'err'); return; }
+    if(!o || o.format!=='borelogger-calibration-capture'){ log('That is not a saved calibration capture -- for a config.json, use "Earlier calibration" instead.','err'); return; }
+    const okPose=p=>p && Array.isArray(p.a) && p.a.length===3 && Array.isArray(p.m) && p.m.length===3;
+    CALB.poses=(o.poses||[]).filter(okPose); CALB.rot=(o.rot||[]).filter(okPose);
+    CALB.res1=CALB.res2=CALB.res4=null;
+    if(Array.isArray(o.cloud) && o.cloud.length){ clearMag(); for(const c of o.cloud) if(c.length===3) pushMag(c[0],c[1],c[2]); }
+    if(typeof o.axis_map==='string' && o.axis_map!==mapToStr(magMap) && parseMap(o.axis_map)){
+      el('inpMap').value=o.axis_map; el('inpMap').dispatchEvent(new Event('change'));
+      log('Axis mapping set to '+o.axis_map+', as when this data was captured','ok');
+    }
+    log('Loaded captured data from '+(o.device||'?')+' ('+(o.saved||'').slice(0,10)+'): '+CALB.poses.length+' poses, '+
+        CALB.rot.length+' rolled positions, '+(o.cloud?o.cloud.length:0)+' cloud points. Press Compute / Fit now in each step.','ok');
+    cbRender();
+  };
+  rd.readAsText(file);
+}
+
+function cbVerifyRender(){
+  const v=cbVerify();
+  el('cbVerify').innerHTML = !v ? '<div class="covnote">waiting for live data</div>' :
+    '<table class="cbtab"><tr><th></th><th>raw</th><th>calibrated</th><th>should be</th></tr>'+
+    v.map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td><b>'+r[2]+'</b></td><td class="covnote">'+r[3]+'</td></tr>').join('')+'</table>';
+}
+
+/* ── bluetooth ───────────────────────────────────────────────────── */
+function quatFromAccMag(a, m){
+  const an=Math.hypot(a[0],a[1],a[2]); if(!(an>0)) return null;
+  const U=[a[0]/an,a[1]/an,a[2]/an];
+  let W=[U[1]*m[2]-U[2]*m[1], U[2]*m[0]-U[0]*m[2], U[0]*m[1]-U[1]*m[0]];
+  const wn=Math.hypot(W[0],W[1],W[2]); if(!(wn>1e-6)) return null;
+  W=[W[0]/wn,W[1]/wn,W[2]/wn];
+  const N=[W[1]*U[2]-W[2]*U[1], W[2]*U[0]-W[0]*U[2], W[0]*U[1]-W[1]*U[0]];
+  // rows of R are the world axes written in body coordinates: world = R * body
+  return quatFromR([N[0],N[1],N[2], W[0],W[1],W[2], U[0],U[1],U[2]]);
+}
+function quatFromR(R){
+  const t=R[0]+R[4]+R[8]; let w,x,y,z,S;
+  if(t>0){ S=Math.sqrt(t+1)*2; w=.25*S; x=(R[7]-R[5])/S; y=(R[2]-R[6])/S; z=(R[3]-R[1])/S; }
+  else if(R[0]>R[4]&&R[0]>R[8]){ S=Math.sqrt(1+R[0]-R[4]-R[8])*2;
+    w=(R[7]-R[5])/S; x=.25*S; y=(R[1]+R[3])/S; z=(R[2]+R[6])/S; }
+  else if(R[4]>R[8]){ S=Math.sqrt(1+R[4]-R[0]-R[8])*2;
+    w=(R[2]-R[6])/S; x=(R[1]+R[3])/S; y=.25*S; z=(R[5]+R[7])/S; }
+  else { S=Math.sqrt(1+R[8]-R[0]-R[4])*2;
+    w=(R[3]-R[1])/S; x=(R[2]+R[6])/S; y=(R[5]+R[7])/S; z=.25*S; }
+  const n=Math.hypot(w,x,y,z); return [w/n,x/n,y/n,z/n];
+}
+
+/* ── Accel + Mag: which samples to trust ───────────────────────────
+   Solving each raw sample is accurate to about 0.5 deg on a still or
+   steadily spinning tube, but one knock or magnetic glitch can throw it
+   more than 150 deg -- so bad samples are skipped and the last good
+   orientation held. Smoothing was tried and rejected: averaging a
+   ROTATING vector lags it, costing 5 deg on every sample of a spinning
+   tube.
+
+   An earlier version compared every sample with FIXED references learned
+   at the start. Turning the tube by hand, that froze the view: with the
+   magnetometer uncalibrated, field strength and dip genuinely change as
+   the tube turns, and ordinary hand motion exceeds a tight 1 g gate, so
+   only 15-38% of samples were used, with freezes of several seconds.
+
+   So a glitch is now defined by its neighbours, not by a reference:
+     |a| more than 15% from 1 g    certainly not gravity at that moment
+     |a|, |B| or dip far from the  a glitch is SUDDEN; the slow changes
+       median of the last 7          from turning an imperfectly
+       samples                       calibrated sensor are not, and a
+                                     single glitch cannot move a median.
+                                     "Far" is 4x the neighbours' own robust
+                                     spread, with a floor (0.05 g, 8% of
+                                     the field, 3 deg): jerky handling
+                                     widens it, a lone knock still shows
+     a surprise of more than 8 deg against where the tube SHOULD be,
+       carrying on its recent rotation, accepted only once the next
+       sample agrees: a real change of motion persists, a glitch does not */
+/* adjustable from the validation panel; AM_DEFAULTS restores these */
+const AM_DEFAULTS = {on:true, absA:0.15, spkA:0.05, spkB:3.6, spkD:3, win:7, jump:8, k:4, maxHold:3};
+const AM = Object.assign({}, AM_DEFAULTS);
+const amSt = {};
+function amReset(){
+  Object.assign(amSt, {hist:[], last:null, prev:null, tLast:0, tPrev:0, pend:null,
+                       why:'', rate:1, held:0});
+}
+amReset();
+const dipOf = (a,m) => {
+  const c=(a[0]*m[0]+a[1]*m[1]+a[2]*m[2])/(Math.hypot(a[0],a[1],a[2])*Math.hypot(m[0],m[1],m[2]));
+  return Math.asin(Math.max(-1,Math.min(1,-c)))*180/Math.PI;     // + when the field points down
+};
+const qAngDeg = (p,q) =>
+  2*Math.acos(Math.min(1,Math.abs(p[0]*q[0]+p[1]*q[1]+p[2]*q[2]+p[3]*q[3])))*180/Math.PI;
+const qm4 = (a,b) => [a[0]*b[0]-a[1]*b[1]-a[2]*b[2]-a[3]*b[3], a[0]*b[1]+a[1]*b[0]+a[2]*b[3]-a[3]*b[2],
+                      a[0]*b[2]-a[1]*b[3]+a[2]*b[0]+a[3]*b[1], a[0]*b[3]+a[1]*b[2]-a[2]*b[1]+a[3]*b[0]];
+function qPow(q, r){                                  // the same rotation, r times as far
+  const w=Math.max(-1,Math.min(1, q[0]<0?-q[0]:q[0])), sgn=q[0]<0?-1:1;
+  const ang=2*Math.acos(w), s=Math.sin(ang/2);
+  if(s<1e-9) return [1,0,0,0];
+  const k=Math.sin(ang*r/2)/s;
+  return [Math.cos(ang*r/2), q[1]*sgn*k, q[2]*sgn*k, q[3]*sgn*k];
+}
+/* Where should the tube be now? Carry on the rotation between the last
+   two accepted samples, so a steady spin is predicted almost exactly and
+   the jump test measures surprise rather than speed. */
+function amPredict(st, t){
+  if(!st.prev || !st.last) return st.last;
+  const dtl=st.tLast-st.tPrev, dtn=t-st.tLast;
+  if(!(dtl>0) || !(dtn>0) || dtn > 4*dtl) return st.last;
+  const step=qm4([st.prev[0],-st.prev[1],-st.prev[2],-st.prev[3]], st.last);
+  return qm4(st.last, qPow(step, dtn/dtl));
+}
+const medOf = a => { const s=a.slice().sort((p,q)=>p-q); return s[s.length>>1]; };
+function amGate(st, a, m, t){
+  const an=Math.hypot(a[0],a[1],a[2]), mn=Math.hypot(m[0],m[1],m[2]);
+  if(!(an>0) || !(mn>0)){ st.why='no data'; return null; }
+  const dip=dipOf(a,m);
+  st.hist.push([an,mn,dip]); while(st.hist.length>AM.win) st.hist.shift();
+  if(Math.abs(an-1) > AM.absA){ st.why='moving'; return null; }
+  if(st.hist.length >= 3){
+    // out of line compared with how much the neighbours themselves vary:
+    // steady handling makes every neighbour vary, which widens the limit;
+    // an isolated knock still stands out against calm neighbours
+    const lim = (k, floor) => {
+      const col=st.hist.map(h=>h[k]), md=medOf(col);
+      const mad=medOf(col.map(v=>Math.abs(v-md)))*1.4826;     // robust spread
+      return [md, Math.max(floor, AM.k*mad)];
+    };
+    const [mA,tA]=lim(0,AM.spkA), [mB,tB]=lim(1,AM.spkB), [mD,tD]=lim(2,AM.spkD);
+    if(Math.abs(an-mA) > tA){ st.why='accel spike '+Math.abs(an-mA).toFixed(2)+' g'; return null; }
+    if(Math.abs(mn-mB) > tB){ st.why='field spike '+Math.abs(mn-mB).toFixed(1)+' µT'; return null; }
+    if(Math.abs(dip-mD) > tD){ st.why='dip spike '+Math.abs(dip-mD).toFixed(1)+'°'; return null; }
+  }
+  const q=quatFromAccMag(a,m);
+  if(!q){ st.why='field too vertical'; return null; }
+  const pred=amPredict(st, t);
+  if(pred && qAngDeg(q,pred) > AM.jump){
+    if(!(st.pend && qAngDeg(q, st.pend) <= AM.jump + qAngDeg(st.pend, st.last||st.pend))){
+      st.pend=q; st.why='jump, confirming'; return null;
+    }
+    st.prev=null;                              // motion changed: restart the prediction
+  }
+  st.prev=st.last; st.tPrev=st.tLast; st.last=q; st.tLast=t; st.pend=null; st.why='';
+  return q;
+}
+/* The gates exist to remove ISOLATED glitches. Under continuous jerky
+   handling every sample fails them, and holding then just freezes the view
+   on stale data -- the error is the same 8-16 deg whether a jolted sample
+   is used or not, because no gate can recover gravity from it (only a gyro
+   can). So at most AM.maxHold samples in a row are held; after that the
+   disturbance is the actual motion, and the next sample is taken as is. */
+/* ── input filters: smoothing of the accelerometer and magnetometer ──
+   Set from the orientation panel; off by default. They smooth the two
+   vectors that orientation is computed from -- the gyro is untouched.
+     moving average  mean of the last N samples: lag about (N-1)/2 samples
+     exponential     y += a (x - y):  time constant about 1/a - 1 samples
+   Both are linear with weights summing to one, so filtering the raw
+   magnetometer is exactly equivalent to filtering it after calibration
+   and axis mapping, which are affine.
+
+   The trade-off, measured earlier: smoothing a ROTATING vector lags it. On
+   a tube spinning at 40 deg/s, 0.15 s of smoothing cost about 6 deg. Use
+   it to steady a still or slowly turning tube, not a spinning one.
+
+   In Accel + Mag, glitch rejection runs on the RAW samples first and only
+   accepted samples reach the filter: a moving average would otherwise
+   spread a spike over N samples, small enough to pass the checks and long
+   enough to do more damage. */
+const VF = { acc:{on:false, type:'ema', n:5, a:0.3}, mag:{on:false, type:'ema', n:5, a:0.3} };
+const vfSt = { acc:{buf:[], y:null}, mag:{buf:[], y:null} };
+function vfReset(){ for(const k of ['acc','mag']){ vfSt[k].buf=[]; vfSt[k].y=null; } }
+function vfPush(kind, v){
+  const c=VF[kind], st=vfSt[kind];
+  if(!c.on) return v;
+  if(c.type==='ma'){
+    st.buf.push(v.slice());
+    while(st.buf.length > Math.max(1, Math.round(c.n))) st.buf.shift();
+    const r=[0,0,0];
+    for(const b of st.buf){ r[0]+=b[0]; r[1]+=b[1]; r[2]+=b[2]; }
+    return r.map(x=>x/st.buf.length);
+  }
+  st.y = st.y ? st.y.map((y,i)=>y + c.a*(v[i]-y)) : v.slice();
+  return st.y.slice();
+}
+// fusion modes: filter the sample before the filter sees it
+function vfFilterSample(s){
+  if(!VF.acc.on && !VF.mag.on) return s;
+  const o = Object.assign({}, s);
+  if(VF.acc.on && (!s.health || s.health[0]==='1')){
+    const f=vfPush('acc',[s.ax,s.ay,s.az]); o.ax=f[0]; o.ay=f[1]; o.az=f[2];
+  }
+  if(VF.mag.on && (!s.health || s.health[2]==='1')){
+    const f=vfPush('mag',[s.mx,s.my,s.mz]); o.mx=f[0]; o.my=f[1]; o.mz=f[2];
+  }
+  return o;
+}
+// Accel + Mag: an ACCEPTED sample goes into the filters; the orientation is
+// then solved from the filtered vectors. null when no filter is on.
+function vfAccepted(a, m){
+  if(!VF.acc.on && !VF.mag.on) return null;
+  return quatFromAccMag(vfPush('acc', a), vfPush('mag', m));
+}
+function vfLagText(kind){
+  const c=VF[kind], hz=measuredRate();
+  if(!c.on || !hz) return '';
+  return c.type==='ma' ? '≈ '+((Math.round(c.n)-1)/2/hz).toFixed(2)+' s lag'
+                       : 'τ ≈ '+((1/Math.max(0.001,c.a)-1)/hz).toFixed(2)+' s';
+}
+
+function amStep(st, a, m, t){
+  if(!AM.on){                                   // rejection off: every sample as it is
+    const raw = quatFromAccMag(a, m);
+    st.why = raw ? '' : 'field too vertical'; st.held = 0;
+    return raw ? (vfAccepted(a, m) || raw) : raw;
+  }
+  const q = amGate(st, a, m, t);
+  if(q){ st.held = 0; return vfAccepted(a, m) || q; }
+  if(++st.held <= AM.maxHold) return null;
+  const raw = quatFromAccMag(a, m);
+  if(!raw) return null;
+  st.held = 0; st.prev = null; st.pend = null;
+  st.last = raw; st.tLast = t; st.why = 'taken despite motion';
+  return vfAccepted(a, m) || raw;
+}
+
+/* ── automatic magnetometer axis detection ─────────────────────────
+   The angle between the magnetic field and gravity -- the dip -- is fixed
+   by geography. It cannot change however the device is turned, IF the
+   magnetometer's axes are expressed in the same frame as the
+   accelerometer's. With the wrong mapping it swings as the device turns.
+   So: record while the device is turned through varied orientations, try
+   all 24 axis mappings that are proper rotations (a physical rearrangement
+   of a right-handed sensor), and keep the one whose dip stays most
+   constant. Spinning about a single axis is not enough: mappings that
+   differ by a turn about that axis give identical dip, so the recording
+   must include tipping in different directions. */
+function magCal(s){
+  let m=[s.mx,s.my,s.mz];
+  if(calApplied&&cal){
+    const dx=m[0]-cal.b[0], dy=m[1]-cal.b[1], dz=m[2]-cal.b[2], W=cal.W;
+    m=[W[0]*dx+W[1]*dy+W[2]*dz, W[3]*dx+W[4]*dy+W[5]*dz, W[6]*dx+W[7]*dy+W[8]*dz];
+  }
+  return m;
+}
+const AXIS_CANDIDATES = (() => {
+  const perms=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]], out=[];
+  for(const p of perms){
+    const par=(p[0]>p[1])+(p[0]>p[2])+(p[1]>p[2]);            // inversions
+    for(let sgn=0;sgn<8;sgn++){
+      const sg=[sgn&1?-1:1, sgn&2?-1:1, sgn&4?-1:1];
+      if((par%2?-1:1)*sg[0]*sg[1]*sg[2]===1)                  // determinant +1
+        out.push(p.map((idx,k)=>[idx,sg[k]]));
+    }
+  }
+  return out;                                                  // 24 mappings
+})();
+const mapToStr = mp => mp.map(([i,sg])=>(sg<0?'-':'')+'xyz'[i]).join(',');
+function detectMagAxes(pairs){
+  // pairs: [[ax,ay,az],[mx,my,mz]] with the magnetometer calibrated, unmapped
+  const ok = pairs.filter(([a,m]) => Math.abs(Math.hypot(...a)-1) < 0.08 && Math.hypot(...m) > 1);
+  if(ok.length < 60) return {error:'only '+ok.length+' usable samples -- record for longer'};
+  let sx=0,sy=0,sz=0;
+  for(const [a] of ok){ const n=Math.hypot(...a); sx+=a[0]/n; sy+=a[1]/n; sz+=a[2]/n; }
+  const spread = 1 - Math.hypot(sx,sy,sz)/ok.length;           // 0 = never tipped
+  const score = mp => {
+    let s1=0, s2=0;
+    for(const [a,m] of ok){
+      const v=mp.map(([i,sg])=>m[i]*sg);
+      const c=(v[0]*a[0]+v[1]*a[1]+v[2]*a[2])/(Math.hypot(...v)*Math.hypot(...a));
+      const dip=Math.asin(Math.max(-1,Math.min(1,-c)))*180/Math.PI;
+      s1+=dip; s2+=dip*dip;
+    }
+    const mean=s1/ok.length;
+    return {map:mp, str:mapToStr(mp), dip:mean, sd:Math.sqrt(Math.max(0,s2/ok.length-mean*mean))};
+  };
+  const r = AXIS_CANDIDATES.map(score).sort((p,q)=>p.sd-q.sd);
+  return {best:r[0], second:r[1], spread, n:ok.length,
+          enoughMotion: spread > 0.05};
+}
+
+/* ── tube angles, from any orientation estimate ────────────────────
+   The Euler readouts above describe a z-up frame, where a tube standing
+   on x sits at pitch ~90 and yaw and roll merge. These are the angles a
+   borehole survey actually uses, built around the chosen heading axis:
+     tilt     angle of the tube axis from vertical (inclination)
+     lean     compass direction the lower end points: the bore's azimuth
+     spin     compass direction of a reference axis across the tube:
+              rotation about the tube axis, relative to north */
+function tubeAngles(R, upKey){
+  const [ui,us]=UP_MAP[upKey][2], [ri,rs]=UP_MAP[upKey][0];
+  const col=(i,sg)=>[R[i]*sg, R[3+i]*sg, R[6+i]*sg];        // world image of a body axis
+  const up=col(ui,us), ref=col(ri,rs);
+  const tilt=Math.acos(Math.max(-1,Math.min(1,up[2])))*180/Math.PI;
+  const az=v=>((Math.atan2(-v[1],v[0])*180/Math.PI)%360+360)%360;   // NWU: east = -Y
+  const lean = Math.hypot(up[0],up[1])>5e-3 ? az([-up[0],-up[1]]) : NaN;
+  const spin = Math.hypot(ref[0],ref[1])>1e-3 ? az(ref) : NaN;
+  return {tilt, lean, spin};
+}
+
+/* ── validation tools for the 3D view ──────────────────────────────
+   Three separate checks, so a wrong-looking view can be traced:
+     self-test   the DRAWING alone: known orientations, no sensors
+     pose check  the SENSOR SIGNS: rest the tube on an axis, see whether
+                 the accelerometer and magnetometer agree which way is down
+     arrows      the ESTIMATE: measured gravity and field drawn in the world
+                 frame using the current orientation. If the orientation is
+                 right they stay put as the tube turns -- gravity straight
+                 down, the field pointing north and down at the dip angle. */
+let showArrows = true, selfTest = null;
+const vN=[1,0,0], vS=[-1,0,0], vE=[0,-1,0], vW=[0,1,0], vU=[0,0,1], vD=[0,0,-1];
+const vCross=(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+// rotation from the world images of body x and y (columns of R)
+const poseQ=(x,y)=>{ const z=vCross(x,y); return quatFromR([x[0],y[0],z[0], x[1],y[1],z[1], x[2],y[2],z[2]]); };
+const c30=Math.cos(Math.PI/6), s30=Math.sin(Math.PI/6);
+const SELF_POSES = [
+  {name:'upright, x down', expect:'X arrow straight down. Y arrow along the red N needle.',
+   q:poseQ(vD, vN)},
+  {name:'leaning 30° toward north', expect:'X arrow 30° off vertical, its tip swung toward the N needle.',
+   q:poseQ([s30,0,-c30], [c30,0,s30])},
+  {name:'leaning 30° toward east', expect:'X arrow 30° off vertical, its tip 90° clockwise from N seen from above.',
+   q:poseQ([0,-s30,-c30], vN)},
+  {name:'lying on its side, y down', expect:'Y arrow straight down. X arrow along the N needle.',
+   q:poseQ(vN, vD)},
+  {name:'lying flat, z down', expect:'Z arrow straight down. X arrow along the N needle, Y to the east.',
+   q:poseQ(vN, vE)}
+];
+const SELF_MS = 3500;
+function startSelfTest(){
+  selfTest = {t0: performance.now()};
+  log('Viewer self-test: 5 known orientations, '+SELF_MS/1000+' s each. Compare the box with the '+
+      'description under it. Sensor input is paused meanwhile.');
+  dirty = true;
+}
+function selfTestPose(){
+  const k = Math.floor((performance.now()-selfTest.t0)/SELF_MS);
+  if(k >= SELF_POSES.length){
+    selfTest = null; resetAttitude(); setMode(attMode);
+    log('Viewer self-test finished -- sensor input resumed', 'ok');
+    return null;
+  }
+  return {k, p: SELF_POSES[k]};
+}
+
+/* results go next to the button that asked for them -- the message log is
+   at the bottom of the page, out of sight */
+function saySide(msg, cls){
+  log(msg, cls);
+  const e = el('aPose'); e.textContent = msg;
+  e.style.color = cls==='err' ? '#ff8080' : cls==='ok' ? '#8fe388' : '';
+}
+/* a capture that receives nothing must say so, not wait forever */
+function noDataWatch(flagKey, label){
+  setTimeout(() => {
+    if(dbg[flagKey] && dbg[flagKey].length === 0){
+      dbg[flagKey] = null;
+      saySide(label+': no live data arriving. Connect to the board and turn the stream ON '+
+              '(at the sample rate) -- Record measurement turns it off. This published copy '+
+              'cannot use Bluetooth; use the page on your site.', 'err');
+    }
+  }, 3000);
+}
+function startPoseCheck(){
+  dbg.poseCap = []; dbg.poseEnd = null;
+  saySide('Pose check: hold still with one axis straight down... waiting for samples');
+  noDataWatch('poseCap', 'Pose check');
+}
+function finishPoseCheck(){
+  const b = dbg.poseCap; dbg.poseCap = null;
+  if(b.length < 10){ saySide('Pose check: only '+b.length+' samples in 2 s -- set the stream rate to the sample rate', 'err'); return; }
+  const mean = i => b.reduce((s,v)=>s+v[i],0)/b.length;
+  const a = [mean(0),mean(1),mean(2)], m = [mean(3),mean(4),mean(5)];
+  const N = 'xyz';
+  let k = 0; for(let i=1;i<3;i++) if(Math.abs(a[i])>Math.abs(a[k])) k=i;
+  if(Math.abs(a[k]) < 0.9){
+    saySide('Pose check: no axis is pointing straight down ('+a.map(v=>v.toFixed(2)).join(', ')+' g). '+
+        'Rest it squarely on one axis and try again.', 'err'); return;
+  }
+  const down = (a[k]<0?'+':'-')+N[k];               // reads -1 g when pointing down
+  const sgn = a[k]<0 ? 1 : -1;                       // the field along "down"
+  const mDown = m[k]*sgn;
+  let j = 0; for(let i=1;i<3;i++) if(Math.abs(m[i])>Math.abs(m[j])) j=i;
+  const mn = Math.hypot(...m), dip = Math.asin(Math.max(-1,Math.min(1, mDown/mn)))*180/Math.PI;
+  const head = 'Pose check, '+down+' pointing down (A'+N[k]+' '+a[k].toFixed(3)+' g): field along it '+
+               (mDown>=0?'+':'')+mDown.toFixed(1)+' µT of '+mn.toFixed(1)+', dip '+dip.toFixed(1)+'°. ';
+  if(j !== k)
+    saySide(head+'FAIL: the strongest field is on magnetometer '+N[j]+', not '+N[k]+' -- the axes are '+
+        'swapped relative to the IMU. Fix the Mag axes field or run Auto-detect.', 'err');
+  else if(mDown < 0)
+    saySide(head+'FAIL: the field points UP along the down axis -- the magnetometer '+N[k]+' axis is '+
+        'reversed relative to the IMU (unless you are in the southern hemisphere).', 'err');
+  else
+    saySide(head+'PASS: accelerometer and magnetometer agree on this axis.', 'ok');
+}
+
+/* device calibration controls */
+el('cbLoad').addEventListener('change', e => { if(e.target.files[0]) cbLoadFile(e.target.files[0]); });
+el('cbLoadCap').addEventListener('change', e => { if(e.target.files[0]) cbLoadCapture(e.target.files[0]); e.target.value=''; });
+el('cbSaveCap').onclick = () => {
+  const d=new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+  cbDownload(cbCaptureFile(), 'calibration-capture-'+d+'.json');
+};
+el('cb1Table').addEventListener('click', e => {
+  const i=e.target && e.target.dataset ? e.target.dataset.del : undefined;
+  if(i===undefined) return;
+  CALB.poses.splice(+i,1); CALB.res1=null;
+  log('Removed pose '+(+i+1)+' -- press Compute again','ok'); cbRender();
+});
+el('cbRecCal').onclick = () => { if(el('btnRecCal').disabled) log('Connect to the board first.','err'); else el('btnRecCal').click(); };
+el('cb1Start').onclick = () => CALB.mode==='pose' ? cbStop() : cbStart('pose');
+el('cb2Start').onclick = () => CALB.mode==='rot' ? cbStop() : cbStart('rot');
+const cbNow = mode => { if(CALB.mode!==mode) cbStart(mode);
+  if(CALB.win.length<13) { CALB.live='not enough still samples yet -- hold still a moment'; cbRender(); return; }
+  cbCapture(true); };
+el('cb1Now').onclick = () => cbNow('pose');
+el('cb2Now').onclick = () => cbNow('rot');
+el('cb1Undo').onclick = () => { CALB.poses.pop(); cbRender(); };
+el('cb2Undo').onclick = () => { CALB.rot.pop(); cbRender(); };
+el('cb1Clear').onclick = () => { CALB.poses=[]; CALB.res1=null; CALB.res4=null; cbRender(); };
+el('cb2Clear').onclick = () => { CALB.rot=[]; CALB.res2=null; cbRender(); };
+el('cb1Fit').onclick = cb1Fit;
+el('cb2Fit').onclick = cb2Fit;
+el('cb3Fit').onclick = cb3Fit;
+el('cb3Use').onclick = cb3Use;
+el('cb4Fit').onclick = cb4Fit;
+el('cbCopy').onclick = () => { const t=el('cbJson'); t.select();
+  (navigator.clipboard ? navigator.clipboard.writeText(t.value) : Promise.reject()).then(
+    ()=>log('config.json copied','ok'), ()=>{ document.execCommand && document.execCommand('copy'); log('config.json selected -- copy it with Ctrl+C','ok'); }); };
+el('cbSave').onclick = () => { let o={}; try{ o=JSON.parse(el('cbJson').value); }catch(e){}   // app: named after probe + date
+  cbDownload(el('cbJson').value, calFileName(o)); };
+el('inpMap').addEventListener('change', () => cbRender());
+cbRender();
+/* debug panel controls -- wired here, after el() and the DOM exist */
+el('dbgTau').addEventListener('change', e => { const v=+e.target.value; if(v>0) dbg.tau=v; });
+el('dbgGate').addEventListener('change', e => { const v=+e.target.value; if(v>0) dbg.gate=v/100; });
+el('dbgDecl').addEventListener('change', e => { dbg.decl = +e.target.value || 0; });
+el('dbgTiltSrc').addEventListener('change', e => { dbg.tiltSrc = e.target.value; });
+el('dbgUp').addEventListener('change', e => {
+  dbg.up = e.target.value;
+  resetAngles(); updateAxisLabels(); buildPlots();
+  log('Heading axis set to ' + dbg.up + ' -- angles reset', 'ok');
+});
+updateAxisLabels();
+el('btnBias').onclick = startBias;
+el('btnMagAxes').onclick = startMagAxes;
+el('btnSelfTest').onclick = startSelfTest;
+/* input filter controls */
+for(const [kind,P] of [['acc','vfAcc'],['mag','vfMag']]){
+  const c=VF[kind], on=el(P+'On'), ty=el(P+'Type'), pp=el(P+'P'), lab=el(P+'Lab');
+  const sync=()=>{
+    on.checked=c.on; ty.value=c.type;
+    lab.textContent = c.type==='ma' ? 'N' : 'α';
+    if(c.type==='ma'){ pp.min=1; pp.max=200; pp.step=1; pp.value=c.n; }
+    else { pp.min=0.01; pp.max=1; pp.step=0.05; pp.value=c.a; }
+  };
+  on.addEventListener('change',()=>{ c.on=on.checked; vfReset();
+    log((kind==='acc'?'Accelerometer':'Magnetometer')+' input filter '+(c.on?'on':'off'), 'ok'); dirty=true; });
+  ty.addEventListener('change',()=>{ c.type=ty.value; vfReset(); sync(); dirty=true; });
+  pp.addEventListener('change',()=>{ const v=+pp.value;
+    if(c.type==='ma' && v>=1) c.n=Math.round(Math.min(200,v));
+    if(c.type==='ema' && v>0 && v<=1) c.a=v;
+    vfReset(); sync(); dirty=true; });
+  sync();
+}
+el('btnPoseCheck').onclick = startPoseCheck;
+el('btnArrows').onclick = () => { showArrows=!showArrows;
+  el('btnArrows').textContent = showArrows ? 'Hide check arrows' : 'Show check arrows'; dirty=true; };
+/* Accel + Mag thresholds: each field writes straight into AM */
+const AM_FIELDS = [['amK','k',1], ['amA','spkA',1], ['amB','spkB',1], ['amD','spkD',1],
+                   ['amWin','win',1], ['amJ','jump',1], ['amAbs','absA',0.01], ['amHold','maxHold',1]];
+function showAm(){
+  el('amOn').checked = AM.on;
+  for(const [id,key,sc] of AM_FIELDS) el(id).value = +(AM[key]/sc).toFixed(3);
+}
+for(const [id,key,sc] of AM_FIELDS){
+  el(id).addEventListener('change', e => {
+    let v = +e.target.value;
+    if(!(v >= 0) || (key!=='maxHold' && v <= 0)){ showAm(); return; }
+    if(key==='win' || key==='maxHold') v = Math.round(v);
+    if(key==='win') v = Math.max(3, Math.min(31, v));
+    AM[key] = v*sc; showAm();
+  });
+}
+el('amOn').addEventListener('change', e => {
+  AM.on = e.target.checked;
+  log('Accel + Mag glitch rejection ' + (AM.on ? 'on' : 'OFF -- every sample used as it is'), AM.on?'ok':'err');
+});
+el('btnAmDefaults').onclick = () => { Object.assign(AM, AM_DEFAULTS); showAm(); log('Accel + Mag thresholds restored to defaults','ok'); };
+showAm();
+el('btnAngles').onclick = () => { resetAngles(); log('Gyro and combined angles reset to gravity','ok'); };
+el('btnSensorPlots').onclick = () => {
+  showSensor = !showSensor;
+  el('btnSensorPlots').textContent = showSensor ? 'Hide sensor plots' : 'Show sensor plots';
+  buildPlots();
+};
+
+
+/* ── calibration files on the probe ────────────────────────────────────
+   The probe keeps every calibration saved to it in cal/, never overwriting
+   or deleting one, named cal_<serial>_dev<id>_<YYYY-MM-DDTHHMM>.json. It only
+   stores them -- they are applied when the data is processed. Commands work
+   the same over Bluetooth and the USB cable:
+     0x0F list -> 0x62 [i][n][size][name] ... 0x63 [n]
+     0x11 read [name] -> 0x64 [seq][data] ... 0x65 [len][sum]   (len 0: none)
+     0x12 [len][sum], 0x13 [seq][<=60 bytes] ..., 0x14 -> 0x66 [ok][name | why]
+   A save is checked by the probe: its device ID and serial, the time it was
+   done, and every value within the limits the firmware uses. */
+Object.assign(CMD, {CAL_LIST:0x0F, CAL_READ:0x11, CAL_BEGIN:0x12, CAL_PIECE:0x13, CAL_FINISH:0x14});
+var calFiles = null, calListT = 0, calRead = null, calSave = null;
+
+function localIso(d){
+  const off = -d.getTimezoneOffset(), sg = off >= 0 ? '+' : '-', a = Math.abs(off);
+  return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+'T'+pad2(d.getHours())+':'+
+         pad2(d.getMinutes())+':'+pad2(d.getSeconds())+sg+pad2(Math.floor(a/60))+':'+pad2(a%60);
+}
+// what every calibration file carries, first in the file: format, which probe, when it was done
+function calStamp(out){
+  const o = Object.assign({}, out);
+  const serial = (probeInfo && probeInfo.serial) || (typeof out.serial==='string' && out.serial ? out.serial : null);
+  const bn = el('brandName').textContent;
+  const ble = /^ESP32-LOG/.test(bn) ? bn : (typeof out.ble_name==='string' ? out.ble_name : null);
+  for(const k of ['source','_about','format','calibrated_at','made_by','serial','ble_name']) delete o[k];
+  const when = localIso(new Date());
+  const head = {format:'borelogger-calibration', device_id:o.device_id};
+  if(serial) head.serial = serial;        // over Bluetooth the probe adds its own
+  if(ble) head.ble_name = ble;
+  head.calibrated_at = when; head.cal_version = o.cal_version; head.cal_date = when.slice(0,10);
+  for(const k of Object.keys(o)) if(!(k in head)) head[k] = o[k];
+  head.made_by = 'BoreLogger logger app';
+  return head;
+}
+function calFileName(o){
+  const who = String(o.serial || o.ble_name || 'probe').replace(/[^A-Za-z0-9_-]/g,'-');
+  const when = typeof o.calibrated_at==='string' ? o.calibrated_at.slice(0,16).replace(':','') : localIso(new Date()).slice(0,16).replace(':','');
+  return 'cal_'+who+'_dev'+(o.device_id ?? 'X')+'_'+when+'.json';
+}
+const calWhen = name => { const m = /_(\d{4}-\d\d-\d\d)T(\d\d)(\d\d)/.exec(name); return m ? m[1]+' '+m[2]+':'+m[3] : '—'; };
+
+function calListRequest(){
+  if(!chCtrl) return;
+  calFiles = {rows:[], done:false};
+  el('calFilesMsg').textContent = 'asking the probe…';
+  clearTimeout(calListT);
+  calListT = setTimeout(() => {
+    if(calFiles && !calFiles.done){
+      calFiles = null; renderCalFiles();
+      el('calFilesMsg').textContent = 'The probe did not answer: its firmware does not keep calibration files yet (update it), or it is busy.';
+    }
+  }, 8000);
+  send(CMD.CAL_LIST);
+}
+function calReadFile(name){
+  return new Promise((res, rej) => {
+    calRead = {parts:[], res, rej};
+    setTimeout(() => { if(calRead && calRead.res===res){ calRead = null; rej(new Error('no answer from the probe')); } }, 8000);
+    send(CMD.CAL_READ, ...new TextEncoder().encode(name));
+  });
+}
+function calFrame(f){
+  const t = f[0], dv = new DataView(f.buffer, f.byteOffset, f.byteLength), dec = b => new TextDecoder().decode(b);
+  if(t===0x62 && calFiles && f.length>=9) calFiles.rows.push({size:dv.getUint32(5,true), name:dec(f.slice(9))});
+  else if(t===0x63){ clearTimeout(calListT); if(calFiles){ calFiles.done = true; renderCalFiles(); } }
+  else if(t===0x64 && calRead) calRead.parts.push(f.slice(2));
+  else if(t===0x65 && calRead && f.length>=5){
+    const r = calRead; calRead = null;
+    const len = dv.getUint16(1,true), sum = dv.getUint16(3,true);
+    let n = 0; for(const p of r.parts) n += p.length;
+    const buf = new Uint8Array(n); let o = 0; for(const p of r.parts){ buf.set(p,o); o += p.length; }
+    let ck = 0; for(const b of buf) ck = (ck+b) & 0xFFFF;
+    if(!len) r.rej(new Error('the probe has no such file'));
+    else if(n!==len || ck!==sum) r.rej(new Error('the file arrived damaged ('+n+' of '+len+' bytes)'));
+    else r.res(dec(buf));
+  }
+  else if(t===0x66 && calSave){ const r = calSave; calSave = null; r({ok:f[1]===1, text:dec(f.slice(2))}); }
+}
+function renderCalFiles(){
+  const box = el('calFilesRows');
+  if(!calFiles || !calFiles.done){
+    box.innerHTML = '<div class="sessempty">'+(chCtrl ? 'Asking the probe…' : 'Connect to a probe to see its calibration files.')+'</div>';
+    if(!chCtrl) el('calFilesMsg').textContent = '';
+    return;
+  }
+  const rows = calFiles.rows.slice().sort((a,b) => calWhen(b.name).localeCompare(calWhen(a.name)));
+  el('calFilesMsg').textContent = rows.length ? rows.length+' calibration file'+(rows.length>1?'s':'')+' on the probe, newest first.'
+                                              : 'No calibration files on this probe yet.';
+  if(!rows.length){ box.innerHTML = '<div class="sessempty">None yet — Save to probe in the calibration below adds the first.</div>'; return; }
+  const frag = document.createDocumentFragment();
+  const h = document.createElement('div'); h.className = 'calrow head';
+  h.innerHTML = '<span>Calibrated</span><span>File</span><span>Size</span><span></span>'; frag.appendChild(h);
+  for(const r of rows){
+    const d = document.createElement('div'); d.className = 'calrow';
+    d.innerHTML = '<span></span><span></span><span></span>';
+    d.children[0].textContent = calWhen(r.name); d.children[1].textContent = r.name; d.children[2].textContent = r.size+' B';
+    const b = document.createElement('span'); b.className = 'btns';
+    const mk = (txt, fn) => { const x = document.createElement('button'); x.textContent = txt; x.onclick = fn; b.appendChild(x); };
+    mk('View', () => calView(r.name));
+    mk('Download', () => calDownloadFromProbe(r.name));
+    mk('Use as starting point', () => calUseAsStart(r.name));
+    d.appendChild(b); frag.appendChild(d);
+  }
+  box.replaceChildren(frag);
+}
+async function calView(name){
+  const v = el('calFileView');
+  try{ const txt = await calReadFile(name); v.textContent = name+'\n\n'+txt; v.hidden = false; }
+  catch(e){ log('Could not read '+name+': '+e.message,'err'); }
+}
+async function calDownloadFromProbe(name){
+  try{ cbDownload((await calReadFile(name)).replace(/\n$/,''), name); }
+  catch(e){ log('Could not read '+name+': '+e.message,'err'); }
+}
+async function calUseAsStart(name){
+  try{
+    const o = JSON.parse(await calReadFile(name));
+    CALB.loaded = o;
+    if(o.mag && typeof o.mag.axis_map==='string' && parseMap(o.mag.axis_map)){
+      el('inpMap').value = o.mag.axis_map; el('inpMap').dispatchEvent(new Event('change'));
+    }
+    cbRender();
+    log('Calibration starts from '+name+': steps you skip keep its values.','ok');
+  }catch(e){ log('Could not use '+name+': '+e.message,'err'); }
+}
+async function calSaveToProbe(){
+  const msg = t => { el('cbSaveMsg').textContent = t; };
+  if(!chCtrl){ log('Connect to the probe first.','err'); return; }
+  let txt = el('cbJson').value, o;
+  try{ o = JSON.parse(txt); }catch(e){ msg('Not saved: the text above is not valid JSON ('+e.message+').'); return; }
+  if(!txt.endsWith('\n')) txt += '\n';
+  const bytes = new TextEncoder().encode(txt);
+  if(bytes.length > 4096){ msg('Not saved: '+bytes.length+' bytes, the probe takes up to 4096.'); return; }
+  let sum = 0; for(const b of bytes) sum = (sum+b) & 0xFFFF;
+  el('cbSaveProbe').disabled = true; msg('Saving to the probe…');
+  const answer = new Promise(res => {
+    calSave = res;
+    setTimeout(() => { if(calSave===res){ calSave = null; res({ok:false, text:'no answer from the probe — its firmware may not keep calibration files yet'}); } }, 15000);
+  });
+  await send(CMD.CAL_BEGIN, bytes.length & 0xFF, bytes.length >> 8, sum & 0xFF, sum >> 8);
+  for(let i = 0, k = 0; i < bytes.length; i += 60, k++) await send(CMD.CAL_PIECE, k & 0xFF, ...bytes.slice(i, i+60));
+  await send(CMD.CAL_FINISH);
+  const r = await answer;
+  el('cbSaveProbe').disabled = !chCtrl;
+  if(r.ok){ msg('Saved on the probe as '+r.text+'. Earlier files are kept.'); log('Calibration saved on the probe as '+r.text,'ok'); calListRequest(); }
+  else { msg('Not saved: '+r.text); log('The probe did not save the calibration: '+r.text,'err'); }
+}
+el('cbSaveProbe').onclick = calSaveToProbe;
+el('btnCalFilesRefresh').onclick = calListRequest;
+
+/* ── start-up: after every block above has run (the ported calibration code
+   declares state that buildPlots and the 3D view use) ── */
 addEventListener('resize',()=>{dirty=true});
 buildPlots();
 setButtons();
@@ -4442,6 +6454,7 @@ drawScene();
 drawAttitude();
 drawCompass();
 requestAnimationFrame(tick);
+
 /* ── runs kept on this device, and the office database ────────────────
    Save locally first, then upload from that copy: in the field there is
    often no signal, uploads break, and the probe's memory is erased sooner or
