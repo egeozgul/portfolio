@@ -482,6 +482,14 @@
   .tabs button:hover:not(:disabled){background:none;border-color:transparent;border-bottom-color:#3f5364;color:var(--ink)}
   .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--link)}
   .tabpage:not(.on){display:none}
+  .runform{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-top:9px}
+  .runform.one{grid-template-columns:1fr}
+  .runform label{display:block;font-size:10px;letter-spacing:.08em;color:var(--dim);margin-bottom:4px}
+  .runform input,.runform select{width:100%;box-sizing:border-box;background:#0e141a;color:var(--ink);
+    border:1px solid var(--rule);border-radius:3px;padding:7px 8px;font-family:var(--mono);font-size:12px}
+  .battest{font-family:var(--mono);font-size:10.5px;color:var(--dim);text-align:right;margin-top:3px}
+  .battest.down{color:#ff6b6b}
+  .battest.up{color:#8fe388}
   .calview{margin-top:9px;font-family:var(--mono);font-size:12px}
   .calview table{border-collapse:collapse;width:100%}
   .calview td{padding:4px 6px;border-bottom:1px solid var(--rule);vertical-align:top}
@@ -541,16 +549,6 @@
       </div>
     </div>
     <canvas id="healthCv" class="healthcv"></canvas>
-  </section>
-  <section class="controls">
-    <div class="ctlcard">
-      <div class="lbl">Battery</div>
-      <div class="battnow"><b id="battV">—</b><span id="battRate">collecting…</span></div>
-      <div class="battproj" id="battProj"></div>
-      <div class="ctlhint">Least squares over the last 60 s. The projections are
-        a straight-line extrapolation; a lithium cell holds a plateau and then
-        falls away, so they read optimistic near the end.</div>
-    </div>
   </section>
   <div class="stages">
   <section class="scene">
@@ -643,11 +641,29 @@
 
   <div class="tabpage" id="tab-bore" data-tab="bore">
   <section class="controls">
+    <div class="ctlcard" id="newRun">
+      <div class="lbl">New run</div>
+      <div class="runform">
+        <div><label for="runBore">Bore</label><input id="runBore" placeholder="A1" autocapitalize="characters" spellcheck="false"></div>
+        <div><label for="runNum">Run</label><input id="runNum" type="number" min="1" value="1" inputmode="numeric"></div>
+        <div><label for="runTube">Tube</label><select id="runTube"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+      </div>
+      <div class="ctlhint">Tube: which pipe of the loop the probe goes down (U-bend 1-2, quad 1-4). Runs in different
+        tubes prove every leg is open to the bottom.</div>
+      <div class="runform one">
+        <div><label for="runDesign">Design depth, ft (optional - lets QC confirm the probe reached the bottom)</label>
+          <input id="runDesign" inputmode="decimal" placeholder="e.g. 700"></div>
+      </div>
+      <div class="ctlhint" style="margin-top:9px">Recorded as <b id="runLabel">–</b>. Phone time is stamped on the run.
+        <b>Stand at the bore:</b> Record measurement takes the phone's GPS position. On the probe's own page
+        (10.10.10.10) press <b>Get GPS</b> first: the phone opens an egeozgul.com page for a few seconds, then comes
+        back here, and that position is used for 10 minutes.</div>
+    </div>
     <div class="ctlcard">
       <div class="lbl">Acquisition</div>
       <div class="ctlrow">
         <input id="inpNote" class="notefield" type="text" maxlength="40"
-               placeholder="Session note (optional)"
+               placeholder="Session note (used when no bore is set above)"
                aria-label="Note describing this recording session">
       </div>
       <div class="ctlrow">
@@ -669,6 +685,7 @@
       <div class="gpsrow">
         <span class="lamp gps" id="lampGps"><i></i></span>
         <span id="gpsText">GPS: starting…</span>
+        <button id="btnGpsHop" style="display:none" title="Opens egeozgul.com for a few seconds to take this phone's position, then comes back">Get GPS</button>
       </div>
       <div class="ctlhint">Sampling and recording rate, up to 100 Hz. Above 30 Hz the barometer is read across three ticks instead of blocking.</div>
     </div>
@@ -1068,7 +1085,6 @@
     </div>
   </section>
 
-  <div class="grid" id="gridDbg"></div>
   </div>
 
   <div class="console" id="console"></div>
@@ -1811,7 +1827,7 @@ el('tabs').addEventListener('keydown', e => {
   showTab(t);
   document.querySelector(`#tabs button[data-tab="${t}"]`).focus();
 });
-addEventListener('hashchange', () => showTab(location.hash.slice(1)));
+addEventListener('hashchange', () => showTab(location.hash.slice(1).split('&')[0]));
 
 el('btnConnect').onclick=()=>{
   if(cable) cableClose();
@@ -1830,10 +1846,11 @@ el('btnCable').onclick=()=>{
 const FIX_MAX_AGE = 120000;            // ms
 let lastFix = null;
 
+const HOP_FIX_MAX_AGE = 600000;        // ms: a fix fetched through the GPS page, see startGps
 function gpsState(){
   if(!lastFix) return {ok:false, why:'unavailable'};
   const age = Date.now() - lastFix.t;
-  if(age > FIX_MAX_AGE) return {ok:false, why:`stale (${(age/1000)|0}s old)`};
+  if(age > (lastFix.hop ? HOP_FIX_MAX_AGE : FIX_MAX_AGE)) return {ok:false, why:`stale (${(age/1000)|0}s old)`};
   return {ok:true, age};
 }
 
@@ -1848,7 +1865,35 @@ function showGps(){
 }
 
 let gpsError=null;
+/* The probe's own page is http, where browsers refuse GPS outright. There,
+   "Get GPS" opens egeozgul.com/logger/gps.html (https) for a moment: it takes
+   one fix and comes back with it in the address (#bore&gps=lat,lon,acc,t). */
+const GPS_HOP = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).get('gpshop'))
+                || 'https://egeozgul.com/logger/gps.html';
+function gpsFromAddress(){
+  const h = location.hash.slice(1), m = /(?:^|&)gps=([-\d.]+),([-\d.]+),(\d+),(\d+)/.exec(h), e = /(?:^|&)gpserr=([^&]*)/.exec(h);
+  if(m){
+    lastFix = {lat:+m[1], lon:+m[2], acc:+m[3], t:+m[4], hop:true};
+    try{ localStorage.setItem('bl_fix', JSON.stringify(lastFix)); }catch(x){}
+    log(`GPS from the phone: ${(+m[1]).toFixed(5)}, ${(+m[2]).toFixed(5)} ±${m[3]} m — used for 10 minutes.`, 'ok');
+  } else if(e) {
+    gpsError = decodeURIComponent(e[1]);
+    log('GPS: '+gpsError, 'err');
+  }
+  if(m || e) history.replaceState(null, '', location.pathname + location.search + '#' + (h.split('&')[0] || 'bore'));
+}
 function startGps(){
+  if(!window.isSecureContext){
+    gpsFromAddress();
+    if(!lastFix){ try{ const f = JSON.parse(localStorage.getItem('bl_fix') || 'null'); if(f && f.hop) lastFix = f; }catch(x){} }
+    if(!gpsError) gpsError = 'press Get GPS (this page cannot use GPS itself)';
+    el('btnGpsHop').style.display = '';
+    el('btnGpsHop').onclick = () => {
+      location.href = GPS_HOP + '?back=' + encodeURIComponent(location.origin + location.pathname + '#bore');
+    };
+    showGps(); setInterval(showGps, 5000);
+    return;
+  }
   if(!navigator.geolocation){
     gpsError='not supported by this browser'; showGps(); return;
   }
@@ -1903,7 +1948,7 @@ async function startRecording(kind){
              lat&0xFF,(lat>>8)&0xFF,(lat>>16)&0xFF,(lat>>>24)&0xFF,
              lon&0xFF,(lon>>8)&0xFF,(lon>>16)&0xFF,(lon>>>24)&0xFF,
              acc&0xFF,(acc>>8)&0xFF, st.ok?1:0,
-             ...encodeNote(el(kind ? 'inpNoteCal' : 'inpNote').value)];
+             ...encodeNote(kind ? el('inpNoteCal').value : (runLabel() || el('inpNote').value))];
   // awaited, not fired and forgotten: two overlapping GATT writes throw
   await send(...pkt);
   log(`Recording ${kind?'CALIBRATION':'measurement'} — `+
@@ -1926,7 +1971,10 @@ async function startRecording(kind){
 
   // the board can still refuse; check that it actually started rather than
   // assuming the command took effect
+  const usedLabel = !kind && runLabel();
   setTimeout(()=>{
+    // the next run of this bore gets the next number, as on the probe's field page
+    if(recording && usedLabel){ el('runNum').value = +el('runNum').value + 1; runFormChanged('runNum'); }
     if(!recording) log('The board did not start recording. Check the memory '+
                        'panel — the log probably needs erasing.','err');
   }, 2000);
@@ -2081,47 +2129,21 @@ function batteryTrend(){
 }
 
 function showBattery(){
-  const box = el('battProj');
+  // The voltage an hour from now, from a straight line through the last
+  // BATT_WINDOW s of raw readings (batteryTrend). Red when it is falling
+  // (discharging), green when it is rising (charging).
+  const box = el('battEst'); if(!box) return;
   const t = batteryTrend();
-  const fresh = samples.length &&
-                (Date.now() - (lastSampleAt||0)) < 10000;
-
-  if(!t || !fresh){
-    el('battV').textContent = samples.length
-      ? samples[samples.length-1].vbat.toFixed(3)+' V' : '—';
-    el('battRate').textContent = samples.length ? 'stream is off' : 'no data yet';
-    box.innerHTML=''; return;
-  }
-  if(t.short){
-    el('battRate').textContent =
-      `collecting… ${t.span.toFixed(0)} s of ${BATT_WINDOW}`;
-    box.innerHTML=''; return;
-  }
-
-  const perHour = t.slope*3600, sePerHour = t.se*3600;
-  el('battV').textContent = t.vnow.toFixed(3)+' V';
-  el('battRate').textContent =
-    `${(t.slope*60000).toFixed(1)} mV/min · ${perHour.toFixed(3)} `+
-    `±${sePerHour.toFixed(3)} V/h`;
-
-  // a rising or flat trend cannot be extrapolated to an empty battery
-  if(perHour > -0.005){
-    box.innerHTML = '<i>trend</i><b>flat or charging — no projection</b>';
-    return;
-  }
-  let html='';
-  for(const min of BATT_MARKS){
-    const v = t.vnow + t.slope*min*60;
-    const cls = v <= BATT_EMPTY ? 'dead' : (v <= 3.45 ? 'low' : '');
-    html += `<i>+${min} min</i><b class="${cls}">${v.toFixed(3)} V`+
-            `${v<=BATT_EMPTY?'  (empty)':''}</b>`;
-  }
-  const toEmpty = (t.vnow - BATT_EMPTY)/(-t.slope)/60;
-  if(isFinite(toEmpty) && toEmpty > 0)
-    html += `<i>to ${BATT_EMPTY.toFixed(2)} V</i><b>${
-      toEmpty < 60 ? toEmpty.toFixed(0)+' min'
-                   : (toEmpty/60).toFixed(1)+' h'}</b>`;
-  box.innerHTML = html;
+  const fresh = samples.length && (Date.now() - (lastSampleAt||0)) < 10000;
+  box.className = 'battest';
+  if(!t || !fresh){ box.textContent = ''; return; }
+  if(t.short){ box.textContent = '1 h estimate in '+Math.max(1, 20 - t.span).toFixed(0)+' s'; return; }   // batteryTrend needs 20 s
+  const v = t.vnow + t.slope*3600;
+  // within the noise (or under 2 mV/h) it is steady: grey, so a full battery on USB does not flicker
+  const perHour = t.slope*3600, steady = Math.abs(perHour) < Math.max(0.002, 2*t.se*3600);
+  box.textContent = 'in 1 h ≈ '+v.toFixed(3)+' V' + (steady ? ' (steady)' : '');
+  box.className = 'battest ' + (steady ? '' : perHour < 0 ? 'down' : 'up');
+  box.title = (t.slope*3600).toFixed(3)+' ±'+(t.se*3600).toFixed(3)+' V/h over the last '+t.span.toFixed(0)+' s';
 }
 setInterval(showBattery, 2000);
 // the health strip is driven by status frames, which keep arriving even when
@@ -3958,16 +3980,20 @@ function camRot(x,y,z){
   return [X,Y,D];
 }
 
-const BOX=[[-1,-.7,-.13],[1,-.7,-.13],[1,.7,-.13],[-1,.7,-.13],
-           [-1,-.7,.13],[1,-.7,.13],[1,.7,.13],[-1,.7,.13]];
-const FACES=[
-  {v:[4,5,6,7],n:[0,0,1],  c:'#3d5b6e'},   // top
-  {v:[0,3,2,1],n:[0,0,-1], c:'#16202a'},   // bottom
-  {v:[1,2,6,5],n:[1,0,0],  c:'#2e4453'},   // +X, the front edge
-  {v:[0,4,7,3],n:[-1,0,0], c:'#22333f'},
-  {v:[2,3,7,6],n:[0,1,0],  c:'#283c49'},
-  {v:[0,1,5,4],n:[0,-1,0], c:'#283c49'}
-];
+/* The probe as it is: a tube 17 cm long and 2 cm across, its long axis on
+   the board's x (x points down the tube when it hangs). A plain cylinder
+   looks the same at every roll, so a stripe runs along its +y side. */
+const PROBE_LEN = 2.4, PROBE_R = PROBE_LEN * (1/17), PROBE_N = 28;   // 17 cm : 1 cm radius
+const BOX=[], FACES=[];
+for(const x of [-PROBE_LEN/2, PROBE_LEN/2])
+  for(let i=0;i<PROBE_N;i++){ const a=2*Math.PI*i/PROBE_N; BOX.push([x, PROBE_R*Math.cos(a), PROBE_R*Math.sin(a)]); }
+for(let i=0;i<PROBE_N;i++){
+  const j=(i+1)%PROBE_N, am=2*Math.PI*(i+0.5)/PROBE_N;
+  const stripe=Math.abs(Math.atan2(Math.sin(am-Math.PI/2), Math.cos(am-Math.PI/2))) < Math.PI/PROBE_N*1.5;
+  FACES.push({v:[i,j,PROBE_N+j,PROBE_N+i], n:[0,Math.cos(am),Math.sin(am)], c:stripe?'#e0b43a':'#4d7387', side:true});
+}
+FACES.push({v:[...Array(PROBE_N).keys()].map(i=>PROBE_N+i), n:[1,0,0],  c:'#4f7488'});   // +x end: the bottom of a hanging probe
+FACES.push({v:[...Array(PROBE_N).keys()].reverse(),          n:[-1,0,0], c:'#22333f'});   // -x end
 
 /* ── a loaded calibration, applied for DISPLAY only ──────────────────
    The board records raw data, and so does every file this page saves: a
@@ -4312,19 +4338,10 @@ function drawAttitude(){
     g.beginPath(); g.moveTo(c0[0],c0[1]); g.lineTo(tip[0],tip[1]); g.stroke(); g.setLineDash([]);
     g.fillStyle=col; g.beginPath(); g.arc(tip[0],tip[1],4,0,7); g.fill(); };
   pointer(HDG,'#ffffff',[]);
-  if(calBoth && CAL) pointer(HDG2,'#ff9f0a',[5,4]);
-  // the heading, as a number
-  const hd3=hdgShown(), hd3b=hdgShown(HDG2), showBoth=calBoth && CAL;
-  const viewName = CAL && (calUse||calBoth) ? 'CORRECTED' : 'RAW';
-  g.textAlign='left'; g.font='11px '+css('--mono'); g.fillStyle='#8a99a6';
-  g.fillText('HEADING  '+viewName, 12, 20);
-  g.fillStyle='#e6edf3'; g.font='20px '+css('--mono');
-  g.fillText(hd3===null ? '—' : hd3.toFixed(1)+'° '+card8(hd3), 12, 44);
-  if(showBoth){
-    g.fillStyle='#ff9f0a'; g.font='12px '+css('--mono');
-    g.fillText(hd3b===null ? 'raw —' : 'raw '+hd3b.toFixed(1)+'°'+(hd3!==null?'   Δ '+(((hd3-hd3b+540)%360)-180>=0?'+':'')+(((hd3-hd3b+540)%360)-180).toFixed(1)+'°':''), 12, 64);
-    g.fillStyle='#8a99a6'; g.font='10px '+css('--mono');
-    g.fillText('solid: corrected   orange outline: raw', 12, h-12);
+  // no heading readout here (the compass beside it has the number), and no raw heading
+  if(calBoth && CAL){
+    g.textAlign='left'; g.fillStyle='#8a99a6'; g.font='10px '+css('--mono');
+    g.fillText('solid: corrected   orange outline: raw orientation', 12, h-12);
   }
 
   const R=quatToR(q);
@@ -4335,7 +4352,7 @@ function drawAttitude(){
   const verts=BOX.map(v=>S(toWorld(v)));
 
   // painter's algorithm, far faces first
-  const order=FACES.map((f,i)=>({i,d:f.v.reduce((s,k)=>s+verts[k][2],0)/4}))
+  const order=FACES.map((f,i)=>({i,d:f.v.reduce((s,k)=>s+verts[k][2],0)/f.v.length}))
                    .sort((p,q)=>p.d-q.d);
   const light=[0.35,0.5,0.79];
   for(const {i} of order){
@@ -4347,7 +4364,8 @@ function drawAttitude(){
     g.closePath();
     g.fillStyle=shade(f.c,lam);
     g.fill();
-    g.strokeStyle='#0e141a'; g.lineWidth=1; g.stroke();
+    if(f.side){ g.strokeStyle=g.fillStyle; g.lineWidth=0.8; g.stroke(); }   // no seams along the tube
+    else { g.strokeStyle='#0e141a'; g.lineWidth=1; g.stroke(); }
   }
 
   // body axes
@@ -4368,9 +4386,12 @@ function drawAttitude(){
     const tw=v=>[Rg[0]*v[0]+Rg[1]*v[1]+Rg[2]*v[2], Rg[3]*v[0]+Rg[4]*v[1]+Rg[5]*v[2], Rg[6]*v[0]+Rg[7]*v[1]+Rg[8]*v[2]];
     const gv=BOX.map(v=>S(tw(v)));
     g.strokeStyle='#ff9f0a'; g.lineWidth=1.5; g.setLineDash([5,3]);
-    for(const f of FACES){
+    for(const f of FACES.filter(f=>!f.side)){
       g.beginPath(); f.v.forEach((k,j)=>j?g.lineTo(gv[k][0],gv[k][1]):g.moveTo(gv[k][0],gv[k][1]));
       g.closePath(); g.stroke();
+    }
+    for(let i=0;i<PROBE_N;i+=PROBE_N/4){
+      g.beginPath(); g.moveTo(gv[i][0],gv[i][1]); g.lineTo(gv[PROBE_N+i][0],gv[PROBE_N+i][1]); g.stroke();
     }
     g.setLineDash([]);
     const y0=S(tw([0,0,0])), y1=S(tw([0,1.3,0]));
@@ -4547,12 +4568,13 @@ let plots=[], dirty=true;
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 function buildPlots(){
-  const grid=el('grid'), gridDbg=el('gridDbg');
-  grid.innerHTML=''; gridDbg.innerHTML='';   // app: validation charts live in Device Calibration
+  const grid=el('grid');
+  grid.innerHTML='';
   plots=[];
   const defs=[];
   for(const g of GROUPS){
-    if(!showSensor && !g.dbg) continue;
+    if(g.dbg) continue;                        // app: the validation charts are not shown
+    if(!showSensor) continue;
     if(split&&g.keys.length>1){
       for(const k of g.keys) defs.push({title:g.title+' '+CH[k].n,unit:g.unit,keys:[k],
                                         dp:g.dp,wrap:g.wrap,dbg:g.dbg});
@@ -4570,6 +4592,9 @@ function buildPlots(){
       const line=document.createElement('div');
       line.innerHTML=`<i style="background:${css(CH[k].c)}"></i><em>${CH[k].n}</em><span>—</span><small></small>`;
       ro.appendChild(line);
+    }
+    if(d.keys.length===1 && d.keys[0]==='vbat'){    // app: the 1-hour estimate, under the reading
+      const be=document.createElement('div'); be.className='battest'; be.id='battEst'; ro.appendChild(be);
     }
     head.appendChild(ro);
 
@@ -4603,7 +4628,7 @@ function buildPlots(){
 
     const cv=document.createElement('canvas');
     cell.appendChild(head); cell.appendChild(fc); cell.appendChild(cv);
-    (d.dbg ? gridDbg : grid).appendChild(cell);
+    grid.appendChild(cell);
     plots.push({def:d,canvas:cv,readout:ro,filt:f,hint});
   }
   dirty=true;
@@ -6443,6 +6468,32 @@ async function calSaveToProbe(){
 el('cbSaveProbe').onclick = calSaveToProbe;
 el('btnCalFilesRefresh').onclick = calListRequest;
 
+
+/* ── new run: bore, run number, tube -> the run's label ──────────────────
+   As on the probe's field page: <BORE>-R<run>, and " T<tube>" for tubes 2-4
+   (QC reads the tube from it). The label is the run's note. The values are
+   kept under the field page's own keys, so on the probe (same address) the
+   two pages share them; design depth is kept per bore for QC. */
+const lsG = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const lsS = (k, v) => { try{ localStorage.setItem(k, v); }catch(e){} };
+function runLabel(){
+  const b = el('runBore').value.trim().toUpperCase(), r = el('runNum').value, t = +el('runTube').value || 1;
+  return b ? b+'-R'+r+(t>1 ? ' T'+t : '') : '';
+}
+function runFormChanged(id){
+  el('runLabel').textContent = runLabel() || '–';
+  const key = {runBore:'bl_bore', runNum:'bl_run', runTube:'bl_tube'}[id];
+  if(key) lsS(key, el(id).value);
+  if(id==='runBore') el('runDesign').value = lsG('bl_design_'+el('runBore').value.trim().toUpperCase()) || '';
+}
+for(const id of ['runBore','runNum','runTube']) el(id).oninput = el(id).onchange = () => runFormChanged(id);
+el('runDesign').oninput = () => lsS('bl_design_'+el('runBore').value.trim().toUpperCase(), el('runDesign').value);
+el('runBore').value = lsG('bl_bore') || '';
+el('runNum').value = lsG('bl_run') || 1;
+el('runTube').value = lsG('bl_tube') || '1';
+el('runDesign').value = lsG('bl_design_'+el('runBore').value.trim().toUpperCase()) || '';
+el('runLabel').textContent = runLabel() || '–';
+
 /* ── start-up: after every block above has run (the ported calibration code
    declares state that buildPlots and the 3D view use) ── */
 addEventListener('resize',()=>{dirty=true});
@@ -6883,7 +6934,7 @@ ldbLoadIndex().then(() => { renderLocal(); renderSessions(); setButtons();
 renderDb();
 
 log('Ready. Connect to the board to start.');
-showTab(location.hash.slice(1) || (()=>{ try{ return localStorage.getItem('bl_tab'); }catch(e){ return null; } })());
+showTab(location.hash.slice(1).split('&')[0] || (()=>{ try{ return localStorage.getItem('bl_tab'); }catch(e){ return null; } })());
 
 /* Served by the probe itself? Then connect over the cable straight away.
    (The GitHub copy is https; http plus a probe that answers /api/info with

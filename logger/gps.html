@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BoreLogger GPS</title>
+<style>
+  :root{ --bg:#10151b; --ink:#e8eff5; --dim:#7c8fa0; --bad:#ff8080; }
+  body{ margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+        background:var(--bg); color:var(--ink); font:15px/1.5 "Roboto Condensed","Arial Narrow",system-ui,sans-serif; }
+  main{ max-width:420px; padding:24px 16px; text-align:center; }
+  h1{ font-size:13px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); font-weight:600; margin:0 0 14px; }
+  #msg{ font-size:17px; }
+  #why{ margin-top:10px; color:var(--dim); font-size:13px; }
+  .err{ color:var(--bad); }
+  a{ color:#4cc9f0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>BoreLogger · GPS</h1>
+  <div id="msg">Getting this phone's position…</div>
+  <div id="why">The probe's own page (10.10.10.10) is not allowed to use GPS, so it asks this page for a moment.
+    You go straight back.</div>
+</main>
+<script>
+/* Takes one GPS fix and returns to the probe's page with it, in the address:
+   ...#<tab>&gps=<lat>,<lon>,<accuracy m>,<time ms>. Only the probe's address
+   (and the laptop itself, for testing) may receive it, so a link cannot send
+   your position anywhere else. */
+const ALLOWED = [/^http:\/\/10\.10\.10\.10(\/|$)/, /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/];
+const back = new URLSearchParams(location.search).get('back') || '';
+const msg = document.getElementById('msg');
+function go(extra){
+  const sep = back.includes('#') ? '&' : '#';
+  location.replace(back + sep + extra);
+}
+if(!ALLOWED.some(r => r.test(back))){
+  msg.className = 'err';
+  msg.textContent = 'This page only returns a position to the probe (http://10.10.10.10).';
+} else if(!navigator.geolocation){
+  go('gpserr=' + encodeURIComponent('not supported by this browser'));
+} else {
+  navigator.geolocation.getCurrentPosition(
+    p => go('gps=' + [p.coords.latitude.toFixed(7), p.coords.longitude.toFixed(7),
+                     Math.round(p.coords.accuracy || 0), Date.now()].join(',')),
+    e => go('gpserr=' + encodeURIComponent(e.code === 1 ? 'permission denied' : e.code === 2 ? 'position unavailable' : 'timed out')),
+    {enableHighAccuracy:true, timeout:20000, maximumAge:10000});
+}
+</script>
+</body>
+</html>
