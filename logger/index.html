@@ -416,6 +416,7 @@
     <div class="lamp rec" id="lampRec"><i></i>Recording</div>
   </div>
   <button id="btnConnect" class="primary">Connect</button>
+  <button id="btnCable" style="display:none" title="This probe has a USB cable plugged in. Open its own copy of this app over the cable: much faster downloads, and it works on iPhone too.">Switch to cable</button>
 </header>
 
 <div class="strip">
@@ -839,6 +840,9 @@ let vbatBuf = [];
 
 /* ── state ───────────────────────────────────────────────────────── */
 let device=null, chData=null, chCtrl=null, chStat=null;
+// USB cable link: set while this page, served by the probe at 10.10.10.10,
+// is driving it over the cable instead of Bluetooth (see cableConnect)
+let cable=null, onProbe=false, probeInfo=null;
 let samples=[], dumped=[], dumpActive=false;
 let recording=false, windowSec=60, split=false;
 let logForeign=false, streamOn=true, verifying=false;
@@ -895,6 +899,12 @@ function finishFrag(g){
 
 function handle(f){
   const type=f[0];
+  if(type===0x70){
+    // the probe refused a Bluetooth command: an app on its USB cable is in control
+    log('The probe ignored that: an app on its USB cable is in control, so Bluetooth '+
+        'is view-only (live data and status). Close the cable app, or use it instead.','err');
+    return;
+  }
   if(type===0x01 && f.length>=REC_SIZE+1){
     addSample(decodeRec(f,1));
     // a trailing byte carries health at the sample rate; older firmware
@@ -1091,6 +1101,7 @@ function decodeStatus(f){
   if(f.byteLength<27) return;
   const dv=new DataView(f.buffer,f.byteOffset,f.byteLength);
   const flags=dv.getUint8(1);
+  noteUsb(!!(flags&128));
   const stored=dv.getUint32(2,true);
   const usedKb=dv.getUint32(6,true);
   const capKb=dv.getUint32(10,true);
@@ -1292,11 +1303,120 @@ function send(...bytes){
   if(!chCtrl) return Promise.resolve(false);
   const p = gattQ.then(async () => {
     if(!chCtrl) return false;
+    if(cable) return cableSend(Uint8Array.from(bytes));
     try{ await chCtrl.writeValue(Uint8Array.from(bytes)); return true; }
     catch(e){ log('Command failed: '+e.message,'err'); return false; }
   });
   gattQ = p.catch(() => false);
   return p;
+}
+
+/* ── USB cable ───────────────────────────────────────────────────────
+   When this page is served by the probe itself (http://10.10.10.10 over the
+   USB cable), it talks to the probe with exactly the Bluetooth protocol --
+   the same command bytes, the same frames -- carried over two HTTP calls:
+     POST /api/link/cmd   one command, as written to the Ctrl characteristic
+     GET  /api/link/rx    the frames since the last call, [len u16 LE][frame]...
+   The probe holds a poll open up to `wait` ms when it has nothing to send.
+   While this page polls it is in control and Bluetooth apps are view-only.
+   Frames arrive whole, so the 0xF1/0xF2 fragment handling is not involved. */
+const LINK_HDR = {'X-BoreLogger':'1'};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function cableSend(bytes){
+  try{
+    const r = await fetch('/api/link/cmd', {method:'POST', headers:LINK_HDR, body:bytes, cache:'no-store'});
+    if(r.ok) return true;
+    const j = await r.json().catch(() => ({}));
+    log('Command failed: '+(j.error || 'HTTP '+r.status),'err');
+  }catch(e){ log('Command failed: the cable link did not answer','err'); }
+  return false;
+}
+
+async function cableConnect(){
+  if(cable) return;
+  const me = {};
+  cable = me;
+  el('btnConnect').disabled = true;
+  log('Connecting over the USB cable…');
+  // first poll: takes control of the probe, or says why it cannot yet
+  for(let tries=0; cable===me; tries++){
+    let r;
+    try{ r = await fetch('/api/link/rx?wait=0', {headers:LINK_HDR, cache:'no-store'}); }
+    catch(e){ r = null; }
+    if(r && r.ok){ await r.arrayBuffer(); break; }
+    const j = r ? await r.json().catch(() => ({})) : {};
+    if(r && r.status===409 && /no cable link/.test(j.error||'')){
+      log('This probe\'s firmware has no cable link yet: '+j.error+'. The field page at /field still works.','err');
+      cable = null; el('btnConnect').disabled = false; setButtons(); return;
+    }
+    if(tries===0 || tries%10===0)
+      log('Waiting for the probe: '+(j.error || 'no answer on the cable')+'…','err');
+    await sleep(1500);
+  }
+  if(cable!==me) return;
+  chCtrl = {cable:true};                     // the rest of the app reads this as "connected"
+  el('btnConnect').disabled = false;
+  el('brandName').textContent = (probeInfo && (probeInfo.ble_name || probeInfo.serial)) || 'BL-100';
+  el('lampLink').classList.add('on');
+  el('hint').style.display='none';
+  el('mtu').textContent='USB cable';
+  log('Connected over the USB cable. Bluetooth apps can only watch while this page is open.','ok');
+  cableRx(me);
+  requestIndex();
+  requestConfig();
+  await send(CMD.STATUS);
+  setButtons();
+}
+
+async function cableRx(me){
+  let fails = 0;
+  while(cable===me){
+    try{
+      const r = await fetch('/api/link/rx?wait=300', {headers:LINK_HDR, cache:'no-store'});
+      if(r.status===409){
+        // control was lost (e.g. the probe restarted): take it back
+        const j = await r.json().catch(() => ({}));
+        if(++fails>=8) throw new Error(j.error || 'refused');
+        await sleep(1000); continue;
+      }
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const b = new Uint8Array(await r.arrayBuffer());
+      for(let i=0; i+2<=b.length; ){
+        const n = b[i] | (b[i+1]<<8);
+        if(cable!==me) return;
+        handle(b.slice(i+2, i+2+n));         // a copy, so DataViews start at offset 0
+        i += 2+n;
+      }
+      fails = 0;
+    }catch(e){
+      if(cable!==me) return;
+      if(++fails>=6){ cable = null; onDisconnect(); return; }
+      await sleep(500);
+    }
+  }
+}
+
+function cableClose(){
+  if(!cable) return;
+  cable = null;
+  // keepalive: still sent when the page is closing
+  fetch('/api/link/close', {headers:LINK_HDR, keepalive:true, cache:'no-store'}).catch(()=>{});
+  onDisconnect();
+}
+
+/* From the GitHub copy over Bluetooth: status flag 128 says a USB host has
+   the probe's cable network up, so offer this app's copy on the probe. A
+   plain link: an https page may not call http://10.10.10.10, but it may
+   open it. */
+let usbSeen = false;
+function noteUsb(on){
+  const b = el('btnCable');
+  // style, not the hidden attribute: the button CSS sets display and wins over [hidden]
+  b.style.display = (on && !cable && !onProbe) ? '' : 'none';
+  if(on && !usbSeen && !cable && !onProbe)
+    log('This probe has a USB cable plugged in. "Switch to cable" opens its own copy of this app over the cable (faster downloads).','ok');
+  usbSeen = on;
 }
 
 function applyRate(){
@@ -1316,7 +1436,14 @@ function applyRate(){
 const el=id=>document.getElementById(id);
 
 el('btnConnect').onclick=()=>{
-  if(device&&device.gatt.connected) device.gatt.disconnect(); else connect();
+  if(cable) cableClose();
+  else if(onProbe) cableConnect();
+  else if(device&&device.gatt.connected) device.gatt.disconnect(); else connect();
+};
+el('btnCable').onclick=()=>{
+  // leave Bluetooth first, so the probe is free for the cable app
+  if(device&&device.gatt.connected) device.gatt.disconnect();
+  location.href='http://10.10.10.10/';
 };
 /* ── location ────────────────────────────────────────────────────────
    Watched continuously and cached, rather than requested when Record is
@@ -1447,7 +1574,8 @@ el('btnDump').onclick=()=>{
     readProg = makeProgress(storedRecords, 1);
     readProg.stage(`reading the whole log — ${storedRecords.toLocaleString()} records`);
   }
-  log(`Reading the flash log over BLE — expect roughly ${DUMP_RATE} records/second.`);
+  log(cable ? 'Reading the flash log over the USB cable.'
+             : `Reading the flash log over BLE — expect roughly ${DUMP_RATE} records/second.`);
   send(CMD.DUMP);
 };
 el('btnCsv').onclick=()=>saveCsv(samples,'esp32-live.csv');
@@ -4181,6 +4309,24 @@ drawAttitude();
 drawCompass();
 requestAnimationFrame(tick);
 log('Ready. Connect to the board to start.');
+
+/* Served by the probe itself? Then connect over the cable straight away.
+   (The GitHub copy is https; http plus a probe that answers /api/info with
+   a cable link means this page came over the cable.) */
+if(location.protocol==='http:'){
+  fetch('/api/info', {cache:'no-store'}).then(r => r.ok ? r.json() : null).then(info => {
+    if(!info || !('link' in info)) return;
+    onProbe = true;
+    probeInfo = info;
+    el('brandName').textContent = info.ble_name || info.serial || 'BL-100';
+    el('hint').innerHTML =
+      '<p>This is the probe\'s own copy of the app, over the USB cable. It connects by itself; '+
+      'press <strong>Connect</strong> if it lost the link.</p>'+
+      '<p>The field page (checks, runs, QC, firmware update) is at <a href="/field">/field</a>.</p>';
+    addEventListener('pagehide', cableClose);
+    cableConnect();
+  }).catch(() => {});
+}
 
 /* ── installable app ─────────────────────────────────────────────── */
 if('serviceWorker' in navigator){
