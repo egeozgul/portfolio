@@ -464,6 +464,9 @@
         <button id="btnStop" disabled>Stop</button>
       </div>
       <div class="ctlrow">
+        <button id="btnStream" disabled title="Live data from the probe, every sample. Record calibration turns it on, Record measurement turns it off.">Stream on</button>
+      </div>
+      <div class="ctlrow">
         <div class="ratefield">
           <input id="inpRate" type="number" min="0.02" max="100" step="any"
                  value="4" inputmode="decimal" aria-label="Sample rate in hertz" disabled>
@@ -480,42 +483,12 @@
     </div>
 
     <div class="ctlcard">
-      <div class="lbl">Live stream</div>
-      <div class="ctlrow">
-        <button id="btnStream" disabled>Stream on</button>
-        <button id="btnCsv" disabled>Save CSV</button>
-      </div>
-      <div class="ctlrow">
-        <div class="ratefield">
-          <input id="inpStream" type="number" min="1" max="50" step="any"
-                 value="4" inputmode="decimal" aria-label="BLE stream rate in hertz" disabled>
-          <span class="hz">Hz</span>
-        </div>
-        <button id="btnStreamRate" disabled>Apply</button>
-      </div>
-      <div class="ctlhint" id="streamHint">Connect to see reachable rates.</div>
-      <div class="ctlhint">Record calibration turns this on at the sample rate;
-        Record measurement turns it off. Both are just starting points.</div>
-    </div>
-
-    <div class="ctlcard">
       <div class="lbl">Battery</div>
       <div class="battnow"><b id="battV">—</b><span id="battRate">collecting…</span></div>
       <div class="battproj" id="battProj"></div>
       <div class="ctlhint">Least squares over the last 60 s. The projections are
         a straight-line extrapolation; a lithium cell holds a plateau and then
         falls away, so they read optimistic near the end.</div>
-    </div>
-
-    <div class="ctlcard">
-      <div class="lbl">Plots</div>
-      <div class="ctlrow">
-        <button id="btnSplit">Split channels</button>
-      </div>
-      <div class="ctlrow">
-        <button id="btnWindow">Window 60 s</button>
-      </div>
-      <div class="ctlhint">Affects the strip charts only</div>
     </div>
   </section>
 
@@ -776,7 +749,6 @@ const DATA_START = 0x000000;           // records begin at address zero
 const HDR_ADDR = 0xFFF000;             // header owns the final sector
 const REC_SIZE = 32;
 const MIN_HZ = 1000/60000, MAX_HZ = 100;  // must match MIN/MAX_PERIOD_MS
-const MIN_STREAM_HZ = 1;                  // anything slower is a display choice
 const MAX_STREAM_HZ = 50;                 // BLE cannot carry more than this
 const NOTE_LEN = 32;                      // bytes, must match the firmware
 
@@ -1113,7 +1085,6 @@ function decodeStatus(f){
   const actualMs=dv.getUint16(24,true);
   const health=dv.getUint8(26);
   devicePeriodMs=periodMs;
-  if(typeof updateStreamHint==='function') updateStreamHint();
   const wasRec=recording;
   recording=!!(flags&1);
   storedRecords=stored;
@@ -1161,8 +1132,6 @@ function decodeStatus(f){
   el('btnStream').classList.toggle('active',streamOn);
   if(streamMs){
     const eff=1000/streamMs;
-    if(document.activeElement!==el('inpStream'))
-      el('inpStream').value=+eff.toFixed(3);
     if(streamAsked!==null && Math.abs(eff-streamAsked)/streamAsked>0.02){
       // frames only leave on sample instants, so the reachable rates are
       // sample_rate / N -- say so rather than showing a rate that is not real
@@ -1539,7 +1508,6 @@ async function startRecording(kind){
   const period = devicePeriodMs || 38;
   if(kind){
     await send(CMD.STREAM, 1, period&0xFF, (period>>8)&0xFF);
-    el('inpStream').value = +(1000/period).toFixed(3);
     log(`Live stream on at ${(1000/period).toFixed(2)} Hz, matching the `+
         `sample rate, so the cloud fills as you sweep.`);
   } else {
@@ -1578,54 +1546,16 @@ el('btnDump').onclick=()=>{
              : `Reading the flash log over BLE — expect roughly ${DUMP_RATE} records/second.`);
   send(CMD.DUMP);
 };
-el('btnCsv').onclick=()=>saveCsv(samples,'esp32-live.csv');
 el('btnRate').onclick=applyRate;
+/* The live stream runs at the sample rate (every sample, up to the 50 Hz
+   Bluetooth can carry), which is also what the probe does by default. */
 function applyStream(on){
-  const hz=parseFloat(el('inpStream').value);
-  if(!isFinite(hz)||hz<=0){ log('Enter a stream rate in hertz.','err'); return; }
-  if(hz<MIN_STREAM_HZ||hz>MAX_STREAM_HZ){
-    log(`Stream rate must be between ${MIN_STREAM_HZ} and ${MAX_STREAM_HZ} Hz.`,'err');
-    return;
-  }
-  const ms=Math.max(Math.round(1000/MAX_STREAM_HZ),Math.min(60000,Math.round(1000/hz)));
-  streamAsked=hz;
+  const ms=Math.max(Math.round(1000/MAX_STREAM_HZ), Math.min(60000, devicePeriodMs || 38));
   send(CMD.STREAM, on?1:0, ms&0xFF, (ms>>8)&0xFF);
-  log(`Requested BLE streaming ${on?'on':'off'} at ${hz} Hz.`);
+  log(`Live stream ${on?'on':'off'}.`);
 }
-/* Frames leave only on sample instants, so the reachable stream rates are
-   sample_rate / N. Rather than state that as a rule, show what the number in
-   the box will actually produce. */
-function updateStreamHint(){
-  const box=el('streamHint');
-  if(!devicePeriodMs){ box.textContent='Connect to see reachable rates.'; return; }
-  const sampleHz=1000/devicePeriodMs;
-  const hz=parseFloat(el('inpStream').value);
-  if(!isFinite(hz)||hz<=0){ box.textContent=`Sampling at ${sampleHz.toFixed(1)} Hz.`; return; }
-  if(hz>sampleHz+0.01){
-    box.textContent=`Sampling is ${sampleHz.toFixed(1)} Hz, so ${hz} Hz is not `+
-      `possible — there are no samples in between. Raise the sample rate first.`;
-    return;
-  }
-  const div=Math.max(1, Math.round(sampleHz/hz));
-  const eff=sampleHz/div;
-  box.textContent = Math.abs(eff-hz)/hz < 0.005
-    ? `→ ${eff.toFixed(2)} Hz, every ${div===1?'':div+(div===2?'nd ':'th ')}sample.`
-    : `→ nearest reachable is ${eff.toFixed(2)} Hz (every ${div}${div===2?'nd':'th'} `+
-      `sample of ${sampleHz.toFixed(1)} Hz).`;
-}
-el('inpStream').addEventListener('input', updateStreamHint);
-
 el('btnStream').onclick=()=>applyStream(!streamOn);
-el('btnStreamRate').onclick=()=>applyStream(streamOn);
-el('inpStream').addEventListener('keydown',e=>{ if(e.key==='Enter') applyStream(streamOn); });
 el('inpRate').addEventListener('keydown',e=>{ if(e.key==='Enter') applyRate(); });
-el('btnSplit').onclick=()=>{ split=!split; buildPlots(); el('btnSplit').textContent=split?'Group channels':'Split channels'; };
-el('btnWindow').onclick=()=>{
-  const opts=[15,60,300];
-  windowSec=opts[(opts.indexOf(windowSec)+1)%opts.length];
-  el('btnWindow').textContent='Window '+(windowSec<60?windowSec+' s':(windowSec/60)+' min');
-  dirty=true;
-};
 
 function setButtons(){
   const live=!!chCtrl;
@@ -1645,12 +1575,9 @@ function setButtons(){
   // stopped is harmless.
   el('btnStop').disabled=!live;
   el('btnDump').disabled=!live||recording||dumpActive;
-  el('btnCsv').disabled=samples.length===0;
   el('btnRate').disabled=!live||dumpActive||recording;
   el('inpRate').disabled=!live||dumpActive||recording;
   el('btnStream').disabled=!live;
-  el('btnStreamRate').disabled=!live;
-  el('inpStream').disabled=!live;
   el('btnHex').disabled=!live;
   const busy=!live||recording||dumpActive||verifying||erasing;
   el('btnErase').disabled=busy;
