@@ -482,6 +482,11 @@
   .tabs button:hover:not(:disabled){background:none;border-color:transparent;border-bottom-color:#3f5364;color:var(--ink)}
   .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--link)}
   .tabpage:not(.on){display:none}
+  .listrow{display:grid;grid-template-columns:34px 170px minmax(140px,1fr) 80px 64px minmax(150px,1.2fr);gap:8px;
+    align-items:center;padding:7px 10px;border-bottom:1px solid #172029;font-family:var(--mono);font-size:11.5px;
+    font-variant-numeric:tabular-nums}
+  .listrow.head{background:#131a21;color:var(--dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+  .listrow .nogps{color:#6b7b88;font-style:italic}
   .runform{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-top:9px}
   .runform.one{grid-template-columns:1fr}
   .runform label{display:block;font-size:10px;letter-spacing:.08em;color:var(--dim);margin-bottom:4px}
@@ -536,7 +541,7 @@
   <nav class="tabs" id="tabs" role="tablist">
     <button role="tab" data-tab="health">Health Check</button>
     <button role="tab" data-tab="bore">Bore Measurement</button>
-    <button role="tab" data-tab="runs">Runs</button>
+    <button role="tab" data-tab="runs">Data Management</button>
     <button role="tab" data-tab="cal">Field Calibration</button>
     <button role="tab" data-tab="devcal">Device Calibration</button>
   </nav>
@@ -689,6 +694,11 @@
       </div>
       <div class="ctlhint">Sampling and recording rate, up to 100 Hz. Above 30 Hz the barometer is read across three ticks instead of blocking.</div>
     </div>
+  </section>
+    <section class="mem" id="boreRuns">
+    <div class="memhead"><div class="lbl">Recorded measurement runs</div></div>
+    <div class="ctlhint" style="margin-top:6px">Every measurement run on the probe, newest first. View only: reading, saving, uploading and erasing are in Data Management.</div>
+    <div class="sesswrap" id="boreRunsRows"><div class="sessempty">Connect to a probe to see its runs.</div></div>
   </section>
   </div>
 
@@ -904,6 +914,11 @@
     </div>
   </section>
 
+    <section class="mem" id="calRuns">
+    <div class="memhead"><div class="lbl">Recorded calibration runs</div></div>
+    <div class="ctlhint" style="margin-top:6px">Every calibration run on the probe, newest first (Record calibration here, or Record a calibration session in Device Calibration). View only: reading, saving and erasing are in Data Management.</div>
+    <div class="sesswrap" id="calRunsRows"><div class="sessempty">Connect to a probe to see its runs.</div></div>
+  </section>
   </div>
 
   <div class="tabpage" id="tab-devcal" data-tab="devcal">
@@ -931,19 +946,6 @@
       <div id="calView" class="calview"><div class="covnote">No calibration file loaded.</div></div>
     </div>
   </section>
-  <section class="mem" id="calFilesBlock">
-    <div class="memhead">
-      <div class="lbl">Calibration files on this probe</div>
-      <div class="membtns"><button id="btnCalFilesRefresh" disabled>Refresh</button></div>
-    </div>
-    <div class="ctlhint" style="margin-top:6px">Every calibration saved to the probe is kept, named after the probe and the
-      time it was done. Saving adds a file; nothing is overwritten or deleted. The probe only stores them; they are
-      applied when the data is processed.</div>
-    <div class="sesswrap" id="calFilesRows"><div class="sessempty">Connect to a probe to see its calibration files.</div></div>
-    <div class="dbmsg" id="calFilesMsg"></div>
-    <pre class="calfile" id="calFileView" hidden></pre>
-  </section>
-
   <section class="dbg" id="calSec">
     <div class="lbl" style="margin-bottom:6px">Device calibration</div>
     <div class="dbgnote">Stream at the full sample rate, then work through the four steps. Everything is computed here from
@@ -1085,6 +1087,18 @@
     </div>
   </section>
 
+    <section class="mem" id="calFilesBlock">
+    <div class="memhead">
+      <div class="lbl">Calibration files on this probe</div>
+      <div class="membtns"><button id="btnCalFilesRefresh" disabled>Refresh</button></div>
+    </div>
+    <div class="ctlhint" style="margin-top:6px">Every calibration saved to the probe is kept, named after the probe and the
+      time it was done. Saving adds a file; nothing is overwritten or deleted. The probe only stores them; they are
+      applied when the data is processed.</div>
+    <div class="sesswrap" id="calFilesRows"><div class="sessempty">Connect to a probe to see its calibration files.</div></div>
+    <div class="dbmsg" id="calFilesMsg"></div>
+    <pre class="calfile" id="calFileView" hidden></pre>
+  </section>
   </div>
 
   <div class="console" id="console"></div>
@@ -1219,7 +1233,8 @@ let healthLog=[], lastHealthMask=-1, healthSeenAt=0;
 let bridgeSeen=null;          // last flag-64 state, so a change is logged once
 let hexOn=false, memPages=new Map(), memPending=new Set(), memAsk=null;
 let rateT0=0, rateN=0;
-const MAX_SAMPLES = 100000;
+const MAX_SAMPLES = 8000;          // live samples kept in the page (~5 min at 26 Hz): charts, battery trend
+                                   // and calibration checks use at most the last minute; more only costs memory
 
 /* ── frame reassembly ────────────────────────────────────────────── */
 
@@ -2529,7 +2544,39 @@ function fmtDur(sec){
   const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s2=Math.floor(sec%60);
   return h?`${h}h ${m}m`:(m?`${m}m ${s2}s`:`${s2}s`);
 }
+/* View-only lists of the probe's runs, one kind per tab (0 measurement in
+   Bore Measurement, 1 calibration in Field Calibration). Nothing here changes
+   data: reading, saving, uploading and erasing are in Data Management. */
+function renderKindList(boxId, kind){
+  const box = el(boxId); if(!box) return;
+  const rows = sessionsList.filter(s => (s.kind ? 1 : 0) === kind).sort((a,b) => (b.epoch||0) - (a.epoch||0));
+  if(!rows.length){
+    box.innerHTML = '<div class="sessempty">'+(chCtrl ? (kind ? 'No calibration runs on the probe.' : 'No measurement runs on the probe.')
+                                                      : 'Connect to a probe to see its runs.')+'</div>';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  const h = document.createElement('div'); h.className = 'listrow head';
+  h.innerHTML = '<span>#</span><span>Started</span><span>Note</span><span>Records</span><span>Length</span><span>Location</span>';
+  frag.appendChild(h);
+  for(const s of rows){
+    const hz = s.sampleMs ? 1000/s.sampleMs : 0, d = document.createElement('div');
+    d.className = 'listrow';
+    d.innerHTML = '<span></span><span></span><span></span><span></span><span></span><span></span>';
+    d.children[0].textContent = s.seq+1;
+    d.children[1].textContent = s.epoch ? new Date(s.epoch*1000).toLocaleString() : 'no clock';
+    d.children[2].textContent = s.note || '—';
+    d.children[3].textContent = s.count.toLocaleString();
+    d.children[4].textContent = fmtDur(hz ? s.count/hz : 0);
+    d.children[5].textContent = s.gps ? s.lat.toFixed(5)+', '+s.lon.toFixed(5)+' ±'+s.acc+'m' : 'no GPS';
+    if(!s.gps) d.children[5].className = 'nogps';
+    frag.appendChild(d);
+  }
+  box.replaceChildren(frag);
+}
 function renderSessions(){
+  renderKindList('boreRunsRows', 0);
+  renderKindList('calRunsRows', 1);
   const box=el('sessRows');
   if(!sessionsList.length){
     box.innerHTML='<div class="sessempty">No sessions recorded yet.</div>';
