@@ -482,6 +482,12 @@
   .tabs button:hover:not(:disabled){background:none;border-color:transparent;border-bottom-color:#3f5364;color:var(--ink)}
   .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--link)}
   .tabpage:not(.on){display:none}
+  #tab-health .scene{grid-template-columns:1fr}
+  #tab-health .scene .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 18px;align-content:start}
+  #tab-health .scene .stats > .lbl,#tab-health .scene .stats > .wide{grid-column:1/-1}
+  #tab-health .scene .stats > .heading{align-self:center}
+  #tab-health .statrow.decl input{width:70px;background:#0e141a;color:var(--ink);border:1px solid var(--rule);border-radius:3px;
+    padding:3px 5px;font-family:var(--mono);font-size:12px;text-align:right}
   .listrow{display:grid;grid-template-columns:34px 170px minmax(140px,1fr) 80px 64px minmax(150px,1.2fr);gap:8px;
     align-items:center;padding:7px 10px;border-bottom:1px solid #172029;font-family:var(--mono);font-size:11.5px;
     font-variant-numeric:tabular-nums}
@@ -562,7 +568,7 @@
       <div class="viewhint">Drag to move the camera</div>
     </div>
     <div class="stats">
-      <div class="lbl" style="margin-bottom:8px">Orientation</div>
+      <div class="lbl">Orientation</div>
       <div class="bigread"><span>Yaw</span><b id="aYaw">—</b></div>
       <div class="bigread"><span>Pitch</span><b id="aPitch">—</b></div>
       <div class="bigread"><span>Roll</span><b id="aRoll">—</b></div>
@@ -570,7 +576,13 @@
       <div class="statrow"><span>Tube tilt</span><b id="aTubeTilt">—</b></div>
       <div class="statrow"><span>Lean azimuth</span><b id="aTubeLean">—</b></div>
       <div class="statrow"><span>Spin about axis</span><b id="aTubeSpin">—</b></div>
-      <div class="sepline"></div>
+      <div class="scenebtns wide">
+        <button id="btnSelfTest">Viewer self-test</button>
+        <button id="btnPoseCheck">Pose check</button>
+        <button id="btnArrows">Hide check arrows</button>
+      </div>
+      <div class="covnote wide" id="aPose" style="font-family:var(--mono)"></div>
+      <div style="display:none">   <!-- kept for the code that updates them; not shown -->
       <div class="lbl" style="margin-bottom:6px">Reference</div>
       <div class="scenebtns" id="modeBtns">
         <button data-mode="grav">Gravity</button>
@@ -584,13 +596,11 @@
       <div class="statrow"><span>Uncertainty</span><b id="aSig">—</b></div>
       <div class="statrow"><span>State</span><b id="aTrust">—</b></div>
       <div class="statrow"><span>Check</span><b id="aCheck">—</b></div>
-      <div class="sepline"></div>
       <div class="statrow"><span>Mag axes</span></div>
       <div class="mapfield">
         <input id="inpMap" value="x,-y,-z" spellcheck="false"
                aria-label="Magnetometer axis mapping">
       </div>
-      <div class="sepline"></div>
       <div class="statrow"><span>Input filters</span></div>
       <div class="filt"><label><input type="checkbox" id="vfAccOn" style="width:auto"> accel</label>
         <select id="vfAccType"><option value="ema">exponential</option><option value="ma">moving average</option></select>
@@ -601,13 +611,8 @@
       <div class="covnote" style="margin-top:6px">Smoothing steadies a still tube but lags a turning
         one -- at 40°/s, 0.15 s of lag costs about 6°. The gyro is never filtered.</div>
       <div class="covnote" id="aNote">Heading uses raw magnetometer data until you calibrate.</div>
-      <div class="scenebtns">
-        <button id="btnResetCam">Reset camera</button>
-        <button id="btnSelfTest">Viewer self-test</button>
-        <button id="btnPoseCheck">Pose check</button>
-        <button id="btnArrows">Hide check arrows</button>
+      <button id="btnResetCam">Reset camera</button>
       </div>
-      <div class="covnote" id="aPose" style="margin-top:8px;font-family:var(--mono)"></div>
     </div>
   </section>
 
@@ -616,28 +621,40 @@
       <canvas id="compassCv"></canvas>
     </div>
     <div class="stats">
-      <div class="lbl" style="margin-bottom:8px">Compass</div>
+      <div class="lbl">Compass</div>
       <div class="bigread"><span>Heading</span><b id="cHdg">—</b></div>
       <div class="heading" id="cCard">—</div>
-      <div class="covnote" id="cRef" style="margin-top:4px">magnetic north</div>
-      <div class="sepline"></div>
+      <div class="covnote" id="cRef">magnetic north</div>
       <div class="statrow"><span>Tube tilt</span><b id="cTilt">—</b></div>
+      <div class="statrow"><span>Calibration</span><b id="cCalShort">none</b></div>
+      <div class="statrow decl"><span>Declination °</span>
+        <input id="inpDecl" type="number" step="0.1" value="0" aria-label="Magnetic declination in degrees (west negative)" title="For true north, e.g. about -14 in Boston; west is negative"></div>
+      <div style="display:none">   <!-- kept for the code that updates them; not shown -->
+
+      <div class="lbl" style="margin-bottom:8px">Compass</div>
+      <div class="bigread"><span>Heading</span></div>
+      
+      
+      <div class="sepline"></div>
+      <div class="statrow"><span>Tube tilt</span></div>
       <div class="statrow"><span>Magnetometer</span><b id="cCal">—</b></div>
       <div class="statrow"><span>Declination</span></div>
       <div class="mapfield">
-        <input id="inpDecl" type="number" step="0.1" value="0" aria-label="Magnetic declination in degrees">
+        
       </div>
       <div class="sepline"></div>
       <div class="statrow"><span>Showing</span><b id="cView">raw</b></div>
       <div class="statrow"><span>Raw heading</span><b id="cHdgRaw">—</b></div>
       <div class="statrow"><span>Corrected − raw</span><b id="cHdgDiff">—</b></div>
-      <div class="statrow"><span>Calibration</span><b id="cCalShort">none</b></div>
+      <div class="statrow"><span>Calibration</span></div>
       <div class="covnote">Load and apply a calibration file in <a href="#devcal">Device Calibration</a>.</div>
       <div class="sepline"></div>
       <div class="covnote">The direction of the board's +y axis, across the tube, clockwise from north — for a
         hanging tube, its rotation about its own axis. Solved from the accelerometer and magnetometer
         on every sample, so it works in any reference mode. Enter the declination for true north —
         about −14 in Boston; west is negative.</div>
+    
+      </div>
     </div>
   </section>
   </div>
@@ -1338,6 +1355,8 @@ function handle(f){
   }
   else if(type===0x50 && f.length>=63){
     const dv=new DataView(f.buffer,f.byteOffset,f.byteLength);
+    const seq0=dv.getUint16(1,true), dup=sessionsList.findIndex(x=>x.seq===seq0);
+    if(dup>=0) sessionsList.splice(dup,1);       // the same entry again (a repeated request): replace, never list twice
     sessionsList.push({
       seq:dv.getUint16(1,true),
       start:dv.getUint32(3,true),
@@ -1355,6 +1374,7 @@ function handle(f){
   }
   else if(type===0x51){
     idxPendingAt = 0;
+    sessionsList.sort((x,y)=>x.seq-y.seq);     // in run order, whatever order the entries came in
     renderSessions();
     el('btnSessCsv').disabled=sessionsList.length===0;
     setButtons();                       // Export everything: also gated on recording
@@ -1697,7 +1717,10 @@ function send(...bytes){
    The probe holds a poll open up to `wait` ms when it has nothing to send.
    While this page polls it is in control and Bluetooth apps are view-only.
    Frames arrive whole, so the 0xF1/0xF2 fragment handling is not involved. */
-const LINK_HDR = {'X-BoreLogger':'1'};
+// one page owns the probe's cable link at a time: this page's id, a new one per load
+const LINK_ID = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const LINK_HDR = {'X-BoreLogger':'1', 'X-Link-Id':LINK_ID};
+const TAKEN = /another page took over/;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function cableSend(bytes){
@@ -1719,7 +1742,7 @@ async function cableConnect(){
   // first poll: takes control of the probe, or says why it cannot yet
   for(let tries=0; cable===me; tries++){
     let r;
-    try{ r = await fetch('/api/link/rx?wait=0', {headers:LINK_HDR, cache:'no-store'}); }
+    try{ r = await fetch('/api/link/rx?wait=0&take=1', {headers:LINK_HDR, cache:'no-store'}); }   // connecting takes over from an older page
     catch(e){ r = null; }
     if(r && r.ok){ await r.arrayBuffer(); break; }
     const j = r ? await r.json().catch(() => ({})) : {};
@@ -1753,8 +1776,14 @@ async function cableRx(me){
     try{
       const r = await fetch('/api/link/rx?wait=300', {headers:LINK_HDR, cache:'no-store'});
       if(r.status===409){
-        // control was lost (e.g. the probe restarted): take it back
         const j = await r.json().catch(() => ({}));
+        if(TAKEN.test(j.error||'')){
+          // another page (a second tab, or another phone or laptop) connected: it holds the link now
+          cable = null; onDisconnect();
+          log('Another page took over the probe\'s cable link (a second tab or another device). Press Connect to take it back.','err');
+          return;
+        }
+        // control was lost (e.g. the probe restarted): take it back
         if(++fails>=8) throw new Error(j.error || 'refused');
         await sleep(1000); continue;
       }
