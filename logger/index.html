@@ -244,11 +244,12 @@
   .trow:nth-child(even){background:#121920}
   .trow span:first-child{color:var(--dim)}
 
-  .sesswrap{margin-top:11px;border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+  .sesswrap{margin-top:11px;border:1px solid var(--rule);border-radius:3px;overflow-x:auto}
   .sesshead,.sessrow{
     display:grid;
-    grid-template-columns:34px 72px minmax(140px,1.2fr) minmax(140px,1.2fr)
+    grid-template-columns:34px 72px minmax(150px,1fr) minmax(120px,1fr) minmax(150px,1fr)
                           78px 66px 62px 62px 96px 58px;
+    min-width:1000px;
     gap:8px;align-items:center;padding:7px 10px;
     font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums;
   }
@@ -259,6 +260,7 @@
   .sessrow:last-child{border-bottom:0}
   .sessrow span:first-child{color:var(--dim)}
   .sessrow .nogps{color:#6b7b88;font-style:italic}
+  .sessrow .sessname{color:#a3e635;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sessnote{
     padding:0 10px 8px 44px;border-bottom:1px solid #172029;
     font-family:var(--mono);font-size:11px;color:#a3e635;
@@ -482,6 +484,19 @@
   .tabs button:hover:not(:disabled){background:none;border-color:transparent;border-bottom-color:#3f5364;color:var(--ink)}
   .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--link)}
   .tabpage:not(.on){display:none}
+  .headstats{display:flex;flex-wrap:wrap;gap:4px 18px;font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .headstats b{color:var(--ink);font-weight:500}
+  /* folded sections (Device Calibration) */
+  details.fold > summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+  details.fold > summary::-webkit-details-marker{display:none}
+  details.fold > summary::before{content:'▸';color:var(--dim);font-size:11px;display:inline-block;transition:transform .15s}
+  details.fold[open] > summary::before{transform:rotate(90deg)}
+  details.fold.panel{background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:12px 14px;margin:0 0 14px}
+  details.fold.panel > section{margin:12px 0 0;border:0;padding:0;background:none}
+  details.fold.mini{margin-top:8px}
+  details.fold.mini > summary{font-size:11px;color:var(--dim)}
+  details.fold.step > summary.cbh{padding:2px 0}
+  .cbresult{border-top:1px solid var(--rule);margin-top:14px;padding-top:10px}
   #tab-health .scene{grid-template-columns:1fr}
   #tab-health .scene .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 18px;align-content:start}
   #tab-health .scene .stats > .lbl,#tab-health .scene .stats > .wide{grid-column:1/-1}
@@ -526,10 +541,7 @@
 </header>
 
 <div class="strip">
-  <span>Samples <b id="sCount">0</b></span>
-  <span>Measured <b id="sRate">0.00</b> Hz</span>
-  <span>Device <b id="sSet">—</b></span>
-  <span>Stored <b id="sStored">—</b></span>
+  <span hidden>Stored <b id="sStored">—</b></span>
   <span>Free <b id="sFree">—</b></span>
   <span>Battery <b id="sBat">—</b></span>
   <span>Errors <b id="sErr">0</b></span>
@@ -558,6 +570,7 @@
         <div class="lbl">Sensor health</div>
         <div class="datainfo" id="healthInfo">waiting for the board…</div>
       </div>
+      <div class="headstats"><span>Samples <b id="sCount">0</b></span><span>Device <b id="sSet">—</b></span></div>
     </div>
     <canvas id="healthCv" class="healthcv"></canvas>
   </section>
@@ -676,24 +689,25 @@
         <div><label for="runDesign">Design depth, ft (optional - lets QC confirm the probe reached the bottom)</label>
           <input id="runDesign" inputmode="decimal" placeholder="e.g. 700"></div>
       </div>
+      <div class="runform one">
+        <div><label for="inpNote">Session note (used instead of the label when no bore is set)</label>
+          <input id="inpNote" type="text" maxlength="40" placeholder="e.g. bench test"
+                 aria-label="Note describing this recording session"></div>
+      </div>
       <div class="ctlhint" style="margin-top:9px">Recorded as <b id="runLabel">–</b>. Phone time is stamped on the run.
-        <b>Stand at the bore:</b> Record measurement takes the phone's GPS position. On the probe's own page
+        <b>Stand at the bore:</b> Start recording takes the phone's GPS position. On the probe's own page
         (10.10.10.10) press <b>Get GPS</b> first: the phone opens an egeozgul.com page for a few seconds, then comes
         back here, and that position is used for 10 minutes.</div>
+      <div class="ctlrow">
+        <button id="btnRecMeas" class="primary" disabled>Start recording</button>
+        <button id="btnStop" disabled>Stop recording</button>
+      </div>
+      <div class="recwhy" id="recWhy"></div>
     </div>
     <div class="ctlcard">
       <div class="lbl">Acquisition</div>
       <div class="ctlrow">
-        <input id="inpNote" class="notefield" type="text" maxlength="40"
-               placeholder="Session note (used when no bore is set above)"
-               aria-label="Note describing this recording session">
-      </div>
-      <div class="ctlrow">
-        <button id="btnRecMeas" disabled>Record measurement</button>
-      </div>
-      <div class="ctlrow">
-        <button id="btnStop" disabled>Stop</button>
-        <button id="btnStream" disabled title="Live data from the probe, every sample. Record calibration turns it on, Record measurement turns it off.">Stream on</button>
+        <button id="btnStream" disabled title="Live data from the probe, every sample. Record calibration turns it on, Start recording turns it off.">Stream on</button>
       </div>
       <div class="ctlrow">
         <div class="ratefield">
@@ -703,7 +717,7 @@
         </div>
         <button id="btnRate" disabled>Apply</button>
       </div>
-      <div class="recwhy" id="recWhy"></div>
+      <div class="headstats" style="margin-top:6px"><span>Measured <b id="sRate">0.00</b> Hz</span></div>
       <div class="gpsrow">
         <span class="lamp gps" id="lampGps"><i></i></span>
         <span id="gpsText">GPS: starting…</span>
@@ -785,7 +799,7 @@
     </div>
     <div class="sesswrap">
       <div class="sesshead">
-        <span>#</span><span>Type</span><span>Started</span><span>Location</span>
+        <span>#</span><span>Type</span><span>Started</span><span>Note</span><span>Location</span>
         <span>Address</span><span>Records</span><span>Rate</span>
         <span>Duration</span><span>Copy</span><span></span>
       </div>
@@ -889,6 +903,11 @@
         <button id="btnStopCal" disabled>Stop</button>
       </div>
       <div class="recwhy" id="recWhyCal"></div>
+      <div class="gpsrow">
+        <span class="lamp gps" id="lampGps2"><i></i></span>
+        <span id="gpsText2">GPS: starting…</span>
+        <button id="btnGpsHop2" style="display:none" title="Opens egeozgul.com for a few seconds to take this phone's position, then comes back">Get GPS</button>
+      </div>
       <div class="ctlhint">Turn the probe slowly through every orientation while it records. Record
         calibration turns the live stream on, so the cloud fills as you sweep. To fit a run already on
         the probe, read it in Runs and press "Use for mag calibration".</div>
@@ -939,6 +958,96 @@
   </div>
 
   <div class="tabpage" id="tab-devcal" data-tab="devcal">
+  <section class="dbg" id="calSec">
+    <div class="lbl" style="margin-bottom:6px">Device calibration</div>
+    <div class="covnote">Four steps with the probe streaming. The result is saved to the probe as a new calibration file.</div>
+    <details class="fold mini"><summary>How it works</summary><div class="dbgnote">Stream at the full sample rate, then work through the four steps. Everything is computed here from
+      the raw data: nothing the board records changes. The result can be <b>saved to the probe</b>, where it is added to its calibration files (nothing is overwritten), and downloaded.
+      Load the board's current config first, so its device ID and any steps you skip are kept.</div></details>
+    <div class="row" style="margin-top:10px">
+      <label>Earlier calibration (config.json) <input type="file" id="cbLoad" accept=".json,application/json" style="width:auto"></label>
+      <span class="covnote" id="cbLoaded"></span>
+      <button id="cbRecCal">Record a calibration session on the board</button>
+    </div>
+    <details class="fold mini"><summary>Values from the loaded file · save or load captured data</summary>
+    <div class="cbout" id="cbLoadedVals"></div>
+    <div class="row" style="margin-top:8px">
+      <button id="cbSaveCap">Save captured data</button>
+      <label>Load captured data <input type="file" id="cbLoadCap" accept=".json,application/json" style="width:auto"></label>
+      <span class="covnote">the poses, rolled positions and magnetometer cloud, to recompute later</span>
+    </div>
+    </details>
+    <div class="cbsteps" id="cbSteps"></div>
+
+    <details class="cbstep fold step" open>
+      <summary class="cbh">1 · Accelerometer bias and scale</summary>
+      <div class="dbgnote">Hold the tube completely still in <b>12 or more</b> orientations, about 3 s each — every axis
+        pointing roughly <b>up once and down once</b>, plus some in between. A pose is captured automatically after 2 s of
+        stillness, if it is at least 20° from every earlier one.</div>
+      <div class="row" style="margin-top:8px"><button id="cb1Start">Start capturing</button><button id="cb1Now">Capture now</button>
+        <button id="cb1Undo">Remove last</button><button id="cb1Clear">Clear</button><button id="cb1Fit">Compute</button>
+        <span class="covnote" id="cb1Live"></span></div>
+      <div class="cbcover" id="cb1Cover"></div>
+      <div class="covnote" id="cb1Need" style="margin-top:6px"></div>
+      <div class="covnote" id="cb1NowTxt" style="margin-top:4px;font-family:var(--mono)"></div>
+      <div id="cb1Table" style="overflow-x:auto"></div>
+      <div class="cbout" id="cb1Out"></div>
+    </details>
+
+    <details class="cbstep fold step">
+      <summary class="cbh">2 · Magnetometer hard and soft iron</summary>
+      <div class="dbgnote">Uses the <b>magnetometer cloud</b> in the <a href="#cal">Field Calibration</a> tab (Fit now works from here): tumble the tube through every direction until
+        the coverage is high, then fit. Do it <b>outdoors, away from metal</b>, with the tube fully assembled as deployed
+        and the battery above 3.6 V.</div>
+      <div class="row" style="margin-top:8px"><button id="cb3Fit">Fit now</button><button id="cb3Use">Use the current fit</button></div>
+      <div class="cbout" id="cb3Out"></div>
+    </details>
+
+    <details class="cbstep fold step">
+      <summary class="cbh">3 · Accelerometer alignment in the tube</summary>
+      <div class="dbgnote">Hold the tube in a fixed stand <b>at any angle</b> — upright, leaning, or lying in a
+        <b>V-block</b> — and <b>roll it about its own axis</b>, roughly 30° each time, pausing about 3 s, for
+        <b>8–12 positions</b> over at least three-quarters of a turn. Keep the stand or V-block fixed: only the tube turns,
+        and neither needs to be level or vertical. Rolling makes the measured "up" direction trace a circle whose axis is the
+        tube's axis: the chip's tilt relative to that axis is the result, and the setup's own angle is excluded.
+        Uses step 1's bias and scale. Upright, it also uses step 2's magnetometer fit to tell how far the tube has turned;
+        in a V-block it doesn't need the magnetometer at all.</div>
+      <div class="row" style="margin-top:8px"><button id="cb2Start">Start capturing</button><button id="cb2Now">Capture now</button>
+        <button id="cb2Undo">Remove last</button><button id="cb2Clear">Clear</button><button id="cb2Fit">Compute</button>
+        <span class="covnote" id="cb2Count"></span> <span class="covnote" id="cb2Live"></span></div>
+      <div class="cbtwo"><canvas id="cb2Plot" class="cbplot"></canvas><div class="cbout" id="cb2Out"></div></div>
+      <div class="covnote" id="cb2NowTxt" style="margin-top:4px;font-family:var(--mono)"></div>
+    </details>
+
+    <details class="cbstep fold step">
+      <summary class="cbh">4 · Magnetometer alignment to the accelerometer</summary>
+      <div class="dbgnote">Uses step 1's still poses, which recorded both sensors. Finds the small rotation between the two
+        chips that makes the dip the same in every pose. Do steps 1 and 2 first — and take step 1's poses outdoors too,
+        or the dip will vary with the room, not the chips.</div>
+      <div class="row" style="margin-top:8px"><button id="cb4Fit">Compute</button></div>
+      <div class="cbout" id="cb4Out"></div>
+    </details>
+
+    <details class="cbstep fold step" open>
+      <summary class="cbh">Check</summary>
+      <div class="dbgnote">The calibration being built, applied live to the stream — display only. Turn the tube and watch
+        the calibrated column hold steady.</div>
+      <div id="cbVerify"></div>
+    </details>
+
+    <div class="cbresult">
+      <div class="cbh">Result</div>
+      <div class="covnote" id="cbWarn" style="white-space:pre-wrap"></div>
+      <div class="row" style="margin-top:8px"><button id="cbSaveProbe" class="primary" disabled>Save to probe</button><button id="cbSave">Download</button><button id="cbCopy">Copy</button></div>
+      <div class="covnote" id="cbSaveMsg" style="margin-top:6px"></div>
+      <details class="fold mini"><summary>Show the file</summary>
+        <textarea id="cbJson" class="cbjson" readonly spellcheck="false"></textarea>
+      </details>
+    </div>
+  </section>
+
+  <details class="fold panel" id="cfgFold">
+    <summary><span class="lbl">Probe's config.json</span><span class="covnote" id="cfgSummary">not loaded</span></summary>
   <section class="controls">
     <div class="ctlcard">
       <div class="lbl">Calibration file</div>
@@ -963,91 +1072,11 @@
       <div id="calView" class="calview"><div class="covnote">No calibration file loaded.</div></div>
     </div>
   </section>
-  <section class="dbg" id="calSec">
-    <div class="lbl" style="margin-bottom:6px">Device calibration</div>
-    <div class="dbgnote">Stream at the full sample rate, then work through the four steps. Everything is computed here from
-      the raw data: nothing the board records changes. The result can be <b>saved to the probe</b>, where it is added to its calibration files (nothing is overwritten), and downloaded.
-      Load the board's current config first, so its device ID and any steps you skip are kept.</div>
-    <div class="row" style="margin-top:10px">
-      <label>Earlier calibration (config.json) <input type="file" id="cbLoad" accept=".json,application/json" style="width:auto"></label>
-      <span class="covnote" id="cbLoaded"></span>
-      <button id="cbRecCal">Record a calibration session on the board</button>
-    </div>
-    <div class="cbout" id="cbLoadedVals"></div>
-    <div class="row" style="margin-top:8px">
-      <button id="cbSaveCap">Save captured data</button>
-      <label>Load captured data <input type="file" id="cbLoadCap" accept=".json,application/json" style="width:auto"></label>
-      <span class="covnote">the poses, rolled positions and magnetometer cloud, to recompute later</span>
-    </div>
-    <div class="cbsteps" id="cbSteps"></div>
+  </details>
 
-    <div class="cbstep">
-      <div class="cbh">1 · Accelerometer bias and scale</div>
-      <div class="dbgnote">Hold the tube completely still in <b>12 or more</b> orientations, about 3 s each — every axis
-        pointing roughly <b>up once and down once</b>, plus some in between. A pose is captured automatically after 2 s of
-        stillness, if it is at least 20° from every earlier one.</div>
-      <div class="row" style="margin-top:8px"><button id="cb1Start">Start capturing</button><button id="cb1Now">Capture now</button>
-        <button id="cb1Undo">Remove last</button><button id="cb1Clear">Clear</button><button id="cb1Fit">Compute</button>
-        <span class="covnote" id="cb1Live"></span></div>
-      <div class="cbcover" id="cb1Cover"></div>
-      <div class="covnote" id="cb1Need" style="margin-top:6px"></div>
-      <div class="covnote" id="cb1NowTxt" style="margin-top:4px;font-family:var(--mono)"></div>
-      <div id="cb1Table" style="overflow-x:auto"></div>
-      <div class="cbout" id="cb1Out"></div>
-    </div>
-
-    <div class="cbstep">
-      <div class="cbh">2 · Magnetometer hard and soft iron</div>
-      <div class="dbgnote">Uses the <b>magnetometer cloud</b> in the <a href="#cal">Field Calibration</a> tab (Fit now works from here): tumble the tube through every direction until
-        the coverage is high, then fit. Do it <b>outdoors, away from metal</b>, with the tube fully assembled as deployed
-        and the battery above 3.6 V.</div>
-      <div class="row" style="margin-top:8px"><button id="cb3Fit">Fit now</button><button id="cb3Use">Use the current fit</button></div>
-      <div class="cbout" id="cb3Out"></div>
-    </div>
-
-    <div class="cbstep">
-      <div class="cbh">3 · Accelerometer alignment in the tube</div>
-      <div class="dbgnote">Hold the tube in a fixed stand <b>at any angle</b> — upright, leaning, or lying in a
-        <b>V-block</b> — and <b>roll it about its own axis</b>, roughly 30° each time, pausing about 3 s, for
-        <b>8–12 positions</b> over at least three-quarters of a turn. Keep the stand or V-block fixed: only the tube turns,
-        and neither needs to be level or vertical. Rolling makes the measured "up" direction trace a circle whose axis is the
-        tube's axis: the chip's tilt relative to that axis is the result, and the setup's own angle is excluded.
-        Uses step 1's bias and scale. Upright, it also uses step 2's magnetometer fit to tell how far the tube has turned;
-        in a V-block it doesn't need the magnetometer at all.</div>
-      <div class="row" style="margin-top:8px"><button id="cb2Start">Start capturing</button><button id="cb2Now">Capture now</button>
-        <button id="cb2Undo">Remove last</button><button id="cb2Clear">Clear</button><button id="cb2Fit">Compute</button>
-        <span class="covnote" id="cb2Count"></span> <span class="covnote" id="cb2Live"></span></div>
-      <div class="cbtwo"><canvas id="cb2Plot" class="cbplot"></canvas><div class="cbout" id="cb2Out"></div></div>
-      <div class="covnote" id="cb2NowTxt" style="margin-top:4px;font-family:var(--mono)"></div>
-    </div>
-
-    <div class="cbstep">
-      <div class="cbh">4 · Magnetometer alignment to the accelerometer</div>
-      <div class="dbgnote">Uses step 1's still poses, which recorded both sensors. Finds the small rotation between the two
-        chips that makes the dip the same in every pose. Do steps 1 and 2 first — and take step 1's poses outdoors too,
-        or the dip will vary with the room, not the chips.</div>
-      <div class="row" style="margin-top:8px"><button id="cb4Fit">Compute</button></div>
-      <div class="cbout" id="cb4Out"></div>
-    </div>
-
-    <div class="cbstep">
-      <div class="cbh">Check</div>
-      <div class="dbgnote">The calibration being built, applied live to the stream — display only. Turn the tube and watch
-        the calibrated column hold steady.</div>
-      <div id="cbVerify"></div>
-    </div>
-
-    <div class="cbstep">
-      <div class="cbh">config.json</div>
-      <textarea id="cbJson" class="cbjson" readonly spellcheck="false"></textarea>
-      <div class="covnote" id="cbWarn" style="white-space:pre-wrap"></div>
-      <div class="covnote" id="cbSaveMsg" style="margin-top:6px"></div>
-      <div class="row" style="margin-top:8px"><button id="cbCopy">Copy</button><button id="cbSaveProbe" class="primary" disabled>Save to probe</button><button id="cbSave">Download</button></div>
-    </div>
-  </section>
-
+  <details class="fold panel" id="dbgFold">
+    <summary><span class="lbl">Validation tools</span><span class="covnote">gyro, accelerometer, magnetometer · advanced</span></summary>
   <section class="dbg" id="dbg">
-    <div class="lbl" style="margin-bottom:10px">Validation · gyro, accelerometer, magnetometer</div>
     <div class="row">
       <label>Complementary τ <input id="dbgTau" type="number" value="1.0" step="0.1" min="0.05"> s</label>
       <label>Accel gate ± <input id="dbgGate" type="number" value="10" step="1" min="1"> %</label>
@@ -1103,6 +1132,7 @@
       axes — use the Mag axes field in the orientation panel if they don't.
     </div>
   </section>
+  </details>
 
     <section class="mem" id="calFilesBlock">
     <div class="memhead">
@@ -1906,6 +1936,9 @@ function showGps(){
   el('gpsText').textContent = st.ok
     ? `GPS: ${lastFix.lat.toFixed(5)}, ${lastFix.lon.toFixed(5)}  ±${Math.round(lastFix.acc)} m`
     : `GPS: ${gpsError || st.why}`;
+  // the same line in Field Calibration's recording card
+  el('lampGps2').className = lamp.className;
+  el('gpsText2').textContent = el('gpsText').textContent;
 }
 
 let gpsError=null;
@@ -1931,10 +1964,10 @@ function startGps(){
     gpsFromAddress();
     if(!lastFix){ try{ const f = JSON.parse(localStorage.getItem('bl_fix') || 'null'); if(f && f.hop) lastFix = f; }catch(x){} }
     if(!gpsError) gpsError = 'press Get GPS (this page cannot use GPS itself)';
-    el('btnGpsHop').style.display = '';
-    el('btnGpsHop').onclick = () => {
-      location.href = GPS_HOP + '?back=' + encodeURIComponent(location.origin + location.pathname + '#bore');
-    };
+    for(const [id, tab] of [['btnGpsHop','bore'], ['btnGpsHop2','cal']]){
+      el(id).style.display = '';
+      el(id).onclick = () => { location.href = GPS_HOP + '?back=' + encodeURIComponent(location.origin + location.pathname + '#' + tab); };
+    }
     showGps(); setInterval(showGps, 5000);
     return;
   }
@@ -2624,6 +2657,7 @@ function renderSessions(){
       `<span>${s.seq+1}</span>`+
       `<span>${kindTag}</span>`+
       `<span>${when}</span>`+
+      `<span class="sessname"></span>`+
       `<span class="${s.gps?'':'nogps'}">${s.gps
           ? s.lat.toFixed(5)+', '+s.lon.toFixed(5)+'  ±'+s.acc+'m'
           : 'GPS unavailable'}</span>`+
@@ -2638,14 +2672,8 @@ function renderSessions(){
     b.disabled=!chCtrl||recording||dumpActive;
     b.onclick=()=>readSession(i);
     d.appendChild(b);
+    d.querySelector('.sessname').textContent = s.note || '—';   // text, never markup
     frag.appendChild(d);
-    if(s.note){
-      // full width beneath the row, so the columns above stay readable
-      const nd=document.createElement('div');
-      nd.className='sessnote';
-      nd.textContent=s.note;
-      frag.appendChild(nd);
-    }
   });
   box.replaceChildren(frag);
 }
@@ -4134,6 +4162,7 @@ function calLoadText(txt, src){
 }
 function calStatus(msg){
   calShow();
+  setTimeout(() => { const t=el('cfgSummary'), c=el('cCalFile'); if(t && c) t.textContent = c.textContent; }, 0);
   if(msg){ el('cCalFile').textContent=msg; el('cCalFile').style.color=''; return; }
   if(!CAL){ el('cCalFile').textContent='none loaded'; return; }
   const m=/ESP32-LOG-(\d+)/.exec(el('brandName').textContent), conn=m ? +m[1] : null;
@@ -6253,9 +6282,8 @@ function noDataWatch(flagKey, label){
   setTimeout(() => {
     if(dbg[flagKey] && dbg[flagKey].length === 0){
       dbg[flagKey] = null;
-      saySide(label+': no live data arriving. Connect to the board and turn the stream ON '+
-              '(at the sample rate) -- Record measurement turns it off. This published copy '+
-              'cannot use Bluetooth; use the page on your site.', 'err');
+      saySide(label+': no live data arriving. Connect to the probe and turn the stream ON '+
+              '(Acquisition, in Bore Measurement) -- Start recording turns it off.', 'err');
     }
   }, 3000);
 }
@@ -6557,18 +6585,19 @@ function runLabel(){
   return b ? b+'-R'+r+(t>1 ? ' T'+t : '') : '';
 }
 function runFormChanged(id){
-  el('runLabel').textContent = runLabel() || '–';
+  el('runLabel').textContent = runLabel() || el('inpNote').value.trim() || '–';
   const key = {runBore:'bl_bore', runNum:'bl_run', runTube:'bl_tube'}[id];
   if(key) lsS(key, el(id).value);
   if(id==='runBore') el('runDesign').value = lsG('bl_design_'+el('runBore').value.trim().toUpperCase()) || '';
 }
 for(const id of ['runBore','runNum','runTube']) el(id).oninput = el(id).onchange = () => runFormChanged(id);
+el('inpNote').addEventListener('input', () => runFormChanged('inpNote'));
 el('runDesign').oninput = () => lsS('bl_design_'+el('runBore').value.trim().toUpperCase(), el('runDesign').value);
 el('runBore').value = lsG('bl_bore') || '';
 el('runNum').value = lsG('bl_run') || 1;
 el('runTube').value = lsG('bl_tube') || '1';
 el('runDesign').value = lsG('bl_design_'+el('runBore').value.trim().toUpperCase()) || '';
-el('runLabel').textContent = runLabel() || '–';
+el('runLabel').textContent = runLabel() || el('inpNote').value.trim() || '–';
 
 /* ── start-up: after every block above has run (the ported calibration code
    declares state that buildPlots and the 3D view use) ── */
