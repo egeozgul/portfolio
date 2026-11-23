@@ -2896,9 +2896,11 @@ async function exportAll(){
   const withData = sessionsList.filter(s=>s.count>0);
   if(!withData.length){ log('Every session is empty.','err'); return; }
   const total = withData.reduce((a,s)=>a+s.count,0);
+  // over the cable a read runs at ~3,000 records a second (BL-A001: 165,169 in 63 s)
+  const rate = cable ? 2600 : DUMP_RATE, secs = total/rate;
   if(!confirm(`Read ${total.toLocaleString()} records across ${withData.length} `+
-              `session(s) over Bluetooth?\n\nAt roughly ${DUMP_RATE} records a second this `+
-              `will take about ${Math.ceil(total/DUMP_RATE/60)} minute(s).`)) return;
+              `session(s) over ${cable ? 'the USB cable' : 'Bluetooth'}?\n\nThis will take about `+
+              (secs < 90 ? `${Math.max(1, Math.ceil(secs))} second(s).` : `${Math.ceil(secs/60)} minute(s).`))) return;
 
   const now = new Date();
   const root = `borelogger-export_${localStamp(now,false)}_${tzSuffix(now)}`;
@@ -2948,6 +2950,7 @@ async function exportAll(){
     return;
   }
 
+  try{                                    // whatever happens now, the export ends here
   exportProg.stage('building the archive…');
   files.unshift({name:`${root}/index.csv`,
     text:'session,type,note,started_iso,started_local,utc_offset_min,latitude,'+
@@ -2997,6 +3000,12 @@ async function exportAll(){
   else
     log(`Exported ${files.length-2} session file(s), `+
         `${total.toLocaleString()} records, ${(blob.size/1024).toFixed(0)} kB.`,'ok');
+  if(exportProg){ exportProg.stage('saved'); exportProg.done(!short); }
+  }finally{
+    // a finished export used to keep exportProg: later reads then counted into it, and
+    // "Read log" never showed its own progress again
+    exportProg = null; dumpActive = false; setButtons();
+  }
 }
 el('btnExportAll').onclick=exportAll;
 
@@ -5090,6 +5099,7 @@ function derive(s){
 }
 
 function startBias(){
+  needStream('zeroing the gyro bias');
   // the 2 s window starts at the first sample captured, so this works
   // whether or not anything has been streamed yet
   dbg.biasBuf = [];
@@ -5110,6 +5120,7 @@ function finishBias(){
   log('Gyro bias set to '+m.map(x=>x.toFixed(3)).join(', ')+' °/s from '+b.length+' samples','ok');
 }
 function startMagAxes(){
+  needStream('axis detection');
   dbg.axCap = []; dbg.axEnd = null;
   noDataWatch('axCap', 'Auto-detect mag axes');
   log('Recording for 15 s: turn the tube through as many orientations as you can -- '+
@@ -5534,7 +5545,12 @@ function cbMagCorr(){
 function cbMagApply(raw, mc){ return cbMapVec(cbMv(mc.W, raw.map((v,i)=>v-mc.h[i]))); }
 
 /* ── capture: wait for 2 s of stillness, then take the average ── */
+function needStream(what){
+  // Start recording turns the live stream off; a capture without samples would just wait forever
+  if(chCtrl && !streamOn){ applyStream(true); log('Live stream turned on for '+what+'.','ok'); }
+}
 function cbStart(mode){
+  needStream('the calibration capture');
   CALB.mode = mode; CALB.win = [];
   CALB.live = mode==='pose' ? 'capturing -- hold still in a new orientation' : 'capturing -- turn the tube to a new position and hold';
   cbRender();
@@ -5575,6 +5591,7 @@ function cbFeed(s){
     (w.length>3 && Math.hypot(...smp.a.map((v,i)=>v-cbMean(w,'a')[i])) > CB_ACC_JUMP);
   if(moving){ CALB.win=[smp]; CALB.live='moving'; return; }
   w.push(smp);
+  if(CALB.forceNext===CALB.mode && w.length>=13){ CALB.forceNext=null; if(cbCapture(true)) return; }
   if(w.length < CB_STILL_N){ CALB.live='hold still... '+((CB_STILL_N-w.length)/26.3).toFixed(1)+' s'; return; }
   const a=cbMean(w,'a'), an=cbNorm(a);
   if(an<0.9 || an>1.1){ CALB.live='total acceleration '+an.toFixed(3)+' g -- not a clean still reading'; w.shift(); return; }
@@ -6288,6 +6305,7 @@ function noDataWatch(flagKey, label){
   }, 3000);
 }
 function startPoseCheck(){
+  needStream('the pose check');
   dbg.poseCap = []; dbg.poseEnd = null;
   saySide('Pose check: hold still with one axis straight down... waiting for samples');
   noDataWatch('poseCap', 'Pose check');
@@ -6337,8 +6355,10 @@ el('cbRecCal').onclick = () => { if(el('btnRecCal').disabled) log('Connect to th
 el('cb1Start').onclick = () => CALB.mode==='pose' ? cbStop() : cbStart('pose');
 el('cb2Start').onclick = () => CALB.mode==='rot' ? cbStop() : cbStart('rot');
 const cbNow = mode => { if(CALB.mode!==mode) cbStart(mode);
-  if(CALB.win.length<13) { CALB.live='not enough still samples yet -- hold still a moment'; cbRender(); return; }
-  cbCapture(true); };
+  // not enough still samples yet: take it as soon as there are (it used to just start capturing,
+  // and the automatic capture then refused a pose near an earlier one -- Capture now did nothing)
+  if(CALB.win.length<13) { CALB.forceNext=mode; CALB.live='capturing as soon as it has been still a moment'; cbRender(); return; }
+  CALB.forceNext=null; cbCapture(true); };
 el('cb1Now').onclick = () => cbNow('pose');
 el('cb2Now').onclick = () => cbNow('rot');
 el('cb1Undo').onclick = () => { CALB.poses.pop(); cbRender(); };
