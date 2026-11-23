@@ -484,6 +484,37 @@
   .tabs button:hover:not(:disabled){background:none;border-color:transparent;border-bottom-color:#3f5364;color:var(--ink)}
   .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--link)}
   .tabpage:not(.on){display:none}
+  /* QC tab: the field page's run review, recoloured */
+  #qcView{--ink:#e8eff5;--muted:#7c8fa0;--line:#2a3743;--ok:#2f9e5b;--warn:#c98a1a;--bad:#d24545;--acc:#4cc9f0;color:var(--ink);font-size:14px}
+  #qcView .verdict{border-radius:6px;padding:14px 16px;color:#fff;margin:10px 0}
+  #qcView .verdict .w{font-weight:900;font-size:26px;letter-spacing:.5px;line-height:1.05}
+  #qcView .verdict .r{font-weight:700;font-size:15px;margin-top:8px;line-height:1.3}
+  #qcView .verdict .a{font-weight:600;font-size:14px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.45)}
+  #qcView .v-go{background:var(--ok)} #qcView .v-check{background:var(--warn)} #qcView .v-rerun{background:var(--bad)}
+  #qcView .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px}
+  #qcView .fact{background:#0e141a;border:1px solid var(--line);border-radius:4px;padding:8px 10px}
+  #qcView .fact b{display:block;font-size:18px;font-variant-numeric:tabular-nums}
+  #qcView .fact span{font-size:11px;color:var(--muted)} #qcView .fact.wide{grid-column:1/-1}
+  #qcView .fact a{color:var(--acc)}
+  #qcView .card,#qcView .qccard{background:#0e141a;border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin-bottom:10px}
+  #qcView .card .name{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  #qcView .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  #qcView label{display:block;font-size:10px;letter-spacing:.08em;color:var(--muted);margin-bottom:4px}
+  #qcView input,#qcView select{width:100%;box-sizing:border-box;background:#10151b;color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:7px 8px;font-family:var(--mono);font-size:12px}
+  #qcView .scrub{font-size:12px;min-height:18px;margin:0 0 6px;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  #qcView .v3b{display:flex;gap:6px} #qcView .v3b button{flex:1}
+  #qcView .tier{padding:0 4px 8px} #qcView .tier h3{font-size:11px;margin:12px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+  #qcView .ck{display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;padding:7px 0;border-top:1px solid #172029;font-size:13px}
+  #qcView .chip{font-weight:800;font-size:10px;padding:2px 6px;border-radius:3px;color:#fff;align-self:start;margin-top:2px}
+  #qcView .c-pass{background:var(--ok)} #qcView .c-warn{background:var(--warn)} #qcView .c-fail{background:var(--bad)} #qcView .c-info{background:#56636f}
+  #qcView .ck .m{font-variant-numeric:tabular-nums;font-weight:700;text-align:right;font-family:var(--mono)}
+  #qcView .ck .l{color:var(--muted);grid-column:2/4;font-size:11.5px}
+  #qcView .note{color:var(--muted);font-size:12px} #qcView .err{color:#ff8080}
+  #qcView details.qcdetails > summary{cursor:pointer;color:var(--muted);font-size:12px;margin:6px 0}
+  #qcView svg{display:block;width:100%;max-width:440px;height:auto;margin:0 auto}
+  #qcView .qcpair{display:grid;grid-template-columns:1fr;gap:0 10px;align-items:start}
+  @media (min-width:900px){ #qcView .qcpair{grid-template-columns:1fr 1fr} }
+  .listrow.pick{cursor:pointer} .listrow.pick:hover{background:#151d25} .listrow.pick.on{background:#1b2b33;box-shadow:inset 3px 0 0 var(--link)}
   .headstats{display:flex;flex-wrap:wrap;gap:4px 18px;font-family:var(--mono);font-size:12px;color:var(--dim)}
   .headstats b{color:var(--ink);font-weight:500}
   /* folded sections (Device Calibration) */
@@ -560,6 +591,7 @@
     <button role="tab" data-tab="health">Health Check</button>
     <button role="tab" data-tab="bore">Bore Measurement</button>
     <button role="tab" data-tab="runs">Data Management</button>
+    <button role="tab" data-tab="qc">QC</button>
     <button role="tab" data-tab="cal">Field Calibration</button>
     <button role="tab" data-tab="devcal">Device Calibration</button>
   </nav>
@@ -813,12 +845,15 @@
     <div class="memhead">
       <div class="lbl">On this device</div>
       <div class="membtns">
+        <button id="btnFolder" hidden>Choose folder</button>
+        <button id="btnSaveAll" disabled>Save all</button>
         <button id="btnUploadAll" disabled>Upload all</button>
       </div>
     </div>
     <div class="ctlhint" style="margin-top:6px">Every run you read is kept here, in this browser, until you delete it.
-      <b>Save file</b> puts a copy in your Downloads (a ZIP with the raw .bin and its details) — that copy is the safe one:
+      <b>Save file</b> puts a copy outside the browser — that copy is the safe one:
       browsers can clear their storage, iPhones after a few weeks without use.</div>
+    <div class="ctlhint" id="folderInfo" style="margin-top:6px"></div>
     <div class="sesswrap" id="localRows"><div class="sessempty">No runs kept on this device yet. Read a run above.</div></div>
     <div class="dbmsg" id="localInfo"></div>
   </section>
@@ -842,20 +877,6 @@
       Uploads use this phone's or laptop's internet; without it they wait in the queue.</div>
   </section>
 
-  <section class="mem" id="ovBlock" hidden>
-    <div class="memhead">
-      <div>
-        <div class="lbl">Recording overview</div>
-        <div class="datainfo" id="ovInfo">—</div>
-      </div>
-    </div>
-    <div class="ovsub">
-      <div class="lbl">Data health · whole recording</div>
-      <div class="datainfo" id="ovHealthInfo">—</div>
-      <canvas id="ovHealthCv" class="ovhealthcv"></canvas>
-    </div>
-    <div class="grid ovgrid" id="ovGrid"></div>
-  </section>
 
   <section class="mem" id="dataBlock" hidden>
     <div class="memhead">
@@ -886,6 +907,33 @@
         <div class="tscroll" id="tScroll"><div id="tSpacer"></div><div id="tRows"></div></div>
       </div>
     </div>
+  </section>
+  </div>
+
+  <div class="tabpage" id="tab-qc" data-tab="qc">
+  <section class="mem" id="qcRuns">
+    <div class="memhead"><div class="lbl">Recorded measurement runs</div></div>
+    <div class="ctlhint" style="margin-top:6px">Choose a run to review; the most recent is chosen first. A run kept on this device opens at
+      once; otherwise it is read off the probe (seconds over the USB cable, minutes over Bluetooth) and kept.</div>
+    <div class="sesswrap" id="qcRunsRows"><div class="sessempty">Connect to a probe, or read a run once, to review it here.</div></div>
+  </section>
+  <section class="mem" id="qcBlock">
+    <div class="memhead"><div class="lbl">Run review</div></div>
+    <div id="qcView"></div>
+  </section>
+  <section class="mem" id="ovBlock" hidden>
+    <div class="memhead">
+      <div>
+        <div class="lbl">Recording overview</div>
+        <div class="datainfo" id="ovInfo">—</div>
+      </div>
+    </div>
+    <div class="ovsub">
+      <div class="lbl">Data health · whole recording</div>
+      <div class="datainfo" id="ovHealthInfo">—</div>
+      <canvas id="ovHealthCv" class="ovhealthcv"></canvas>
+    </div>
+    <div class="grid ovgrid" id="ovGrid"></div>
   </section>
   </div>
 
@@ -1877,7 +1925,7 @@ const el=id=>document.getElementById(id);
    link or a reload lands on it, and remembered for the next visit. Panels in
    a hidden page keep updating; their canvases are redrawn when it opens,
    because a hidden canvas has no size. */
-const TABS = ['health','bore','runs','cal','devcal'];
+const TABS = ['health','bore','runs','qc','cal','devcal'];
 function showTab(t){
   if(!TABS.includes(t)) t = 'health';
   for(const p of document.querySelectorAll('.tabpage')) p.classList.toggle('on', p.dataset.tab===t);
@@ -1891,6 +1939,7 @@ function showTab(t){
   dirty = true;
   dispatchEvent(new Event('resize'));
   if(t==='devcal' && chCtrl && (!calFiles || calFiles.done)) calListRequest();
+  if(t==='qc') QCV.refresh();
 }
 for(const b of document.querySelectorAll('#tabs button')) b.onclick = () => showTab(b.dataset.tab);
 el('tabs').addEventListener('keydown', e => {
@@ -2637,6 +2686,7 @@ function renderKindList(boxId, kind){
   box.replaceChildren(frag);
 }
 function renderSessions(){
+  if(typeof QCV!=='undefined') QCV.refresh();
   renderKindList('boreRunsRows', 0);
   renderKindList('calRunsRows', 1);
   const box=el('sessRows');
@@ -6619,6 +6669,461 @@ el('runTube').value = lsG('bl_tube') || '1';
 el('runDesign').value = lsG('bl_design_'+el('runBore').value.trim().toUpperCase()) || '';
 el('runLabel').textContent = runLabel() || el('inpNote').value.trim() || '–';
 
+
+/* ══ QC: the probe field page's run review (fieldpage.html), ported 2026-11-23 ══
+   One run at a time: its raw records (kept on this device, else read off the
+   probe and kept) go through the field page's own analysis -- survey stations,
+   checks against qc_config.json, verdict, depth plot, 3D trajectory. Kept in
+   its own scope so none of its names can meet the app's. */
+const QCV = (function(){
+const $ = id => document.getElementById(id), C = {ok:'#2f9e5b', warn:'#c98a1a', bad:'#d24545'};
+let info = {acc_lsb_per_g:16384, fp_cal:null, expected_field_ut:51.8, expected_dip_deg:67.5, cal:{axis_sign:[1,-1,-1]}, serial:''};
+const reviewCache = {};
+const loadFix = ep => ({});        // the field page's end-of-run GPS (portal hop): not used by this app
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ls=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}};
+function fixesOf(r){const k=loadFix(r.epoch),s=r.lat_e7!=null?{lat:r.lat_e7/1e7,lon:r.lon_e7/1e7,acc:r.acc_m}:k.start||null;return {start:s,end:k.end||null}}
+const distM=(a,b)=>{const R=6371000,f=Math.PI/180,x=(b.lon-a.lon)*f*Math.cos((a.lat+b.lat)/2*f),y=(b.lat-a.lat)*f;return R*Math.hypot(x,y)};
+const fixTxt=s=>s.lat.toFixed(6)+', '+s.lon.toFixed(6)+' ±'+Math.round(s.acc)+' m';
+function combineFix(s,e,cfg){if(!s||!e)return s||e?Object.assign({},s||e,{both:false}):null;
+ if(distM(s,e)>cfg.gps_move_warn_m)return Object.assign({},s,{both:false});
+ const ws=1/Math.max(1,s.acc)**2,we=1/Math.max(1,e.acc)**2;
+ return {lat:(ws*s.lat+we*e.lat)/(ws+we),lon:(ws*s.lon+we*e.lon)/(ws+we),acc:Math.min(s.acc,e.acc),both:true}}
+const bestFix=r=>{const g=fixesOf(r);return combineFix(g.start,g.end,QC)};
+const when=r=>{if(!r.epoch)return 'no clock';const d=new Date((r.epoch+r.tz*60)*1000),z=n=>String(n).padStart(2,'0');
+ return d.getUTCFullYear()+'-'+z(d.getUTCMonth()+1)+'-'+z(d.getUTCDate())+' '+z(d.getUTCHours())+':'+z(d.getUTCMinutes())};
+const fname=(r,ext)=>(when(r).replace(/[: ]/g,'').replace(/-/g,'')+'_'+(r.note||'run'+r.i)).replace(/[^A-Za-z0-9_.-]/g,'_')+ext;
+const boreOf=note=>{const m=/^(.*?)[-_ ]*R(\d+)(?:[-_ ]*T(\d))?$/i.exec((note||'').trim());return m?m[1].toUpperCase():''};
+const tubeOf=note=>{const m=/R\d+[-_ ]*T(\d)$/i.exec((note||'').trim());return m?+m[1]:1};   // which pipe of the loop; no T = tube 1
+function decode(buf){const v=new DataView(buf),n=buf.byteLength/32|0,o={n};
+ ['t','ax','ay','az','gx','gy','gz','p','temp','mx','my','mz','it','mv'].forEach(k=>o[k]=new Float64Array(n));
+ for(let i=0;i<n;i++){const b=i*32;o.t[i]=v.getUint32(b,1)/1000;const s=[4,6,8,10,12,14];['ax','ay','az','gx','gy','gz'].forEach((k,j)=>o[k][i]=v.getInt16(b+s[j],1));
+  o.p[i]=v.getInt32(b+16,1);o.temp[i]=v.getInt16(b+20,1);o.mx[i]=v.getInt16(b+22,1);o.my[i]=v.getInt16(b+24,1);o.mz[i]=v.getInt16(b+26,1);
+  o.it[i]=v.getInt16(b+28,1);o.mv[i]=v.getUint16(b+30,1)}return o}
+const QC_DEFAULTS={nominal_hz:26.316,max_gap_s:1.0,max_missing_pct:0.5,min_compass_fresh:0.99,min_travel_ft:10,closure_warn_ft:1.0,closure_fail_ft:3.0,
+ battery_warn_v:3.5,casing_ft:60,bottom_zone_ft:3,station_ft:5,min_station_samples:15,survey_cover_warn_pct:90,survey_cover_fail_pct:50,design_short_ft:5,
+ design_short_pct:2,dip_warn_deg:3,dip_strong_deg:6,b_band_pct:10,b_band_min_ft:10,downup_warn_rms:1.5,pair_inc_rms:1.0,pair_td_ft:2.0,az_undefined_deg:5.74,
+ az_min_inc_deg:3.0,az_inc_sd_max:1.5,az_coh_sd_deg:30,az_block_gap_ft:15,az_block_min_ft:20,az_block_min_r:0.85,
+ steel_pct:10,steel_search_ft:40,steel_warn_ft:20,kop_deg:5,kop_len_ft:20,kop_tol_ft:10,legs_warn_ft:1.0,legs_fail_ft:3.0,lean_pct:0.5,
+ gps_acc_warn_m:15,gps_move_warn_m:25};
+let QC=Object.assign({},QC_DEFAULTS);
+const movavg=(a,n)=>{const o=new Float64Array(a.length),h=n>>1;let s=0,c=0;for(let i=0;i<a.length+h;i++){if(i<a.length&&isFinite(a[i])){s+=a[i];c++}
+ const j=i-n;if(j>=0&&isFinite(a[j])){s-=a[j];c--}const k=i-h;if(k>=0&&k<a.length)o[k]=c?s/c:NaN}return o};
+const median=a=>{const b=Array.from(a).filter(isFinite).sort((x,y)=>x-y);return b.length?b[b.length>>1]:NaN};
+const pct=(a,q)=>{const b=Array.from(a).filter(isFinite).sort((x,y)=>x-y);return b.length?b[Math.min(b.length-1,Math.floor(q*b.length))]:NaN};
+const bands=(ds,step)=>{const s=ds.slice().sort((a,b)=>a-b),out=[];for(const d of s){const l=out[out.length-1];if(l&&d-l[1]<=step)l[1]=d;else out.push([d,d])}
+ return out.map(([a,b])=>({from:a,to:b+step}))};
+const bandTxt=b=>b.slice(0,3).map(x=>x.from+'–'+x.to+' ft').join(', ')+(b.length>3?' and '+(b.length-3)+' more':'');
+// The calibration saved on the probe by the Calibrate tab. The June cal.json is NOT used:
+// against the 2026-09-18 runs it moves |B| to 58-61 uT and the dip 4-7 deg off, while
+// uncorrected data agree with the site - this probe's hard iron is small (~1.5 uT).
+function calCenter(){const f=info&&info.fp_cal;if(f&&f.center)return {center:f.center,src:'probe calibration '+(f.at||'').slice(0,10)};
+ try{const c=JSON.parse(ls('bl_cal'));if(c&&c.center)return {center:c.center,src:'this phone calibration '+c.at.slice(0,10)}}catch(e){}
+ return {center:[0,0,0],src:'uncalibrated (fine for this probe until a new calibration)'}}
+function refs(){return {B:+(ls('bl_refb')||(info?info.expected_field_ut:51.8)),D:+(ls('bl_refd')||(info?info.expected_dip_deg:67.5)),
+ Z:+(ls('bl_refz')||(info&&info.expected_decl_deg!=null?info.expected_decl_deg:-14.2))}}   // declination: Douglas MA, IGRF 2026.6 (office field_analysis.py)
+
+// Everything measured from one run. Pure: no page state, so it can be tested off the probe.
+function analyze(buf,cfg,ctx){
+ const d=decode(buf),n=d.n,B16=-32768,L=ctx.lsb,A={n};if(n<100){A.tooShort=true;return A}
+ let gap=0,gapAt=0,back=0;for(let k=1;k<n;k++){const dt=d.t[k]-d.t[k-1];if(dt>gap){gap=dt;gapAt=k}if(dt<=0)back++}
+ A.span=d.t[n-1]-d.t[0];A.expected=Math.round(A.span*cfg.nominal_hz)+1;A.missing_pct=100*(A.expected-n)/A.expected;A.gap=gap;A.back=back;
+ let accDown=0,magDown=0,prDown=0,fresh=0,rail=0;for(let k=0;k<n;k++){if(d.ax[k]===B16)accDown++;if(d.mx[k]===B16)magDown++;if(d.p[k]===-1)prDown++;
+  if(k&&(d.mx[k]!==d.mx[k-1]||d.my[k]!==d.my[k-1]||d.mz[k]!==d.mz[k-1]))fresh++;
+  if(Math.abs(d.gx[k])>=32700||Math.abs(d.gy[k])>=32700||Math.abs(d.gz[k])>=32700)rail++}
+ Object.assign(A,{accDown,magDown,prDown,fresh:fresh/(n-1),railPct:100*rail/n});
+ const kpa=Array.from(d.p,x=>x===-1?NaN:x/100);A.patm=pct(kpa.slice(0,200),.2);
+ const raw=kpa.map(x=>(x-A.patm)/9.80665*3.28084),tv=movavg(raw,131),rate=new Float64Array(n);
+ for(let k=1;k<n-1;k++)rate[k]=(tv[k+1]-tv[k-1])/(d.t[k+1]-d.t[k-1]||1);
+ let td=-Infinity,tdAt=0;for(let k=0;k<n;k++)if(tv[k]>td){td=tv[k];tdAt=k}A.td=td;
+ A.closure=median(raw.slice(-200))-median(raw.slice(0,200));
+ const ax=movavg(Array.from(d.ax,x=>x===B16?NaN:x/L),53),ay=movavg(Array.from(d.ay,x=>x===B16?NaN:x/L),53),az=movavg(Array.from(d.az,x=>x===B16?NaN:x/L),53);
+ const inc=new Float64Array(n);for(let k=0;k<n;k++){const g=Math.hypot(ax[k],ay[k],az[k]);inc[k]=g>.1?Math.acos(Math.min(1,Math.abs(ax[k])/g))*180/Math.PI:NaN}
+ const sg=ctx.sign,c=ctx.center,Bm=new Float64Array(n),dip=new Float64Array(n),azs=new Float64Array(n).fill(NaN),decl=isFinite(ctx.decl)?ctx.decl:-14.2;
+ // the compass offset for the direction comes from the probe's own spin on the trip out, as in the office
+ // (survey.py fit_spin_hard_iron) - no calibration needed; the QC checks above keep the calibration's
+ const sc=spinHardIron(d,sg,k=>rate[k]<-.15&&tv[k]>cfg.casing_ft,isFinite(ctx.refB)?ctx.refB:51.8)||c;A.spinCenter=sc;
+ for(let k=0;k<n;k++){if(d.mx[k]===B16||d.ax[k]===B16){Bm[k]=dip[k]=NaN;continue}
+  const m=[d.mx[k]*sg[0]/75-c[0],d.my[k]*sg[1]/75-c[1],d.mz[k]*sg[2]/75-c[2]],a=[d.ax[k]/L,d.ay[k]/L,d.az[k]/L],bm=Math.hypot(...m);
+  Bm[k]=bm;dip[k]=Math.asin(-(m[0]*a[0]+m[1]*a[1]+m[2]*a[2])/(bm*Math.hypot(...a)))*180/Math.PI;
+  // azimuth of the hole (board X), roll-free, to TRUE north: the office formula (host_tools/phoenix/survey.py),
+  // raw accel per sample (a smoothed one would lag the spin), gravity = minus the reading
+  const h=[m[0]+c[0]-sc[0],m[1]+c[1]-sc[1],m[2]+c[2]-sc[2]];
+  const Gx=-a[0],Gy=-a[1],Gz=-a[2],num=Math.hypot(Gx,Gy,Gz)*(h[1]*Gz-h[2]*Gy),den=h[0]*(Gy*Gy+Gz*Gz)-Gx*(h[1]*Gy+h[2]*Gz);
+  azs[k]=((-Math.atan2(num,den)*180/Math.PI+decl)%360+360)%360}
+ // steel at the bottom (a rebar or weight sinking the loop): from the bottom up, the height where |B|
+ // comes back to the open-hole value. Tilt and depth are not affected; the compass is.
+ A.steel={zone:0,peak:0};const bRef=median(Array.from(Bm).filter((v,k)=>isFinite(v)&&raw[k]>=cfg.casing_ft&&raw[k]<=td-30));
+ if(isFinite(bRef)&&bRef>0){const sb={};for(let k=0;k<n;k++){const h=td-raw[k];if(!isFinite(Bm[k])||!(h>=-1&&h<cfg.steel_search_ft))continue;
+   const f=Math.max(0,Math.floor(h));(sb[f]=sb[f]||[]).push(Math.abs(Bm[k]/bRef-1)*100)}
+  let clean=0;for(let f=0;f<cfg.steel_search_ft&&clean<3;f++){const v=sb[f];if(!v||v.length<3){clean++;continue}
+   if(pct(v,.8)>cfg.steel_pct){A.steel.zone=f+1;A.steel.peak=Math.max(A.steel.peak,pct(v,.95));clean=0}else clean++}}
+ A.bottomExcl=Math.max(cfg.bottom_zone_ft,A.steel.zone?A.steel.zone+2:0);
+ // stations: the trip out (rising pressure falls) is the survey pass, as in the office QC
+ const S=cfg.station_ft,up={},dn={},vu=[],vd=[];
+ for(let k=0;k<n;k++){if(!(tv[k]>.5)||!isFinite(inc[k]))continue;const b=Math.floor(tv[k]/S)*S;
+  if(rate[k]<-.15){(up[b]=up[b]||{inc:[],B:[],dip:[],az:[]});up[b].inc.push(inc[k]);if(isFinite(Bm[k])){up[b].B.push(Bm[k]);up[b].dip.push(dip[k]);if(isFinite(azs[k]))up[b].az.push(azs[k])}vu.push(rate[k])}
+  else if(rate[k]>.15){(dn[b]=dn[b]||[]).push(inc[k]);vd.push(rate[k])}}
+ A.up={};for(const b in up)if(up[b].inc.length>=5){const u=up[b],im=median(u.inc),isd=Math.sqrt(u.inc.reduce((s,x)=>s+(x-im)**2,0)/u.inc.length);
+  // a station has a direction only where the hole leans enough and the tilt is steady, clear of casing and steel (office gate)
+  const solve=u.az.length>8&&im>=cfg.az_min_inc_deg&&isd<cfg.az_inc_sd_max&&+b>=cfg.casing_ft&&+b+S<=td-A.bottomExcl;
+  A.up[b]={inc:im,B:median(u.B),dip:median(u.dip),n:u.inc.length,az:solve?circ(u.az).deg:NaN}}
+ heading(A,cfg);A.traj=trajOf(A,cfg);
+ A.down={};for(const b in dn)if(dn[b].length>=5)A.down[b]=median(dn[b]);
+ A.speedUp=-median(vu);A.speedDown=median(vd);
+ // sideways lean by the bottom from inclination alone (in near-vertical holes its direction is not resolved,
+ // its amount is), and the kick-off: where the hole first leans past kop_deg and keeps leaning for kop_len_ft
+ const ubs=Object.keys(A.up).map(Number).sort((a,b)=>a-b).filter(b=>b+S<=td-A.bottomExcl);
+ A.lean=ubs.reduce((s,b)=>s+S*Math.sin(A.up[b].inc*Math.PI/180),0);A.kop=null;
+ // (one low station in the window is allowed: a fast-spinning probe can read a station low)
+ const nk=Math.ceil(cfg.kop_len_ft/S);
+ for(const b0 of ubs){if(b0<cfg.casing_ft||!(A.up[b0].inc>=cfg.kop_deg))continue;let hit=0;
+  for(let q=0;q<nk;q++){const u=A.up[b0+q*S];if(u&&u.inc>=cfg.kop_deg)hit++}if(hit>=nk-1){A.kop=b0;break}}
+ const lo=cfg.casing_ft,hi=td-A.bottomExcl,open=Object.keys(A.up).map(Number).filter(b=>b>=lo&&b+S<=hi);A.open=open;
+ A.expectedStations=Math.max(0,Math.floor((hi-lo)/S));A.cover=A.expectedStations?100*open.length/A.expectedStations:0;
+ A.Bmed=median(open.map(b=>A.up[b].B));A.dipMed=median(open.map(b=>A.up[b].dip));
+ A.Bdev=open.filter(b=>Math.abs(A.up[b].B-A.Bmed)/A.Bmed*100>cfg.b_band_pct);
+ A.thin=open.filter(b=>A.up[b].n<cfg.min_station_samples);
+ const com=Object.keys(A.down).map(Number).filter(b=>b in A.up&&b>=20);
+ if(com.length>=3){const dd=com.map(b=>A.down[b]-A.up[b].inc);A.downUp=Math.sqrt(dd.reduce((s,x)=>s+x*x,0)/dd.length)}
+ let step=0,stepAt=null;const ub=Object.keys(A.up).map(Number).sort((a,b)=>a-b);
+ for(let j=1;j<ub.length;j++)if(ub[j]>=lo&&ub[j]-ub[j-1]===S){const x=Math.abs(A.up[ub[j]].inc-A.up[ub[j-1]].inc);if(x>step){step=x;stepAt=ub[j]}}A.step=step;A.stepAt=stepAt;
+ A.azOk=ub.length?100*ub.filter(b=>A.up[b].inc>=cfg.az_undefined_deg).length/ub.length:0;
+ let vmin=1e9;for(let k=0;k<n;k++)vmin=Math.min(vmin,d.mv[k]);A.vmin=vmin/1000;
+ let w0=Infinity,w1=-Infinity;for(let k=0;k<n;k++)if(d.temp[k]!==B16){const w=d.temp[k]/100;if(w<w0)w0=w;if(w>w1)w1=w}A.water=[w0,w1];
+ const gr=[];for(let k=0;k<n;k+=3)if(Math.hypot(d.gx[k],d.gy[k],d.gz[k])*.00875<3&&Math.abs(rate[k])<.05&&d.ax[k]!==B16)gr.push(Math.hypot(d.ax[k],d.ay[k],d.az[k])/L);
+ A.gRest=median(gr);return A}
+
+function compare(A,P,cfg){const com=Object.keys(A.up).map(Number).filter(b=>b in P.up&&b>=20);if(com.length<3)return null;
+ const dd=com.map(b=>A.up[b].inc-P.up[b].inc);let w=0,wAt=null;dd.forEach((x,j)=>{if(Math.abs(x)>w){w=Math.abs(x);wAt=com[j]}});
+ const top=Math.min(A.td-(A.bottomExcl||cfg.bottom_zone_ft),P.td-(P.bottomExcl||cfg.bottom_zone_ft)),lc=com.filter(b=>b+cfg.station_ft<=top),
+  lean=r=>lc.reduce((s,b)=>s+cfg.station_ft*Math.sin(r.up[b].inc*Math.PI/180),0),dl=Math.abs(lean(A)-lean(P));
+ return {rms:Math.sqrt(dd.reduce((s,x)=>s+x*x,0)/dd.length),worst:w,worstAt:wAt,td:Math.abs(A.td-P.td),n:com.length,
+  lean:dl,kop:A.kop!=null&&P.kop!=null?Math.abs(A.kop-P.kop):null,kopOne:(A.kop!=null)!==(P.kop!=null)}}
+
+// Every check, then one verdict. Pure, like analyze().
+function review(A,cfg,opt){const ck=[],add=(tier,id,label,state,value,limit,action,band)=>ck.push({tier,id,label,state,value,limit,action:action||'',band:band||''});
+ const f1=(x,d)=>isFinite(x)?x.toFixed(d):'–',bore=opt.bore||'this bore';
+ if(A.tooShort){add(1,'length','Run length','fail',A.n+' samples','100 or more','Run this bore again');return finish(ck,A,opt)}
+ // tier 1 - the data itself. Any failure means the run cannot be used.
+ add(1,'count','Samples recorded',A.missing_pct>cfg.max_missing_pct?'fail':'pass',A.n.toLocaleString()+' of '+A.expected.toLocaleString(),'missing ≤ '+cfg.max_missing_pct+'%','Run this bore again');
+ add(1,'gap','Longest gap',A.gap>cfg.max_gap_s?'fail':'pass',f1(A.gap,2)+' s','≤ '+cfg.max_gap_s+' s','Run this bore again');
+ add(1,'clock','Time order',A.back?'fail':'pass',A.back?A.back+' backward steps':'steady','no backward steps','Run this bore again - the probe may have restarted');
+ const dn=A.accDown+A.magDown+A.prDown;add(1,'dropout','Sensor dropouts',dn?'fail':'pass',dn?'tilt '+A.accDown+', compass '+A.magDown+', pressure '+A.prDown:'none','none','Run this bore again; if it repeats, call the office');
+ add(1,'fresh','Compass updating',A.fresh<cfg.min_compass_fresh?'fail':'pass',(100*A.fresh).toFixed(2)+'%','≥ '+(100*cfg.min_compass_fresh)+'%','Run this bore again; if it repeats, call the office');
+ add(1,'travel','Probe went down',A.td<cfg.min_travel_ft?'fail':'pass',f1(A.td,1)+' ft','≥ '+cfg.min_travel_ft+' ft','Lower the probe and run again');
+ const cl=Math.abs(A.closure);add(1,'closure','Ended at the surface',cl>cfg.closure_fail_ft?'fail':cl>cfg.closure_warn_ft?'warn':'pass',
+  cl<0.05?'same as the start':f1(cl,cl<10?2:0)+' ft '+(A.closure>0?'deeper':'shallower')+' than the start',
+  '≤ '+cfg.closure_warn_ft+' ft (fail > '+cfg.closure_fail_ft+')',cl>cfg.closure_fail_ft?'Bring the probe fully up, then run again':'Check the probe came all the way up');
+ add(1,'battery','Battery',A.vmin<cfg.battery_warn_v?'warn':'pass',f1(A.vmin,2)+' V lowest','≥ '+cfg.battery_warn_v+' V','Charge the probe before the next run');
+ // the phone's GPS at the collar, at Start (and Stop: both are at the same collar)
+ if(opt.gps){const s=opt.gps.start,e=opt.gps.end,b=combineFix(s,e,cfg),d=s&&e?distM(s,e):null,rough=b&&b.acc>cfg.gps_acc_warn_m,moved=d!=null&&d>cfg.gps_move_warn_m;
+  add(1,'gps','Position at the bore',!b||rough||moved?'warn':'pass',!b?'none':'±'+Math.round(b.acc)+' m'+(b.both?' (start + end)':'')+(d!=null?', end '+Math.round(d)+' m from start':''),
+   '±'+cfg.gps_acc_warn_m+' m; start and end within '+cfg.gps_move_warn_m+' m',
+   !b?'No GPS on this run - mark '+bore+' on the site plan and photo the collar':rough?'Position is rough - mark '+bore+' on the site plan':
+   'Start and end positions disagree - check this is '+bore)}
+ // tier 2 - did the run cover the hole
+ if(opt.design>0){const short=opt.design-A.td,lim=Math.max(cfg.design_short_ft,opt.design*cfg.design_short_pct/100);
+  add(2,'design','Reached design depth',short>lim?'fail':'pass',f1(A.td,1)+' of '+opt.design+' ft','within '+lim.toFixed(0)+' ft','The probe stopped '+f1(short,0)+' ft short - check for an obstruction, then run again')}
+ else add(2,'design','Reached design depth','info',f1(A.td,1)+' ft','enter design depth to check','');
+ add(2,'cover','Survey pass coverage',A.cover<cfg.survey_cover_fail_pct?'fail':A.cover<cfg.survey_cover_warn_pct?'warn':'pass',
+  A.open.length+' of '+A.expectedStations+' stations','≥ '+cfg.survey_cover_warn_pct+'% of '+cfg.casing_ft+' ft to bottom','Run again and pull the probe up steadily all the way');
+ add(2,'density','Pulled steadily',A.thin.length?'warn':'pass',A.thin.length?A.thin.length+' thin stations':'all stations',cfg.min_station_samples+'+ samples per '+cfg.station_ft+' ft',
+  'Pull slower on the next run',bandTxt(bands(A.thin,cfg.station_ft)));
+ // tier 3 - sensors in the hole
+ const dd=Math.abs(A.dipMed-opt.refD);add(3,'dip','Magnetic dip',!isFinite(dd)?'info':dd>cfg.dip_strong_deg?'warn':dd>cfg.dip_warn_deg?'warn':'pass',f1(A.dipMed,1)+'°, '+f1(dd,1)+'° from the site',
+  'site '+opt.refD+'° ± '+cfg.dip_warn_deg+'°',dd>cfg.dip_strong_deg?'Calibrate the compass before the next run':'Calibrate the compass when convenient');
+ const bb=bands(A.Bdev,cfg.station_ft).filter(b=>b.to-b.from>=cfg.b_band_min_ft);
+ const bdev=Math.max(0,...A.Bdev.filter(b=>bb.some(x=>b>=x.from&&b<x.to)).map(b=>100*Math.abs(A.up[b].B-A.Bmed)/A.Bmed));
+ add(3,'mag','Magnetic interference',bb.length?'warn':'pass',bb.length?'field off by up to '+f1(bdev,0)+'%':'none below casing','|B| within '+cfg.b_band_pct+'% of '+f1(A.Bmed,1)+' µT',
+  'Heading is unreliable there (inclination and depth are not affected) - fine to continue, note it',bandTxt(bb));
+ add(3,'downup','Down vs up inclination',A.downUp==null?'info':A.downUp>cfg.downup_warn_rms?'warn':'pass',A.downUp==null?'not enough':f1(A.downUp,2)+'° rms','≤ '+cfg.downup_warn_rms+'°','Do another run and compare');
+ add(3,'rail','Gyro over range','info',f1(A.railPct,1)+'% of samples','not used by the survey','');
+ add(3,'grest','Resting gravity','info',f1(A.gRest,3)+' g','1.000 g (scale calibration pending)','');
+ add(3,'speed','Speed down / up','info',f1(A.speedDown,1)+' / '+f1(A.speedUp,1)+' ft/s','','');
+ add(3,'water','Water temperature','info',f1(A.water[0],1)+'–'+f1(A.water[1],1)+' °C','','');
+ add(3,'azimuth','Heading resolvable','info',f1(A.azOk,0)+'% of the hole','inclination ≥ '+cfg.az_undefined_deg+'°; below that the heading is undefined','');
+ if(A.stepAt!=null)add(3,'step','Sharpest bend','info',f1(A.step,1)+'° at '+A.stepAt+' ft','real if run 2 shows it too','');
+ const st=A.steel||{zone:0};add(3,'steel','Steel at the bottom',st.zone>cfg.steel_warn_ft?'warn':'info',
+  st.zone?'compass disturbed over the last '+st.zone+' ft (up to '+f1(st.peak,0)+'%)':'none found','a rebar or weight on the loop; the compass checks skip it',
+  st.zone>cfg.steel_warn_ft?'Fine to continue - the office carries the heading down from above it; note it on the sheet':'');
+ add(3,'lean','Sideways lean by the bottom','info','up to '+f1(A.lean,1)+' ft from straight below the collar','from inclination; direction resolved only above '+cfg.az_undefined_deg+'°','');
+ add(3,'kop','Kick-off','info',A.kop!=null?'passes '+cfg.kop_deg+'° at '+A.kop+' ft':'none - under '+cfg.kop_deg+'° to the bottom','','');
+ // tier 4 - the bore proven against itself: a second run of the same bore
+ const tube=opt.tube||1,legs=opt.legs||[];
+ if(opt.pair&&opt.pair.cmp){const p=opt.pair.cmp,ok=p.rms<=cfg.pair_inc_rms&&p.td<=cfg.pair_td_ft,other=(opt.pair.tube||1)!==tube;
+  if(other){const lim=cfg.lean_pct*Math.max(A.td,1)/100,bad=p.td>cfg.legs_warn_ft||p.lean>lim||(p.kop!=null&&p.kop>cfg.kop_tol_ft)||p.kopOne;
+   add(4,'bottom','Bottom points agree (tube '+tube+' vs '+(opt.pair.tube||1)+')',bad?'warn':'pass',
+    'depth ±'+f1(p.td,1)+' ft, sideways ±'+f1(p.lean,1)+' ft'+(p.kop!=null?', kick-off ±'+p.kop+' ft':p.kopOne?', kick-off in one tube only':''),
+    'depth ≤ '+cfg.legs_warn_ft+' ft, sideways ≤ '+f1(lim,1)+' ft ('+cfg.lean_pct+'% of depth)','Run this tube again; if it repeats, call the office')}
+  add(4,'pair',(ok?'Agrees with ':'Compared with ')+opt.pair.note+(other?' (other tube)':''),ok?'pass':'warn',
+   f1(p.rms,2)+'° rms'+(p.rms>cfg.pair_inc_rms&&p.worstAt!=null?' (worst '+f1(p.worst,1)+'° at '+p.worstAt+' ft)':'')+', depth ±'+f1(p.td,1)+' ft',
+   '≤ '+cfg.pair_inc_rms+'° and '+cfg.pair_td_ft+' ft (office)','Do a third run of '+bore)}
+ else add(4,'pair','Second run of '+bore,'info','none yet','every bore needs two runs that agree','');
+ const tubes=[...new Set(legs.map(l=>l.tube))];
+ if(tubes.length>=2){const deep=Math.max(...legs.map(l=>l.td)),per=tubes.map(t=>({t,td:Math.max(...legs.filter(l=>l.tube===t).map(l=>l.td)),steel:legs.some(l=>l.tube===t&&l.steel)}));
+  const short=per.filter(x=>deep-x.td>cfg.legs_warn_ft).sort((a,b)=>a.td-b.td),mine=per.find(x=>x.t===tube)||{td:A.td},w=short[0];
+  add(4,'legs','Legs open to the bottom',!short.length?'pass':deep-mine.td>cfg.legs_fail_ft?'fail':'warn',
+   !short.length?tubes.length+' of '+tubes.length+' tubes reached '+f1(deep,0)+' ft'+(per.every(x=>x.steel)?', all met the steel':''):'tube '+w.t+' stopped '+f1(deep-w.td,1)+' ft short, at '+f1(w.td,0)+' ft',
+   'every tube within '+cfg.legs_warn_ft+' ft of the deepest',
+   (w&&w.t!==tube?'Run tube '+w.t+' again':'Run this tube again')+'; if it stops at the same depth, tell the driller before grouting (kink or debris)')}
+ return finish(ck,A,opt)}
+
+function finish(ck,A,opt){const bore=opt.bore||'this bore',fail=ck.find(c=>c.state==='fail'),warn=ck.find(c=>c.state==='warn'),pair=ck.find(c=>c.id==='pair');
+ const why=c=>c.label+(c.band?' at '+c.band:'')+': '+c.value;let v;
+ if(fail)v={state:'rerun',word:'RE-RUN',reason:why(fail),action:fail.action};
+ else if(warn)v={state:'check',word:'CHECK',reason:why(warn),action:warn.action};
+ else if(pair&&pair.state==='pass'){const lg=ck.find(c=>c.id==='legs');v={state:'go',word:'BORE DONE',
+  reason:(pair.label.includes('other tube')?'Two tubes agree: ':'Two runs agree: ')+pair.value+(lg&&lg.state==='pass'?'; '+lg.value:''),action:'Move to the next bore'}}
+ else v={state:'go',word:'RUN GOOD',reason:'Clean run to '+(isFinite(A.td)?A.td.toFixed(0):'?')+' ft - no gaps, all sensors in range',action:'Do the second run of '+bore+' - every bore needs two that agree'};
+ return {checks:ck,verdict:v}}
+
+// ---- review screen ----
+function plot(A,P,flags){const S=QC.station_ft,ds=[].concat(Object.keys(A.up),Object.keys(A.down),P?Object.keys(P.up):[]).map(Number);if(!ds.length)return '<div class=note>no stations</div>';
+ const maxd=Math.max(...ds)+S,vals=[].concat(Object.values(A.up).map(s=>s.inc),Object.values(A.down),P?Object.values(P.up).map(s=>s.inc):[]).filter(isFinite);
+ const lo=Math.floor(Math.min(...vals)),hi=Math.ceil(Math.max(...vals)+.01),W=340,H=420,Lm=40,x=v=>Lm+(v-lo)/(hi-lo||1)*(W-Lm-10),y=d=>12+d/maxd*(H-34);
+ const line=(o,c,dash,w)=>{const k=Object.keys(o).map(Number).sort((a,b)=>a-b);return '<polyline fill=none stroke='+c+' stroke-width='+w+(dash?' stroke-dasharray="4 4"':'')+' points="'+
+  k.map(b=>x(typeof o[b]==='object'?o[b].inc:o[b]).toFixed(1)+','+y(b+S/2).toFixed(1)).join(' ')+'"/>'};
+ let g='';for(const b of flags)g+='<rect x='+Lm+' y='+y(b.from).toFixed(1)+' width='+(W-Lm-10)+' height='+Math.max(2,y(b.to)-y(b.from)).toFixed(1)+' fill="#b42323" fill-opacity=.15 />';
+ const cas=QC.casing_ft<maxd?'<rect x='+Lm+' y='+y(0)+' width='+(W-Lm-10)+' height='+(y(QC.casing_ft)-y(0)).toFixed(1)+' fill="#8593a3" fill-opacity=.12 /><text x='+(W-60)+' y='+(y(QC.casing_ft)-4).toFixed(0)+' font-size=11 fill="#5b6b7c">casing</text>':'';
+ const sz=A.steel&&A.steel.zone,stl=sz?'<rect x='+Lm+' y='+y(A.td-sz).toFixed(1)+' width='+(W-Lm-10)+' height='+Math.max(2,y(A.td)-y(A.td-sz)).toFixed(1)+' fill="#8a5a2b" fill-opacity=.25 /><text x='+(W-50)+' y='+(y(A.td-sz)-3).toFixed(0)+' font-size=11 fill="#8a5a2b">steel</text>':'';
+ let ax='';for(let i=0;i<=4;i++){const dv=Math.round(maxd*i/4/10)*10;ax+='<text x=2 y='+(y(dv)+4).toFixed(0)+' font-size=11 fill="#5b6b7c">'+dv+'</text>'}
+ window._plot={A,P,flags,maxd,H};
+ return '<div class=scrub id=scrub>Slide a finger along the plot to read it.</div><svg id=qcplot viewBox="0 0 '+W+' '+H+'">'+cas+stl+g+ax+'<text x='+Lm+' y='+(H-6)+' font-size=11 fill="#5b6b7c">'+lo+'°</text><text x='+(W-30)+' y='+(H-6)+' font-size=11 fill="#5b6b7c">'+hi+'°</text>'+
+  line(A.down,'#9aa7b5',1,1.5)+(P?line(P.up,'#ea7a12',0,2.5):'')+line(A.up,'#1d4ed8',0,2.5)+
+  '<line id=scrubline x1='+Lm+' x2='+(W-10)+' y1=0 y2=0 stroke="#111" stroke-width=1 visibility=hidden /></svg>'+
+  '<div class=note>Inclination (°) vs depth (ft). Blue: this run, trip out (the survey). Grey dashed: trip down.'+(P?' Orange: the run it is compared with.':'')+' Red: flagged depths. Brown: steel at the bottom.</div>'}
+// finger (or mouse) on the plot: depth, both trips, the compared run, and what the probe was in there
+function attachScrub(pnote){const sv=$('qcplot'),pl=window._plot;if(!sv||!pl)return;const out=$('scrub'),ln=$('scrubline'),S=QC.station_ft;
+ const show=e=>{const r=sv.getBoundingClientRect(),yv=(e.clientY-r.top)*pl.H/r.height,d=Math.max(0,Math.min(pl.maxd,(yv-12)/(pl.H-34)*pl.maxd)),b=Math.floor(d/S)*S;
+  ln.setAttribute('y1',yv);ln.setAttribute('y2',yv);ln.setAttribute('visibility','visible');
+  const u=pl.A.up[b],dn=pl.A.down[b],q=pl.P&&pl.P.up[b],sz=pl.A.steel&&pl.A.steel.zone,
+   where=d<QC.casing_ft?'casing':sz&&d>pl.A.td-sz?'steel at the bottom':pl.flags.some(f=>d>=f.from&&d<f.to)?'flagged':'open hole';
+  out.innerHTML='<b>'+d.toFixed(0)+' ft</b> · out '+(u?u.inc.toFixed(2)+'°':'–')+' · down '+(dn!=null?dn.toFixed(2)+'°':'–')+
+   (pl.P?' · '+esc(pnote||'other run')+' '+(q?q.inc.toFixed(2)+'°':'–'):'')+' · '+where};
+ sv.style.touchAction='none';sv.onpointerdown=e=>{try{sv.setPointerCapture(e.pointerId)}catch(x){}show(e)};
+ sv.onpointermove=e=>{if(e.pointerType==='mouse'||e.buttons)show(e)}}
+// ---- 3D first look: the hole from the collar to the bottom, from this run's stations. A field preview:
+// sideways distances are exaggerated by default, and near vertical the direction is rough.
+// Hard iron from a spinning tool: the cross-axis pair traces a circle about its offset (algebraic circle fit,
+// y²+z² = p·y + q·z + r); a spin never shows the along-axis offset, so that one makes |B| match the site field.
+function spinHardIron(d,sg,sel,Bref){let N=0,yy=0,yz=0,y1=0,zz=0,z1=0,by=0,bz=0,b1=0;const xs=[];
+ for(let k=0;k<d.n;k++){if(d.mx[k]===-32768||d.ax[k]===-32768||!sel(k))continue;const x=d.mx[k]*sg[0]/75,y=d.my[k]*sg[1]/75,z=d.mz[k]*sg[2]/75,b=y*y+z*z;
+  N++;yy+=y*y;yz+=y*z;y1+=y;zz+=z*z;z1+=z;by+=b*y;bz+=b*z;b1+=b;xs.push(x)}
+ if(N<50)return null;
+ const det=(m)=>m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+ const M=[[yy,yz,y1],[yz,zz,z1],[y1,z1,N]],v=[by,bz,b1],D0=det(M);if(!(Math.abs(D0)>1e-9))return null;
+ const col=j=>M.map((r,i)=>r.map((x,k)=>k===j?v[i]:x)),pq=[0,1,2].map(j=>det(col(j))/D0);
+ const cy=pq[0]/2,cz=pq[1]/2,rp=Math.sqrt(Math.max(0,pq[2]+cy*cy+cz*cz)),mx=median(xs),al=Bref*Bref-rp*rp;
+ return [mx-(mx<0?-1:1)*(al>0?Math.sqrt(al):0),cy,cz]}
+// circular mean of angles in degrees, and how tightly they agree (R: 1 = all the same)
+function circ(a){let x=0,y=0;for(const d of a){x+=Math.cos(d*Math.PI/180);y+=Math.sin(d*Math.PI/180)}const R=a.length?Math.hypot(x,y)/a.length:0;
+ return {deg:(Math.atan2(y,x)*180/Math.PI+360)%360,R}}
+// The hole's heading, as the office does it (survey.py, survey_csv.py): keep a station's direction only where
+// at least 3 of the 5 around it have one and they agree within az_coh_sd_deg; then take the deepest unbroken
+// stretch of such stations (gaps up to az_block_gap_ft, at least az_block_min_ft long, R >= az_block_min_r).
+// Stations in it keep their own direction; every other station is given the stretch's heading.
+function heading(A,cfg){const S=cfg.station_ft,bs=Object.keys(A.up).map(Number).sort((a,b)=>a-b);
+ const has=b=>A.up[b]&&isFinite(A.up[b].az),keep={};
+ for(const b of bs)if(has(b)){const w=[-2,-1,0,1,2].map(j=>b+j*S).filter(has).map(x=>A.up[x].az),cc=circ(w);
+  keep[b]=w.length>=3&&Math.sqrt(-2*Math.log(Math.max(1e-9,cc.R)))*180/Math.PI<=cfg.az_coh_sd_deg}
+ const sol=bs.filter(b=>keep[b]);let blk=[];
+ for(let i=sol.length-1;i>=0;i--){if(!blk.length||blk[0]-sol[i]<=cfg.az_block_gap_ft+S)blk.unshift(sol[i]);else break}
+ const cc=circ(blk.map(b=>A.up[b].az)),span=blk.length?blk[blk.length-1]-blk[0]+S:0;
+ A.heading=blk.length&&span>=cfg.az_block_min_ft&&cc.R>=cfg.az_block_min_r?{deg:cc.deg,R:cc.R,from:blk[0],to:blk[blk.length-1]+S,n:blk.length}:null;
+ for(const b of bs)A.up[b].azUse=A.heading?(blk.includes(b)?A.up[b].az:A.heading.deg):NaN}
+// minimum curvature from the collar, TVD-driven as in the office (depth here comes from pressure):
+// dMD = dTVD / mean cos(inc). With no heading at all the lean is drawn in one plane, direction unknown.
+function trajOf(A,cfg){const S=cfg.station_ft,D=Math.PI/180,bs=Object.keys(A.up).map(Number).sort((a,b)=>a-b);if(bs.length<3)return null;
+ const known=!!A.heading,zOf=b=>known?A.up[b].azUse*D:0;
+ let T0=bs[0]+S/2,I0=A.up[bs[0]].inc*D,Z0=zOf(bs[0]),md=T0/Math.max(.2,Math.cos(I0)),n=md*Math.sin(I0)*Math.cos(Z0),e=md*Math.sin(I0)*Math.sin(Z0);
+ const p=[{md:0,v:0,n:0,e:0},{md,v:T0,n,e}];
+ for(let i=1;i<bs.length;i++){const b=bs[i],T=b+S/2,I=A.up[b].inc*D,Z=zOf(b),dM=(T-T0)/Math.max(.2,(Math.cos(I0)+Math.cos(I))/2);
+  const c=Math.cos(I-I0)-Math.sin(I0)*Math.sin(I)*(1-Math.cos(Z-Z0)),bt=Math.acos(Math.max(-1,Math.min(1,c))),rf=bt>1e-6?2/bt*Math.tan(bt/2):1;
+  n+=dM/2*(Math.sin(I0)*Math.cos(Z0)+Math.sin(I)*Math.cos(Z))*rf;e+=dM/2*(Math.sin(I0)*Math.sin(Z0)+Math.sin(I)*Math.sin(Z))*rf;md+=dM;
+  p.push({md,v:T,n,e});T0=T;I0=I;Z0=Z}
+ if(isFinite(A.td)&&A.td>T0){const dM=(A.td-T0)/Math.max(.2,Math.cos(I0));n+=dM*Math.sin(I0)*Math.cos(Z0);e+=dM*Math.sin(I0)*Math.sin(Z0);md+=dM;p.push({md,v:A.td,n,e})}
+ p.known=known;return p}
+const compass=deg=>['N','NE','E','SE','S','SW','W','NW'][Math.round(((deg%360)+360)%360/45)%8];
+function view3d(A){if(!A.traj)return '';
+ return '<div class=card><div class=name>3D first look</div><canvas id=v3 style="width:100%;height:380px;touch-action:none;display:block;margin:6px 0"></canvas>'+
+  '<div class=v3b><button data-v=iso>3D</button><button data-v=top>From above</button><button data-v=side>From the side</button><button data-x=1>True scale</button></div>'+
+  '<div class=note id=v3n></div></div>'}
+function attach3d(A,P,pnote){const cv=$('v3');if(!cv||!A.traj)return;const D=Math.PI/180,st={yaw:-35,pitch:25,x:10};
+ const paths=[{t:A.traj,main:1}].concat(P&&P.traj?[{t:P.traj,main:0}]:[]);
+ const zone=v=>v<QC.casing_ft?'#8a96a3':A.steel&&A.steel.zone&&v>A.td-A.steel.zone?'#8b5a2b':'#00876f';
+ function draw(){const r=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1,W=r.width,H=r.height;if(!W)return;
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);
+  const cy=Math.cos(st.yaw*D),sy=Math.sin(st.yaw*D),cp=Math.cos(st.pitch*D),sp=Math.sin(st.pitch*D);
+  // east right, north away, depth down; yaw turns about the vertical, pitch tips the view from side (0) to above (90)
+  const pr=(e,n,v)=>{const x=e*st.x,y=n*st.x,z=-v,x1=x*cy-y*sy,y1=x*sy+y*cy;return [x1,-(z*cp+y1*sp)]};
+  const deep=Math.max(...paths.map(p=>p.t[p.t.length-1].v)),reach=Math.max(20,...paths.flatMap(p=>p.t.map(q=>Math.hypot(q.n,q.e))))*1.15;
+  const g=[[-reach,-reach],[reach,-reach],[reach,reach],[-reach,reach]].map(([e,n])=>pr(e,n,0));
+  const all=g.concat([pr(0,0,deep)],...paths.map(p=>p.t.map(q=>pr(q.e,q.n,q.v))));
+  const xs=all.map(a=>a[0]),ys=all.map(a=>a[1]),m=28,k=Math.min((W-2*m)/Math.max(1e-6,Math.max(...xs)-Math.min(...xs)),(H-2*m)/Math.max(1e-6,Math.max(...ys)-Math.min(...ys)));
+  const ox=m-Math.min(...xs)*k+((W-2*m)-(Math.max(...xs)-Math.min(...xs))*k)/2,oy=m-Math.min(...ys)*k+((H-2*m)-(Math.max(...ys)-Math.min(...ys))*k)/2;
+  const P2=(e,n,v)=>{const a=pr(e,n,v);return [ox+a[0]*k,oy+a[1]*k]};
+  c.lineCap='round';c.lineJoin='round';c.font='12px -apple-system,system-ui,sans-serif';
+  // the ground around the collar, and north
+  c.strokeStyle='#d8dee6';c.fillStyle='rgba(216,222,230,.25)';c.lineWidth=1;c.beginPath();g.forEach((a,i)=>{const q=[ox+a[0]*k,oy+a[1]*k];i?c.lineTo(...q):c.moveTo(...q)});c.closePath();c.fill();c.stroke();
+  const n0=P2(0,0,0),n1=P2(0,reach*.85,0);
+  if(st.pitch>=20){const step=[1,2,5,10,20,50,100,200].find(x=>reach/x<=4)||500;c.strokeStyle='#c3ccd6';c.fillStyle='#8a96a3';c.lineWidth=1;
+   for(let r=step;r<reach;r+=step){c.beginPath();for(let a=0;a<=48;a++){const q=P2(r*Math.sin(a/48*2*Math.PI),r*Math.cos(a/48*2*Math.PI),0);a?c.lineTo(...q):c.moveTo(...q)}c.stroke();
+    const q=P2(-r,0,0);c.textAlign='right';c.fillText(r+' ft',q[0]-3,q[1]-3);c.textAlign='left'}}
+  if(A.traj.known&&Math.hypot(n1[0]-n0[0],n1[1]-n0[1])>14){c.strokeStyle='#5b6b7c';c.fillStyle='#5b6b7c';c.lineWidth=1.5;c.beginPath();c.moveTo(...n0);c.lineTo(...n1);c.stroke();c.fillText('N',n1[0]+4,n1[1]-2)}
+  // straight down from the collar, with depth marks
+  const step=deep>1200?200:100;c.setLineDash([4,4]);c.strokeStyle='#b8c2cc';c.beginPath();c.moveTo(...P2(0,0,0));c.lineTo(...P2(0,0,deep));c.stroke();c.setLineDash([]);
+  c.fillStyle='#5b6b7c';if(st.pitch<60)for(let d=step;d<deep-.06*deep;d+=step){const q=P2(0,0,d);c.fillRect(q[0]-3,q[1],6,1);c.fillText(d+' ft',q[0]+6,q[1]+4)}
+  // the runs: the compared one faint, this one coloured casing / open hole / steel
+  for(const p of paths.slice().reverse()){for(let i=1;i<p.t.length;i++){const a=p.t[i-1],b=p.t[i];c.strokeStyle=p.main?zone(b.v):'#c3ccd6';c.lineWidth=p.main?3.5:2;
+    c.beginPath();c.moveTo(...P2(a.e,a.n,a.v));c.lineTo(...P2(b.e,b.n,b.v));c.stroke()}}
+  const t=A.traj,b=t[t.length-1],qb=P2(b.e,b.n,b.v);c.fillStyle='#0b1a2a';c.beginPath();c.arc(...P2(0,0,0),4,0,7);c.fill();c.fillText('collar',n0[0]+7,n0[1]-6);
+  c.beginPath();c.arc(qb[0],qb[1],4,0,7);c.fill();c.fillText(Math.round(b.v)+' ft',qb[0]+7,qb[1]+4);
+  const off=Math.hypot(b.n,b.e),brg=(Math.atan2(b.e,b.n)/D+360)%360;
+  $('v3n').innerHTML='Bottom: <b>'+off.toFixed(1)+' ft</b> from straight below the collar'+(t.known?', toward <b>'+compass(brg)+'</b> ('+Math.round(brg)+'° true). ':
+   '. <b>Direction not resolved</b> on this run (too close to vertical for the compass): the lean is drawn in one plane. ')+
+   (st.x>1?'Sideways ×'+st.x+' to make the lean visible. ':'True scale. ')+(P&&P.traj?'Faint: '+esc(pnote||'the compared run')+'. ':'')+
+   'Drag to turn. Field first look: near vertical the direction is rough; the office survey is the result.';
+  [...document.querySelectorAll('.v3b button[data-x]')].forEach(x=>x.textContent=st.x>1?'True scale':'Sideways ×10')}
+ const views={iso:[-35,25],top:[0,90],side:[0,0]};
+ document.querySelectorAll('.v3b button').forEach(bt=>bt.onclick=()=>{if(bt.dataset.v){[st.yaw,st.pitch]=views[bt.dataset.v]}else st.x=st.x>1?1:10;draw()});
+ let last=null;cv.onpointerdown=e=>{last=[e.clientX,e.clientY];try{cv.setPointerCapture(e.pointerId)}catch(x){}};
+ cv.onpointermove=e=>{if(!last)return;st.yaw+=(e.clientX-last[0])*.5;st.pitch=Math.max(0,Math.min(90,st.pitch+(e.clientY-last[1])*.4));last=[e.clientX,e.clientY];draw()};
+ cv.onpointerup=cv.onpointercancel=()=>last=null;draw()}
+
+// ── this app's side ──
+function ctx(){ const c = calCenter(), r = refs();
+  return {lsb:info.acc_lsb_per_g||16384, sign:(info.cal&&info.cal.axis_sign)||[1,-1,-1], center:c.center, calSrc:c.src, decl:r.Z, refB:r.B}; }
+function runsList(){                      // the probe's runs, or (offline) the runs kept on this device
+  const src = sessionsList.length ? sessionsList.map(x => [runKey(x), x]) : [...localIndex.values()].map(m => [m.key, m.session]);
+  return src.map(([key, x], i) => ({i, key, sess:x, note:x.note||'', records:x.count, start:x.start, epoch:x.epoch, tz:x.tz||0,
+    kind:x.kind ? 'calibration' : 'measurement', sample_ms:x.sampleMs, lat_e7:x.gps ? Math.round(x.lat*1e7) : null,
+    lon_e7:x.gps ? Math.round(x.lon*1e7) : null, acc_m:x.gps ? x.acc : null}));
+}
+async function bytesOf(r, progress){       // kept on this device, else read off the probe (and kept)
+  const key = r.key;
+  if(localIndex.has(key)){ const b = await ldbGetBytes(key); if(b) return b; }
+  if(!chCtrl) throw new Error('this run is not kept on this device -- connect to the probe to read it');
+  if(recording) throw new Error('the probe is recording -- stop it to read a run');
+  const watch = setInterval(() => progress && progress(dumped.length / Math.max(1, r.records)), 300);
+  try{ await readSessionAsync(r.sess); } finally { clearInterval(watch); }
+  if(dumped.length !== r.records) throw new Error('read '+dumped.length+' of '+r.records+' records -- try again');
+  let n = 0; for(const c of dumpedRaw) n += c.length;
+  const out = new Uint8Array(n); let o = 0; for(const c of dumpedRaw){ out.set(c, o); o += c.length; }
+  return out.buffer;
+}
+async function analysisOf(r, progress){
+  const key = r.key;
+  if(!reviewCache[key]) reviewCache[key] = {buf: await bytesOf(r, progress)};
+  const c = reviewCache[key];
+  if(!c.A) c.A = analyze(c.buf, QC, ctx());
+  return c;
+}
+let sel = null;                           // the selected run's key
+function renderReview(r, A, R, P, pairNote){
+  const v = R.verdict, bore = boreOf(r.note), runs = runsList();
+  const facts = [['Depth reached', isFinite(A.td) ? A.td.toFixed(1)+' ft' : '–'], ['Run time', (A.span/60).toFixed(1)+' min'],
+    ['Survey stations', (A.open||[]).length+' / '+(A.expectedStations||0)], ['Samples', A.n.toLocaleString()]];
+  const pr = R.checks.find(c => c.id==='pair'), pairFact = pr && pr.state!=='info' ? '<div class="fact wide"><span>'+esc(pr.label)+'</span><b>'+esc(pr.value)+'</b></div>' : '';
+  const fx = bestFix(r), posFact = '<div class="fact wide"><span>Position at the bore</span><b>'+(fx ? '<a href="https://maps.apple.com/?ll='+fx.lat.toFixed(6)+','+fx.lon.toFixed(6)+
+    '&q='+encodeURIComponent(bore||r.note||'bore')+'" target=_blank rel=noopener>'+esc(fixTxt(fx))+' &#8599;</a>' : '<span class=err>none</span>')+'</b></div>';
+  const tiers = [[1,'1 · Data'],[2,'2 · Coverage'],[3,'3 · Sensors in the hole'],[4,'4 · Bore proof']];
+  const others = runs.filter(x => x.key!==r.key && x.kind==='measurement');
+  const flags = []; for(const c of R.checks) if((c.id==='mag'||c.id==='density') && c.state==='warn')
+    bands(c.id==='mag' ? A.Bdev : A.thin, QC.station_ft).filter(b => c.id!=='mag' || b.to-b.from>=QC.b_band_min_ft).forEach(b => flags.push(b));
+  $('qcView').innerHTML = '<div class="verdict v-'+v.state+'"><div class=w>'+esc(v.word)+'</div><div class=r>'+esc(v.reason)+'</div><div class=a>→ '+esc(v.action)+'</div></div>'+
+    '<div class=facts>'+pairFact+posFact+facts.map(f => '<div class=fact><span>'+f[0]+'</span><b>'+esc(f[1])+'</b></div>').join('')+'</div>'+
+    '<div class="qccard two"><div><label>Design depth ft'+(bore ? ' ('+esc(bore)+')' : '')+'</label><input id=qc-design inputmode=decimal value="'+esc(ls('bl_design_'+bore)||'')+'"></div>'+
+    '<div><label>Compare with</label><select id=qc-pair><option value="">none</option>'+others.map(x => '<option value="'+esc(x.key)+'"'+(pairNote && x.note===pairNote ? ' selected' : '')+'>'+esc(x.note||'run '+(x.sess.seq+1))+'</option>').join('')+'</select></div></div>'+
+    '<div class=qcpair><div class=qccard>'+plot(A, P, flags)+'</div>'+view3d(A)+'</div>'+
+    '<details class=qcdetails open><summary>Every check, measured vs limit</summary>'+tiers.map(([t,h]) => '<div class=tier><h3>'+h+'</h3>'+R.checks.filter(c => c.tier===t).map(c =>
+      '<div class=ck><span class="chip c-'+c.state+'">'+c.state.toUpperCase()+'</span><span>'+esc(c.label)+'</span><span class=m>'+esc(c.value)+'</span><span class=l>'+esc(c.limit)+(c.band ? ' · '+esc(c.band) : '')+'</span></div>').join('')+'</div>').join('')+
+    '<div class=tier><div class=note>Field review only - the office QC decides what is released. Thresholds: '+(qcFromProbe ? 'qc_config.json on the probe' : 'the defaults (connect over the cable to use the probe\'s qc_config.json)')+'. Compass: '+esc(window._last ? window._last.ctx.calSrc : '')+'.</div></div></details>';
+  $('qc-design').onchange = () => { ls('bl_design_'+bore, $('qc-design').value); open(r.key); };
+  $('qc-pair').onchange = () => open(r.key, $('qc-pair').value || null);
+  attachScrub(pairNote); attach3d(A, P, pairNote);
+}
+let qcFromProbe = false, loading = 0;
+async function loadConfig(){
+  qcFromProbe = false;
+  if(cable){                                // on the probe's own page: its qc_config.json and its info
+    try{ const c = await (await fetch('/qc_config.json', {cache:'no-store'})).json(); if(c && typeof c==='object'){ QC = Object.assign({}, QC_DEFAULTS, c); qcFromProbe = true; } }catch(e){}
+    try{ const i = await (await fetch('/api/info', {cache:'no-store'})).json(); if(i && i.serial) info = Object.assign(info, i); }catch(e){}
+  } else QC = Object.assign({}, QC_DEFAULTS);
+}
+async function open(key, pairKey){
+  const me = ++loading;
+  const runs = runsList(), r = runs.find(x => x.key===key);
+  if(!r){ $('qcView').innerHTML = ''; return; }
+  sel = key; renderList();
+  if(r.kind!=='measurement'){ $('qcView').innerHTML = '<div class=qccard>'+esc(r.note||'This run')+' is a calibration run: check calibrations in Field Calibration.</div>'; return; }
+  const say = t => { if(me===loading) $('qcView').innerHTML = '<div class=qccard>'+t+'</div>'; };
+  say('Reading '+esc(r.note||'the run')+'…');
+  try{
+    await loadConfig();
+    const c = await analysisOf(r, f => say('Reading '+esc(r.note||'the run')+'… '+Math.round(f*100)+'%'));
+    if(me!==loading) return;
+    const A = c.A, bore = boreOf(r.note), rf = refs();
+    const same = runs.filter(x => x.kind==='measurement' && bore && boreOf(x.note)===bore);
+    if(pairKey===undefined){ const o = same.filter(x => x.key!==key); pairKey = o.length ? o[o.length-1].key : null; }
+    let P = null, pair = null;
+    const pr = pairKey && runs.find(x => x.key===pairKey);
+    if(pr && (localIndex.has(pairKey) || chCtrl)){ say('Reading '+esc(pr.note)+' to compare…'); P = (await analysisOf(pr)).A; pair = {note:pr.note, tube:tubeOf(pr.note), cmp:compare(A, P, QC)}; }
+    if(me!==loading) return;
+    const legs = [];
+    if(new Set(same.map(x => tubeOf(x.note))).size > 1) for(const x of same){
+      if(!(localIndex.has(x.key) || chCtrl)) continue;
+      const B = x.key===key ? A : (await analysisOf(x)).A;
+      legs.push({note:x.note, tube:tubeOf(x.note), td:B.td, steel:B.steel.zone>0});
+    }
+    if(me!==loading) return;
+    const R = review(A, QC, {bore, tube:tubeOf(r.note), legs, design:+(ls('bl_design_'+bore)||0), refD:rf.D, refB:rf.B, pair, gps:fixesOf(r)});
+    showRaw(r, c.buf);
+    window._last = {A, R, pair, ctx:ctx()};
+    renderReview(r, A, R, P, pair && pair.note);
+  }catch(e){ if(me===loading) $('qcView').innerHTML = '<div class=qccard><span class=err>'+esc(e.message)+'</span></div>'; }
+}
+// every channel of the whole run, in the app's overview (Data health + one chart per channel)
+function showRaw(r, buf){
+  const u = new Uint8Array(buf), n = u.length/32|0, recs = [];
+  for(let k=0;k<n;k++) recs.push(decodeRec(u, k*32));
+  dumped = recs; dumpedRaw = [u]; dataSession = r.sess; showDataset();
+}
+function renderList(){
+  const box = $('qcRunsRows'); if(!box) return;
+  const rows = runsList().filter(x => x.kind==='measurement').sort((a,b) => (b.epoch||0) - (a.epoch||0));
+  if(!rows.length){ box.innerHTML = '<div class="sessempty">'+(chCtrl ? 'No measurement runs on the probe.' : 'Connect to a probe, or read a run once, to review it here.')+'</div>'; return; }
+  const frag = document.createDocumentFragment();
+  const h = document.createElement('div'); h.className = 'listrow head';
+  h.innerHTML = '<span>#</span><span>Started</span><span>Note</span><span>Records</span><span>Length</span><span>Location</span>'; frag.appendChild(h);
+  for(const x of rows){
+    const s = x.sess, hz = s.sampleMs ? 1000/s.sampleMs : 0, d = document.createElement('div'), key = x.key;
+    d.className = 'listrow pick' + (key===sel ? ' on' : ''); d.tabIndex = 0; d.title = localIndex.has(key) ? 'kept on this device' : 'on the probe (read when chosen)';
+    d.innerHTML = '<span></span><span></span><span></span><span></span><span></span><span></span>';
+    d.children[0].textContent = s.seq+1;
+    d.children[1].textContent = s.epoch ? new Date(s.epoch*1000).toLocaleString() : 'no clock';
+    d.children[2].textContent = s.note || '—';
+    d.children[3].textContent = s.count.toLocaleString();
+    d.children[4].textContent = fmtDur(hz ? s.count/hz : 0);
+    d.children[5].textContent = s.gps ? s.lat.toFixed(5)+', '+s.lon.toFixed(5)+' ±'+s.acc+'m' : 'no GPS';
+    if(!s.gps) d.children[5].className = 'nogps';
+    d.onclick = () => open(key);
+    d.onkeydown = e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); open(key); } };
+    frag.appendChild(d);
+  }
+  box.replaceChildren(frag);
+}
+// opening the tab, or a new run list: show the chosen run, by default the most recent
+function refresh(){
+  renderList();
+  if(!el('tab-qc').classList.contains('on')) return;
+  const ms = runsList().filter(x => x.kind==='measurement').sort((a,b) => (b.epoch||0) - (a.epoch||0));
+  if(!ms.length) return;
+  if(!sel || !ms.some(x => x.key===sel)) open(ms[0].key);
+}
+return {refresh, open, renderList, get selected(){ return sel; }, analyze, review, decode};
+})();
+
 /* ── start-up: after every block above has run (the ported calibration code
    declares state that buildPlots and the 3D view use) ── */
 addEventListener('resize',()=>{dirty=true});
@@ -6777,12 +7282,13 @@ async function keepRun(s){
     log('Could not keep the run on this device: '+e.message+'. Use Save file.','err');
   }
   renderSessions(); renderLocal(); setButtons();
+  if(FOLDER_OK && saveDir && lsGet('bl_autosave') === '1') saveRunFile(key, {quiet:true});
 }
 
-function runJson(m){
+function runJson(m, file){
   const s = m.session;
   return JSON.stringify({
-    file: runFileName(m), format: 'BoreLogger raw records, 32 bytes each, little-endian <IhhhhhhihhhhhH>',
+    file: file || runFileName(m), format: 'BoreLogger raw records, 32 bytes each, little-endian <IhhhhhhihhhhhH>',
     probe: m.probe, serial: m.serial, records: s.count, bytes: m.bytes, sha256: m.sha256,
     type: s.kind ? 'calibration' : 'measurement', note: s.note,
     started_utc: s.epoch ? new Date(s.epoch*1000).toISOString() : null, utc_offset_min: s.tz,
@@ -6792,19 +7298,160 @@ function runJson(m){
   }, null, 2) + '\n';
 }
 
-async function saveRunFile(key){
+/* ── Saving runs as files, organised so nothing is saved twice ──
+   Every run has one place:  <probe>/<bore>/<start time>_<note>_<probe>.bin (+ .json beside it),
+   calibration runs under <probe>/calibration, runs without a bore-style note under <probe>/other.
+   With a chosen folder (Chrome / Edge on a computer, over https) the files are written there; a
+   file already there with the same bytes (SHA-256) is left alone, so saving again never makes a
+   duplicate. Elsewhere (phones, Safari, Firefox, the probe's own http page) the browser only
+   offers Downloads: the ZIP has the same fixed name and the same folders inside, and saving a
+   run that was saved before asks first. */
+const FOLDER_OK = typeof window.showDirectoryPicker === 'function' && window.isSecureContext;
+let saveDir = null;                                   // the chosen folder (a FileSystemDirectoryHandle)
+function fsDb(){ return new Promise((res, rej) => { const r = indexedDB.open('borelogger-folder', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function fsLoad(){
+  if(!FOLDER_OK) return;
+  try{ const d = await fsDb(); saveDir = await new Promise(res => { const q = d.transaction('h').objectStore('h').get('dir');
+    q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); }catch(e){ saveDir = null; }
+  renderLocal();
+}
+async function fsStore(h){
+  const d = await fsDb();
+  await new Promise((res, rej) => { const t = d.transaction('h', 'readwrite');
+    if(h) t.objectStore('h').put(h, 'dir'); else t.objectStore('h').delete('dir'); t.oncomplete = res; t.onerror = () => rej(t.error); });
+}
+async function chooseFolder(){
+  try{
+    const h = await window.showDirectoryPicker({id:'borelogger', mode:'readwrite', startIn:'documents'});
+    saveDir = h; await fsStore(h);
+    log('Runs will be saved in the folder "'+h.name+'".','ok');
+  }catch(e){ if(e.name !== 'AbortError') log('Could not use that folder: '+e.message,'err'); }
+  renderLocal();
+}
+async function folderReady(ask){                      // asking needs a tap (a button press)
+  if(!saveDir) return false;
+  try{
+    if(await saveDir.queryPermission({mode:'readwrite'}) === 'granted') return true;
+    return ask && await saveDir.requestPermission({mode:'readwrite'}) === 'granted';
+  }catch(e){ return false; }
+}
+const safePart = t => String(t||'').trim().replace(/[^A-Za-z0-9_.-]/g,'_').replace(/^\.+/,'_').slice(0,60) || '_';
+function runFolder(m){
+  const s = m.session, b = /^(.*?)[-_ ]*R(\d+)(?:[-_ ]*T(\d))?$/i.exec((s.note||'').trim());
+  return [safePart(m.probe), s.kind ? 'calibration' : b && b[1] ? safePart(b[1].toUpperCase()) : 'other'];
+}
+async function inFolder(dir, name){                   // the file, or null
+  try{ return await (await dir.getFileHandle(name)).getFile(); }
+  catch(e){ if(e.name === 'NotFoundError' || e.name === 'TypeMismatchError') return null; throw e; }
+}
+async function writeIn(dir, name, data){
+  const w = await (await dir.getFileHandle(name, {create:true})).createWritable();
+  await w.write(data); await w.close();
+}
+// returns {path, dup}: dup when the same bytes were already there
+async function saveToFolder(m, buf){
+  let dir = saveDir; const parts = runFolder(m);
+  for(const p of parts) dir = await dir.getDirectoryHandle(p, {create:true});
+  const stem = runFileName(m).replace(/\.bin$/,'');
+  for(let k = 1; k < 100; k++){
+    const base = k === 1 ? stem : stem+'_'+k, f = await inFolder(dir, base+'.bin');
+    if(f && f.size === buf.byteLength && await sha256Hex(await f.arrayBuffer()) === m.sha256){
+      if(!await inFolder(dir, base+'.json')) await writeIn(dir, base+'.json', runJson(m, base+'.bin'));
+      return {path: parts.concat(base+'.bin').join('/'), dup: true};
+    }
+    if(f) continue;                                   // a different run took the name: next number
+    await writeIn(dir, base+'.bin', buf);
+    await writeIn(dir, base+'.json', runJson(m, base+'.bin'));
+    return {path: parts.concat(base+'.bin').join('/'), dup: false};
+  }
+  throw new Error('too many files named '+stem);
+}
+function download(name, bytes, type){
+  const url = URL.createObjectURL(new Blob([bytes], {type}));
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function markSaved(m, where){
+  m.fileSaved = new Date().toISOString(); m.savedTo = where;
+  await ldbPutMeta(m);
+}
+// one run: to the folder if there is one, else a ZIP to Downloads
+async function saveRunFile(key, opts={}){
   const m = localIndex.get(key); if(!m) return;
   const buf = await ldbGetBytes(key);
   if(!buf){ log('That run\'s data is gone from this browser\'s storage.','err'); return; }
-  const base = runFileName(m).replace(/\.bin$/,'');
-  const zip = makeZip([{name: base+'.bin', data: new Uint8Array(buf)}, {name: base+'.json', text: runJson(m)}]);
-  const url = URL.createObjectURL(new Blob([zip], {type:'application/zip'}));
-  const a = document.createElement('a'); a.href = url; a.download = base+'.zip'; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  m.fileSaved = new Date().toISOString();
-  await ldbPutMeta(m);
+  if(FOLDER_OK && saveDir && await folderReady(!opts.quiet)){
+    try{
+      const r = await saveToFolder(m, buf);
+      await markSaved(m, saveDir.name+'/'+r.path);
+      if(!opts.quiet || !r.dup) log((r.dup ? 'Already in the folder: ' : 'Saved ')+saveDir.name+'/'+r.path, 'ok');
+      renderLocal(); return r;
+    }catch(e){ log('Could not save in the folder ('+e.message+').'+(opts.quiet ? '' : ' Saving to Downloads instead.'),'err');
+      if(opts.quiet) return; }
+  }
+  if(opts.quiet) return;
+  if(m.fileSaved && !opts.again && !confirm('This run was already saved'+(m.savedTo ? ' ('+m.savedTo+')' : '')+' on '+
+       new Date(m.fileSaved).toLocaleString()+'. Save another copy?')) return;
+  const base = runFileName(m).replace(/\.bin$/,''), dir = runFolder(m).join('/')+'/';
+  download(base+'.zip', makeZip([{name: dir+base+'.bin', data: new Uint8Array(buf)}, {name: dir+base+'.json', text: runJson(m)}]), 'application/zip');
+  await markSaved(m, 'Downloads/'+base+'.zip');
   log('Saved '+base+'.zip','ok');
   renderLocal();
+}
+// every kept run: the folder skips what it has; Downloads gets one ZIP of the runs never saved
+async function saveAllRuns(){
+  const rows = [...localIndex.values()];
+  if(!rows.length) return;
+  if(FOLDER_OK && saveDir && await folderReady(true)){
+    let added = 0, had = 0, bad = 0;
+    for(const m of rows){
+      const buf = await ldbGetBytes(m.key);
+      if(!buf){ bad++; continue; }
+      try{ const r = await saveToFolder(m, buf); await markSaved(m, saveDir.name+'/'+r.path); r.dup ? had++ : added++; }
+      catch(e){ bad++; log('Could not save '+runFileName(m)+': '+e.message,'err'); }
+    }
+    log(`Folder "${saveDir.name}": ${added} run${added===1?'':'s'} added, ${had} already there`+(bad ? `, ${bad} failed` : '')+'.', bad ? 'err' : 'ok');
+    renderLocal(); return;
+  }
+  let todo = rows.filter(m => !m.fileSaved);
+  if(!todo.length){
+    if(!confirm('Every run here was saved before. Save them all again, as one ZIP?')) return;
+    todo = rows;
+  }
+  const files = [], used = new Set();
+  for(const m of todo){
+    const buf = await ldbGetBytes(m.key); if(!buf) continue;
+    const stem = runFileName(m).replace(/\.bin$/,''), dir = runFolder(m).join('/')+'/';
+    let base = stem; for(let k = 2; used.has(dir+base); k++) base = stem+'_'+k;     // two runs, one name: _2
+    used.add(dir+base);
+    files.push({name: dir+base+'.bin', data: new Uint8Array(buf)}, {name: dir+base+'.json', text: runJson(m, base+'.bin')});
+  }
+  const d = new Date(), name = 'borelogger_'+d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+pad2(d.getHours())+pad2(d.getMinutes())+'_'+todo.length+'runs.zip';
+  download(name, makeZip(files), 'application/zip');
+  for(const m of todo) await markSaved(m, 'Downloads/'+name);
+  log('Saved '+name+' ('+todo.length+' run'+(todo.length===1?'':'s')+').','ok');
+  renderLocal();
+}
+function renderFolder(){
+  const box = el('folderInfo'); if(!box) return;
+  el('btnFolder').hidden = !FOLDER_OK;
+  el('btnFolder').textContent = saveDir ? 'Change folder' : 'Choose folder';
+  el('btnSaveAll').disabled = !(window.localIndex && localIndex.size);
+  el('btnSaveAll').title = saveDir ? 'Every run here into the folder; runs already there are skipped' : 'One ZIP of the runs not saved yet';
+  if(FOLDER_OK){
+    box.innerHTML = saveDir
+      ? 'Saving into the folder <b></b>, as <code>probe / bore / time_note_probe.bin</code> and its <code>.json</code>. A run already there is skipped, so saving twice makes no duplicate.'
+        + ' <label style="display:inline-flex;gap:6px;align-items:center;margin-left:6px"><input type="checkbox" id="chkAutoSave"> save each run here as soon as it is read</label>'
+      : '<b>Choose folder</b> to save runs into a folder of your own, sorted as <code>probe / bore / time_note_probe.bin</code>; a run already there is never saved twice.';
+    if(saveDir){ box.querySelector('b').textContent = saveDir.name; const c = el('chkAutoSave');
+      c.checked = lsGet('bl_autosave') === '1'; c.onchange = () => lsSet('bl_autosave', c.checked ? '1' : null); }
+  } else {
+    box.innerHTML = 'Files go to Downloads, as a ZIP with fixed names and the folders <code>probe / bore</code> inside, so unpacking them all into one place sorts them. '
+      + 'A run saved before asks first, so you do not get copies. '
+      + (window.isSecureContext ? '' : 'Saving into a folder of your own needs Chrome or Edge on a computer, on egeozgul.com/logger (this page is the probe\'s, which browsers do not allow it).')
+      + (window.isSecureContext && !window.showDirectoryPicker ? 'Saving into a folder of your own needs Chrome or Edge on a computer.' : '');
+  }
 }
 
 async function deleteRun(key){
@@ -6817,6 +7464,7 @@ async function deleteRun(key){
 }
 
 function renderLocal(){
+  renderFolder();
   const box = el('localRows');
   const rows = [...localIndex.values()].sort((a,b) => (b.session.epoch||0) - (a.session.epoch||0));
   if(!rows.length){
@@ -6834,9 +7482,10 @@ function renderLocal(){
         `<span>${fmtSize(m.bytes)}</span><span class="st ${st}" title="${m.uploaded ? 'as '+(m.uploaded.run_name||'')+' on '+m.uploaded.at : ''}">${ST_TEXT[st]}</span>`;
       d.children[1].textContent = m.probe;
       d.children[2].textContent = (s.kind ? '[cal] ' : '') + (s.note || '—');
+      if(m.fileSaved) d.title = 'saved '+new Date(m.fileSaved).toLocaleString()+(m.savedTo ? ' to '+m.savedTo : '');
       const btns = document.createElement('span'); btns.className = 'btns';
       const mk = (txt, fn, dis) => { const b = document.createElement('button'); b.textContent = txt; b.onclick = fn; b.disabled = !!dis; btns.appendChild(b); };
-      mk('Save file', () => saveRunFile(m.key));
+      mk(m.fileSaved ? 'Saved ✓' : 'Save file', () => saveRunFile(m.key));
       if(DB_UPLOAD) mk(m.uploaded ? 'Uploaded' : 'Upload', () => requestUpload(m.key), !!m.uploaded);
       mk('Delete', () => deleteRun(m.key));
       d.appendChild(btns);
@@ -7042,6 +7691,9 @@ el('dbPass').addEventListener('keydown', e => { if(e.key==='Enter') el('btnDbSig
 el('dbProj').onchange = () => dbLoadBores();
 el('dbBore').onchange = () => lsSet('bl_sb_bore', el('dbBore').value);
 el('btnDbRefresh').onclick = () => dbLoadLists();
+el('btnFolder').onclick = chooseFolder;
+el('btnSaveAll').onclick = saveAllRuns;
+fsLoad();
 el('btnUploadAll').onclick = async () => {
   for(const m of localIndex.values()) if(!m.uploaded && !m.queued){ m.queued = new Date().toISOString(); await ldbPutMeta(m); }
   renderLocal(); renderSessions();
