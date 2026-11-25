@@ -2123,6 +2123,16 @@ async function dbLoadList(){
         size:f.bytes, bucket, path:f.path, filename:f.name});
     }
   }catch(e){ problems.push('runs: '+e.message); }
+  // calibrations in the database (device_calibrations, field_calibrations)
+  try{
+    const sc = await dbJson('/rest/v1/rpc/staff_calibrations', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}) || {};
+    for(const c of (sc.device||[]))
+      items.push({key:'dcal:'+c.id, src:'devcal', title:c.filename.replace(/\.json$/i,''), probe:c.device_serial, when:c.calibrated_at,
+        stamp:fmtWhen(c.calibrated_at), size:c.size_bytes, filename:c.filename, content:c.content});
+    for(const c of (sc.field||[]))
+      items.push({key:'fcal:'+c.id, src:'fieldcal', title:c.filename.replace(/\.json$/i,''), probe:c.device_serial, when:c.calibrated_at,
+        stamp:fmtWhen(c.calibrated_at), size:c.size_bytes, filename:c.filename, content:c.content, code:c.job_code||'', project:c.project||''});
+  }catch(e){ problems.push('calibrations: '+e.message); }
   try{
     const list = pre => dbJson('/storage/v1/object/list/probe-inbox', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({prefix:pre, limit:1000, offset:0, sortBy:{column:'created_at', order:'desc'}})});
@@ -2165,7 +2175,7 @@ function dbRender(){
     `<div class="dbgrp">Waiting in probe inboxes<small>${inbox.length}</small></div>`+
     (inbox.length ? inbox.map(row).join('') : `<div class="dbnone">${q?'No file matches.':'Empty: nothing uploaded from the field is waiting.'}</div>`)+
     `<div class="dbgrp">Calibration files<small>${cals.length}</small></div>`+
-    (cals.length ? cals.map(row).join('') : `<div class="dbnone">${q?'No file matches.':'None uploaded yet: the logger app uploads them from the probe.'}</div>`);
+    (cals.length ? cals.map(row).join('') : `<div class="dbnone">${q?'No file matches.':'None yet: the logger app sends them from the probe by itself.'}</div>`);
   for(const b of $('dbList').querySelectorAll('.dbitem')) b.onclick = () => dbOpen(dbItems.find(i=>i.key===b.dataset.k));
 }
 // the logger app's field fit (m_cal = W (m_raw - b), raw axes, uT) as this page's field iron
@@ -2181,10 +2191,13 @@ function fieldFitFrom(o){
 async function dbOpenCal(it){
   if(dbLoaded.has(it.key)){ dbSay(it.title+' is already in.'); return; }
   try{
-    dbSay('Downloading '+it.filename+'…');
-    const r = await dbFetch('/storage/v1/object/'+it.bucket+'/'+it.path.split('/').map(encodeURIComponent).join('/'));
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const text = await r.text();
+    let text = it.content;                           // from the calibration tables: already here
+    if(text == null){                                // an older one in a probe inbox
+      dbSay('Downloading '+it.filename+'…');
+      const r = await dbFetch('/storage/v1/object/'+it.bucket+'/'+it.path.split('/').map(encodeURIComponent).join('/'));
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      text = await r.text();
+    }
     if(it.src==='devcal'){
       const had = state.cals.find(c => c.text === text);         // already here (kept from an earlier visit)
       if(!had){
@@ -2197,7 +2210,7 @@ async function dbOpenCal(it){
       dbSay(had ? it.filename+' was already under Calibration.' : 'Added '+it.filename+' under Calibration.');
     } else {
       let o; try{ o = JSON.parse(text); }catch(e){ throw new Error('not JSON'); }
-      const fit = fieldFitFrom(o), t = Date.parse(o.fitted_at), srcKey = 'db:'+it.path;
+      const fit = fieldFitFrom(o), t = Date.parse(o.fitted_at || it.when), srcKey = 'db:'+(it.path || it.key);
       if(!state.fieldCals.some(f=>f.srcKey===srcKey))
         state.fieldCals.push({id:nextId++, srcKey, srcIds:[], fit, t: isFinite(t) ? t : NaN, started:o.fitted_at||'', pooled:false,
                               name:(o.serial||it.probe||'')+' field fit '+(it.stamp||''), restored:true});

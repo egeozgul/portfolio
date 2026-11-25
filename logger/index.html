@@ -465,8 +465,9 @@
   .cbtab{border-collapse:collapse;font-family:var(--mono);font-size:11.5px;margin-top:6px}
   .cbtab td,.cbtab th{padding:3px 12px 3px 0;text-align:left;border-bottom:1px solid var(--rule)}
   .cbtab th{color:var(--dim);font-weight:normal}
-  .calrow{display:grid;grid-template-columns:150px minmax(200px,1fr) 70px 280px;gap:8px;align-items:center;
+  .calrow{display:grid;grid-template-columns:150px minmax(200px,1fr) 70px 130px 280px;gap:8px;align-items:center;
     padding:7px 10px;border-bottom:1px solid #172029;font-family:var(--mono);font-size:11.5px}
+  .calrow .cst{font-size:10.5px;white-space:nowrap} .calrow .cst.db{color:#7bd88f} .calrow .cst.up{color:var(--link)} .calrow .cst.err{color:#ff8080} .calrow .cst.wait{color:var(--dim)}
   .calrow.head{background:#131a21;color:var(--dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
   .calrow .btns{display:flex;gap:5px;justify-content:flex-end}
   .calrow button{padding:4px 8px;font-size:9.5px;letter-spacing:.08em}
@@ -1201,12 +1202,13 @@
     <section class="mem" id="calFilesBlock">
     <div class="memhead">
       <div class="lbl">Calibration files on this probe</div>
-      <div class="membtns"><button id="btnCalFilesUp" hidden disabled title="Each file to this probe's inbox in the office database; files already there are skipped">Upload to database</button>
+      <div class="membtns"><button id="btnCalFilesUp" hidden disabled title="Offer every file to the office database again; files it already has are skipped">Upload to database</button>
         <button id="btnCalFilesRefresh" disabled>Refresh</button></div>
     </div>
     <div class="ctlhint" style="margin-top:6px">Every calibration saved to the probe is kept, named after the probe and the
       time it was done. Saving adds a file; nothing is overwritten or deleted. The probe only stores them; they are
-      applied when the data is processed.</div>
+      applied when the data is processed. With the probe's login kept on it (Data Management), every file goes into the office
+      database by itself when there is internet; the files stay on the probe.</div>
     <div class="sesswrap" id="calFilesRows"><div class="sessempty">Connect to a probe to see its calibration files.</div></div>
     <div class="dbmsg" id="calFilesMsg"></div>
     <pre class="calfile" id="calFileView" hidden></pre>
@@ -6638,7 +6640,7 @@ function calReadFile(name){
 function calFrame(f){
   const t = f[0], dv = new DataView(f.buffer, f.byteOffset, f.byteLength), dec = b => new TextDecoder().decode(b);
   if(t===0x62 && calFiles && f.length>=9) calFiles.rows.push({size:dv.getUint32(5,true), name:dec(f.slice(9))});
-  else if(t===0x63){ clearTimeout(calListT); if(calFiles){ calFiles.done = true; renderCalFiles(); if(onProbe && !DB_UPLOAD) renderInbox(); } }
+  else if(t===0x63){ clearTimeout(calListT); if(calFiles){ calFiles.done = true; renderCalFiles(); if(onProbe && !DB_UPLOAD){ renderInbox(); calSync(false); } } }
   else if(t===0x64 && calRead) calRead.parts.push(f.slice(2));
   else if(t===0x65 && calRead && f.length>=5){
     const r = calRead; calRead = null;
@@ -6660,16 +6662,20 @@ function renderCalFiles(){
     return;
   }
   const rows = calFiles.rows.slice().sort((a,b) => calWhen(b.name).localeCompare(calWhen(a.name)));
-  el('calFilesMsg').textContent = rows.length ? rows.length+' calibration file'+(rows.length>1?'s':'')+' on the probe, newest first.'
-                                              : 'No calibration files on this probe yet.';
+  el('calFilesMsg').textContent = (rows.length ? rows.length+' calibration file'+(rows.length>1?'s':'')+' on the probe, newest first.'
+                                               : 'No calibration files on this probe yet.') + (INBOX && calSyncMsg ? ' '+calSyncMsg : '');
   if(!rows.length){ box.innerHTML = '<div class="sessempty">None yet — Save to probe in the calibration below adds the first.</div>'; return; }
   const frag = document.createDocumentFragment();
   const h = document.createElement('div'); h.className = 'calrow head';
-  h.innerHTML = '<span>Calibrated</span><span>File</span><span>Size</span><span></span>'; frag.appendChild(h);
+  h.innerHTML = '<span>Calibrated</span><span>File</span><span>Size</span><span>Office database</span><span></span>'; frag.appendChild(h);
   for(const r of rows){
     const d = document.createElement('div'); d.className = 'calrow';
-    d.innerHTML = '<span></span><span></span><span></span>';
+    d.innerHTML = '<span></span><span></span><span></span><span class="cst"></span>';
     d.children[0].textContent = calWhen(r.name); d.children[1].textContent = r.name; d.children[2].textContent = r.size+' B';
+    const st = calState[r.name] || (INBOX ? 'wait' : '');
+    d.children[3].className = 'cst '+st;
+    d.children[3].textContent = !INBOX ? '—' : st === 'db' ? 'in database ✓' : st === 'up' ? 'uploading…' : st === 'err' ? 'refused' : navigator.onLine ? 'not yet' : 'waiting for internet';
+    if(st === 'err') d.children[3].title = calState[r.name+'#why'] || '';
     const b = document.createElement('span'); b.className = 'btns';
     const mk = (txt, fn) => { const x = document.createElement('button'); x.textContent = txt; x.onclick = fn; b.appendChild(x); };
     mk('View', () => calView(r.name));
@@ -6719,12 +6725,14 @@ async function calSaveToProbe(){
   const r = await answer;
   el('cbSaveProbe').disabled = !chCtrl;
   if(r.ok){ msg('Saved on the probe as '+r.text+'. Earlier files are kept.'); log('Calibration saved on the probe as '+r.text,'ok'); calListRequest();
-    if(INBOX) setTimeout(() => uploadCalFiles([r.text], true), 1500); }
+  }
   else { msg('Not saved: '+r.text); log('The probe did not save the calibration: '+r.text,'err'); }
 }
 el('cbSaveProbe').onclick = calSaveToProbe;
 el('btnCalFilesRefresh').onclick = calListRequest;
-el('btnCalFilesUp').onclick = () => { if(calFiles && calFiles.done) uploadCalFiles(calFiles.rows.map(r => r.name)); };
+el('btnCalFilesUp').onclick = () => calSync(true);
+addEventListener('online', () => calSync(false));
+addEventListener('offline', () => renderCalFiles());
 el('btnUpCal').onclick = uploadFieldFit;
 
 
@@ -7753,6 +7761,13 @@ async function inboxLoad(){                // the probe's page only: is a login 
   inboxTok = null;
   renderInbox(); renderLocal(); renderSessions(); setButtons();
   if(INBOX && navigator.onLine) inboxToken().then(() => { renderInbox(); processQueue(); }, e => dbMsg(e.message, 1));
+  if(INBOX) calSyncSoon();
+}
+// once the cable link is up and the probe login is known: list the calibration files (the sync follows)
+function calSyncSoon(tries = 0){
+  if(!INBOX || !onProbe) return;
+  if(!chCtrl || dumpActive){ if(tries < 60) setTimeout(() => calSyncSoon(tries+1), 2000); return; }
+  if(calFiles && calFiles.done) calSync(false); else if(!calFiles) calListRequest();
 }
 async function inboxToken(force){
   if(!force && inboxTok && Date.now()/1000 < inboxTok.exp) return inboxTok.at;
@@ -7792,49 +7807,86 @@ async function uploadInbox(key){
   log((already ? 'Already in the office inbox: ' : 'Uploaded to the office inbox: ')+'probe-inbox/'+path, 'ok');
   return true;
 }
-// one file into this probe's inbox (calibration files): 'uploaded' or 'already' (same name there)
-async function inboxPut(name, body, type){
+/* ── Calibration files into the office database, by themselves ──
+   Device calibrations (the files kept on the probe) go into device_calibrations as soon as this
+   page is on the probe's cable with the probe's login and has internet: the file list is read in
+   the background and every file not yet confirmed is sent with add_device_calibration(). The files
+   stay on the probe. The database itself refuses a duplicate (same probe, same SHA-256) and answers
+   "already", so offering a file twice is harmless; this phone or laptop also remembers what it has
+   confirmed, so known files are not read off the probe again on every connection.
+   Field fits go into field_calibrations when Upload is pressed (a fit just made may be redone). */
+async function probeRpc(fn, args){
   if(!INBOX) throw new Error('no probe login kept on this probe');
   let at = await inboxToken();
-  const path = INBOX.tool+'/'+name;
-  const put = tok => fetch(SB+'/storage/v1/object/probe-inbox/'+path.split('/').map(encodeURIComponent).join('/'),
-    {method:'POST', headers:{apikey:SB_KEY, Authorization:'Bearer '+tok, 'Content-Type':type || 'application/json', 'x-upsert':'false'}, body});
+  const call = tok => fetch(SB+'/rest/v1/rpc/'+fn, {method:'POST', headers:{apikey:SB_KEY, Authorization:'Bearer '+tok, 'Content-Type':'application/json'}, body:JSON.stringify(args)});
   let r;
-  try{ r = await put(at); if(r.status === 401){ at = await inboxToken(true); r = await put(at); } }
+  try{ r = await call(at); if(r.status === 401){ at = await inboxToken(true); r = await call(at); } }
   catch(e){ if(e.stop) throw e; throw new Error('no internet'); }
-  if(r.ok) return 'uploaded';
   const txt = await r.text(); let d = null; try{ d = JSON.parse(txt); }catch(e){}
-  const why = (d && (d.message || d.error || d.msg)) || txt || 'HTTP '+r.status;
-  if(r.status === 409 || /duplicate|already exists/i.test(why)) return 'already';
-  throw new Error(why);
+  if(!r.ok){ const e = new Error((d && (d.message || d.error || d.msg)) || txt || 'HTTP '+r.status); if(r.status === 403 || r.status === 400) e.file = true; throw e; }
+  return d;
 }
-/* Calibration files go to the inbox beside the runs: cal__<file on the probe> for a device
-   calibration, fieldcal__fieldmag_<probe>_<time>.json for a magnetometer fit from the field. */
-async function uploadCalFiles(names, quiet){
-  const say = t => { el('calFilesMsg').textContent = t; };
-  let up = 0, had = 0, bad = 0;
-  for(const name of names){
-    try{
-      if(!quiet) say('Uploading '+name+'…');
-      const txt = await calReadFile(name);
-      (await inboxPut('cal__'+name, txt, 'application/json')) === 'uploaded' ? up++ : had++;
-    }catch(e){ bad++; log('Could not upload '+name+': '+e.message, 'err'); if(e.message==='no internet' || e.stop) break; }
-  }
-  const t = `Calibration files to the office database: ${up} uploaded, ${had} already there`+(bad ? `, ${bad} failed (see the log)` : '')+'.';
-  say(t); log(t, bad ? 'err' : 'ok');
+const calState = {};                                  // file name -> 'db' | 'up' | 'wait' | 'err'
+let calSyncBusy = false, calSyncAgain = false, calSyncForce = false, calSyncMsg = '';
+const calSeenKey = () => 'bl_calsync_'+(INBOX && INBOX.tool || '');
+function calSeen(){ try{ return new Set(JSON.parse(localStorage.getItem(calSeenKey()) || '[]')); }catch(e){ return new Set(); } }
+function calSeenAdd(name){ try{ const s = calSeen(); s.add(name); localStorage.setItem(calSeenKey(), JSON.stringify([...s])); }catch(e){} }
+// force: offer every file again (the database still skips the ones it has)
+async function calSync(force){
+  if(!INBOX || !chCtrl || !calFiles || !calFiles.done || !calFiles.rows.length) return;
+  if(calSyncBusy){ calSyncAgain = true; calSyncForce = calSyncForce || !!force; return; }   // a press while it runs: done right after
+  if(!navigator.onLine){ for(const r of calFiles.rows) if(calState[r.name] !== 'db') calState[r.name] = 'wait'; renderCalFiles(); return; }
+  if(dumpActive || recording && !force){ calSyncAgain = true; calSyncForce = calSyncForce || !!force; setTimeout(() => { if(!calSyncBusy) calSync(false); }, 5000); return; }    // never in the way of reading a run
+  calSyncBusy = true;
+  const say = t => { calSyncMsg = t; };
+  let up = 0, had = 0, bad = 0, stop = null;
+  try{
+    await inboxToken();                                // knows the probe's tool, so the memory below is per probe
+    const seen = force ? new Set() : calSeen();
+    for(const r of calFiles.rows) if(seen.has(r.name)) calState[r.name] = 'db';
+    const todo = calFiles.rows.filter(r => calState[r.name] !== 'db' || force);
+    renderCalFiles();
+    for(const r of todo){
+      if(dumpActive){ calSyncAgain = true; break; }
+      calState[r.name] = 'up'; renderCalFiles();
+      try{
+        const txt = await calReadFile(r.name);
+        const res = await probeRpc('add_device_calibration', {p_filename:r.name, p_content:txt});
+        res && res.already ? had++ : up++;
+        calState[r.name] = 'db'; calSeenAdd(r.name);
+      }catch(e){
+        calState[r.name] = e.message === 'no internet' ? 'wait' : 'err'; calState[r.name+'#why'] = e.message;
+        if(e.message === 'no internet' || e.stop){ stop = e.message; break; }
+        bad++; log('Calibration file '+r.name+' was not taken by the office database: '+e.message, 'err');
+      }
+      renderCalFiles();
+    }
+  } catch(e){ stop = e.message; }
+  finally{ calSyncBusy = false; }
+  const n = calFiles.rows.length, inDb = calFiles.rows.filter(r => calState[r.name] === 'db').length;
+  if(stop) say('Calibration files: '+inDb+' of '+n+' in the office database. '+(stop === 'no internet' ? 'Waiting for internet.' : stop));
+  else say(inDb === n ? 'All '+n+' calibration file'+(n>1?'s are':' is')+' in the office database ✓' : 'Calibration files: '+inDb+' of '+n+' in the office database'+(bad ? ', '+bad+' refused (see the log)' : '')+'.');
+  if(up) log('Calibration files to the office database: '+up+' added'+(had ? ', '+had+' already there' : '')+'.', 'ok');
+  renderCalFiles();
+  if(calSyncAgain){ const f = calSyncForce; calSyncAgain = false; calSyncForce = false; setTimeout(() => calSync(f), f ? 300 : 2000); }
 }
 async function uploadFieldFit(){
   if(!cal || !INBOX) return;
   const serial = (probeInfo && probeInfo.serial) || el('brandName').textContent || 'probe', when = localIso(new Date());
+  const fix = (typeof lastFix !== 'undefined' && lastFix && Date.now() - (lastFix.t || 0) < 3600e3) ? lastFix : null;   // a position from the last hour
+  const job = (INBOX.job || '').trim();
   const out = {format:'borelogger-field-mag-calibration', serial, ble_name:el('brandName').textContent || null, fitted_at:when,
     note:'m_cal = W * (m_raw - b), microtesla, raw magnetometer axes', hard_iron_b:cal.b,
     soft_iron_W:[cal.W.slice(0,3),cal.W.slice(3,6),cal.W.slice(6,9)], field_uT:cal.field, semi_axes_uT:cal.axes,
-    residual:cal.resid, coverage:cloud ? +cloud.cov.toFixed(3) : null, points:pN, made_by:'BoreLogger logger app'};
-  const name = 'fieldcal__fieldmag_'+String(serial).replace(/[^A-Za-z0-9_-]/g,'-')+'_'+when.slice(0,16).replace(':','')+'.json';
+    residual:cal.resid, coverage:cloud ? +cloud.cov.toFixed(3) : null, points:pN, job_code:job || null,
+    lat:fix ? fix.lat : null, lon:fix ? fix.lon : null, gps_accuracy_m:fix ? fix.acc : null, made_by:'BoreLogger logger app'};
+  const name = 'fieldmag_'+String(serial).replace(/[^A-Za-z0-9_-]/g,'-')+'_'+when.slice(0,16).replace(':','')+'.json';
   el('btnUpCal').disabled = true;
   try{
-    const r = await inboxPut(name, JSON.stringify(out, null, 2)+'\n', 'application/json');
-    log((r==='uploaded' ? 'Field calibration uploaded: ' : 'Already in the office inbox: ')+'probe-inbox/'+INBOX.tool+'/'+name, 'ok');
+    const r = await probeRpc('add_field_calibration', {p_filename:name, p_content:JSON.stringify(out, null, 2)+'\n', p_job_code:job || null,
+      p_lat:fix ? fix.lat : null, p_lon:fix ? fix.lon : null, p_gps_accuracy_m:fix ? fix.acc : null});
+    log((r && r.already ? 'This field calibration is already in the office database: ' : 'Field calibration added to the office database: ')+name+
+        (fix ? '' : ' (no GPS position from the last hour)')+(job ? '' : ' (no job code)'), 'ok');
   }catch(e){ log('Could not upload the field calibration: '+e.message, 'err'); }
   finally{ el('btnUpCal').disabled = !(cal && INBOX); }
 }
@@ -7917,7 +7969,7 @@ el('btnInboxSave').onclick = async () => {
   if(!r.ok){ INBOX = old; renderInbox(); dbMsg('Could not keep it on the probe: '+r.error, 1); return; }
   el('inboxPass').value = '';
   dbMsg('Kept on the probe. Runs upload into probe-inbox/'+INBOX.tool+'/.'+(INBOX.job ? '' : ' Type the job code to start.'));
-  renderInbox(); renderLocal(); renderSessions(); setButtons(); processQueue();
+  renderInbox(); renderLocal(); renderSessions(); setButtons(); processQueue(); calSyncSoon();
 };
 el('inboxPass').addEventListener('keydown', e => { if(e.key==='Enter') el('btnInboxSave').click(); });
 el('inboxJob').onchange = async () => {
