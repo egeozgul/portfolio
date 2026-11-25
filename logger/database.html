@@ -234,7 +234,7 @@ const SECTIONS = [
   {id:'bores', title:'Bores', desc:'Each hole at a job site, with its collar and design.', table:'bores',
    cols:'id,project_id,org_id,name,collar_lat,collar_lon,collar_alt_m,collar_source,design_type,design_inclination,design_azimuth,design_length_m,grid_e_m,grid_n_m,created_at', order:'name.asc',
    name:r=>r.name, list:[['name','Bore'],['project_id','Job site','ref:projects'],['design_type','Design'],['design_length_m','Length m','num'],['collar_source','Collar']]},
-  {id:'runs', title:'Runs', desc:'Every trip down a bore, with its files (through staff_runs()).', rpc:'staff_runs', pick:d=>(d&&d.runs)||[],
+  {id:'runs', title:'Runs', desc:'Runs the office has taken in, with their files (staff_runs()). Runs uploaded from a probe wait under Probe inbox until then.', rpc:'staff_runs', pick:d=>(d&&d.runs)||[],
    name:r=>r.run, list:[['run','Run'],['project','Job site'],['bore','Bore'],['status','Status','status'],['accepted','Accepted','bool'],['stations','Stations','num'],['created_at','Created','date']]},
   {id:'raw_files', title:'Raw files', desc:'The probe files behind the runs, in the raw-recordings store.', derive:'runs',
    name:r=>r.name, list:[['name','File','mono'],['run','Run'],['bore','Bore'],['bytes','Size','bytes'],['at','Uploaded','date']]},
@@ -258,7 +258,7 @@ const SECTIONS = [
    cols:'id,device_serial,device_id,job_code,project_id,source_run_id,lat,lon,gps_accuracy_m,calibrated_at,field_ut,residual,coverage,points,filename,content,sha256,size_bytes,tumble_records,tumble_bytes,tumble_sha256,org_id,uploaded_by,created_at',
    colsOld:'id,device_serial,device_id,job_code,project_id,source_run_id,lat,lon,gps_accuracy_m,calibrated_at,field_ut,residual,coverage,points,filename,content,sha256,size_bytes,org_id,uploaded_by,created_at', order:'calibrated_at.desc',
    name:r=>r.filename, list:[['device_serial','Probe','mono'],['calibrated_at','Fitted','date'],['job_code','Job code','mono'],['project_id','Job site','ref:projects'],['field_ut','Field µT','num'],['tumble_records','Tumble records','num']]},
-  {id:'probe_inbox_files', title:'Probe inbox', desc:'Files uploaded from the field, waiting for the office.', table:'probe_inbox_files', cols:'tool,object_path,bytes,created_at', order:'created_at.desc', key:r=>r.object_path,
+  {id:'probe_inbox_files', title:'Probe inbox', desc:'Runs uploaded from the probes (job__time_note_probe.bin), waiting for the office to take them in. Open one to see its readings.', table:'probe_inbox_files', cols:'tool,object_path,bytes,created_at', order:'created_at.desc', key:r=>r.object_path,
    name:r=>String(r.object_path||'').split('/').pop(), list:[['tool','Probe','mono'],['object_path','File','file'],['bytes','Size','bytes'],['created_at','Uploaded','date']]},
   {group:'People & access'},
   {id:'staff_users', title:'Staff', desc:'Logins that can see everything.', table:'staff_users', cols:'user_id,created_at', order:'created_at.asc', key:r=>r.user_id,
@@ -446,6 +446,11 @@ function openRecord(sid, key, quiet){
     h += '<div class="sub-h">Stations · '+st.length+'</div>' + (st.length ? '<div class="mini tw"><table><thead><tr><th class="num">Depth m</th><th class="num">Inc °</th><th class="num">Azi °</th></tr></thead><tbody>'+
       st.slice(0, 300).map(x => '<tr><td class="num">'+esc(fmtNum(x.depth_m))+'</td><td class="num">'+esc(fmtNum(x.inclination))+'</td><td class="num">'+esc(fmtNum(x.azimuth))+'</td></tr>').join('')+'</tbody></table></div>' : '<div class="status">None loaded for this run.</div>');
   }
+  if(sid === 'probe_inbox_files' && /\.bin$/i.test(r.object_path || '')){   // an uploaded run's raw file, fetched on request
+    h += '<div class="sub-h">Raw run file · '+Math.floor((r.bytes||0)/32).toLocaleString()+' records · '+esc(fmtBytes(r.bytes))+'</div>'+
+         '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-inbox="'+esc(r.object_path)+'">Show the readings</button>'+
+         '<button class="btn" type="button" data-inboxdl="'+esc(r.object_path)+'">Download .bin</button></div><div id="tumbleBox"></div>';
+  }
   if(sid === 'field_calibrations' && r.tumble_records){   // its raw tumble, fetched on request
     h += '<div class="sub-h">Raw tumble · '+r.tumble_records.toLocaleString()+' records · '+esc(fmtBytes(r.tumble_bytes))+'</div>'+
          '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-tumble="'+esc(r.id)+'">Show the readings</button>'+
@@ -504,6 +509,33 @@ function tumbleTable(u){
     '<th class="num">gx</th><th class="num">gy</th><th class="num">gz</th><th class="num">press</th><th class="num">temp</th><th class="num">mx</th><th class="num">my</th><th class="num">mz</th>'+
     '<th class="num">batt</th><th>health</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
 }
+// an inbox file's bytes (staff may read the probe inbox)
+const inboxFiles = {};
+async function getInbox(path){
+  if(inboxFiles[path]) return inboxFiles[path];
+  let s = sess(); if(!s) throw new Error('not signed in');
+  if(Date.now()/1000 > s.exp) s = await auth({refresh_token:s.rt}, 'refresh_token');
+  let r;
+  try{ r = await fetch(SB+'/storage/v1/object/probe-inbox/'+path.split('/').map(encodeURIComponent).join('/'), {headers:{apikey:SB_KEY, Authorization:'Bearer '+s.at}}); }
+  catch(e){ throw new Error('No internet connection.'); }
+  if(!r.ok){ const t = await r.text(); let d = null; try{ d = JSON.parse(t); }catch(e){} throw new Error((d && (d.message || d.error)) || ('HTTP '+r.status)); }
+  return inboxFiles[path] = {bytes:new Uint8Array(await r.arrayBuffer()), filename:path.split('/').pop()};
+}
+$('pBody').addEventListener('click', async e => {
+  const t = e.target.closest('[data-inbox]'), dl = e.target.closest('[data-inboxdl]');
+  if(!t && !dl) return;
+  const path = (t || dl).dataset.inbox || (t || dl).dataset.inboxdl, box = $('tumbleBox'), btn = t || dl;
+  btn.disabled = true; if(t) box.innerHTML = '<div class="status">Fetching the run file…</div>';
+  try{
+    const f = await getInbox(path);
+    if(t) box.innerHTML = tumbleTable(f.bytes);
+    else {
+      const url = URL.createObjectURL(new Blob([f.bytes], {type:'application/octet-stream'}));
+      const a = document.createElement('a'); a.href = url; a.download = f.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+  }catch(err){ box.innerHTML = '<div class="status err">Could not fetch the file: '+esc(err.message)+'</div>'; }
+  finally{ btn.disabled = false; }
+});
 $('pBody').addEventListener('click', async e => {
   const t = e.target.closest('[data-tumble]'), dl = e.target.closest('[data-tumbledl]');
   if(!t && !dl) return;

@@ -280,6 +280,14 @@
   .st.local{color:#8fd2e8;background:#1b2b33;border-color:#2b4653}
   .st.queued{color:#ffd479;background:#3a2f16;border-color:#5c4a1f}
   .st.up{color:#a3e635;background:#1f2e16;border-color:#3c5a22}
+  .st.now{color:#7fd4ff;background:#132a38;border-color:#2c6a8a;position:relative;padding-left:16px}
+  .st.now::before{content:"";position:absolute;left:6px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:#7fd4ff;animation:upPulse 1s ease-in-out infinite}
+  @keyframes upPulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .upnow{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #2c6a8a;background:#132a38;color:#cfefff;border-radius:3px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.04em;cursor:pointer;max-width:42vw;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .upnow i{flex:none;width:7px;height:7px;border-radius:50%;background:#7fd4ff;animation:upPulse 1s ease-in-out infinite}
+  .upnow span{overflow:hidden;text-overflow:ellipsis}
+  @media (prefers-reduced-motion: reduce){ .st.now::before,.upnow i{animation:none} }
   .localrow{
     display:grid;grid-template-columns:minmax(150px,1fr) minmax(110px,.8fr) minmax(120px,1.2fr) 74px 64px 96px auto;
     gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid #172029;
@@ -572,6 +580,7 @@
     <div class="lamp" id="lampLink"><i></i>Link</div>
     <div class="lamp rec" id="lampRec"><i></i>Recording</div>
   </div>
+  <button id="upNow" class="upnow" type="button" hidden title="Uploading to the office database: open Data Management"><i></i><span></span></button>
   <button id="btnConnect" class="primary">Connect</button>
   <button id="btnCable" style="display:none" title="This probe has a USB cable plugged in. Open its own copy of this app over the cable: much faster downloads, and it works on iPhone too.">Switch to cable</button>
 </header>
@@ -2803,10 +2812,13 @@ async function uploadKeys(keys){
         if(!chCtrl){ log('Run '+(s.seq+1)+' is not on this device and no probe is connected: not uploaded.','err'); failed++; continue; }
         if(recording){ log('Stop recording to read run '+(s.seq+1)+' for upload.','err'); failed++; continue; }
         dbMsg('Reading run '+(s.seq+1)+(s.note ? ' ('+s.note+')' : '')+' off the probe to upload it…');
+        setUpNow({what:'Reading run', key, i:keys.indexOf(key)+1, n:keys.length, phase:'reading', pct:0});
+        const stopW = watchRead(s.count);
         try{
           await readSessionAsync(s);
           for(let t=0; t<150 && !localIndex.has(key); t++) await new Promise(r => setTimeout(r, 200));   // keepRun finishing
-        }catch(e){ log('Could not read run '+(s.seq+1)+': '+e.message,'err'); failed++; continue; }
+        }catch(e){ log('Could not read run '+(s.seq+1)+': '+e.message,'err'); failed++; stopW(); setUpNow(null); continue; }
+        stopW(); setUpNow(null);
         if(!localIndex.has(key)){ log('Run '+(s.seq+1)+' was not read whole: not uploaded.','err'); failed++; continue; }
       }
       const m = localIndex.get(key);
@@ -6748,6 +6760,7 @@ el('btnCalFilesRefresh').onclick = calListRequest;
 el('btnCalFilesUp').onclick = () => calSync(true);
 addEventListener('online', () => { calSync(false); fitSyncSoon(); runSyncSoon(); });
 el('btnFitSync').onclick = () => fitSync(true);
+el('upNow').onclick = () => showTab('runs');
 el('chkAutoRuns').onchange = () => { lsSet('bl_autoup', el('chkAutoRuns').checked ? null : '0');
   dbMsg(el('chkAutoRuns').checked ? 'Runs upload by themselves when there is internet.' : 'Runs upload only when you press Upload.'); if(el('chkAutoRuns').checked) runSyncSoon(); };
 addEventListener('offline', () => renderCalFiles());
@@ -7275,9 +7288,36 @@ function runStatus(m){
 }
 const fmtSize = n => n < 100000 ? (n/1000).toFixed(1)+' kB' : (n/1e6).toFixed(2)+' MB';
 const ST_TEXT = {probe:'on probe', local:'on this device', queued:'queued', up:'uploaded ✓'};
+/* What is being uploaded right now, shown on the run itself and as a badge in the top bar:
+   upNow = {what, key (a run), i, n, phase ('reading' | 'sending'), pct}. */
+let upNow = null;
+function nowText(u){ return u.phase === 'reading' ? 'reading '+(u.pct || 0)+'%' : 'sending…'; }
 function runStatusPill(s){
-  const st = runStatus(window.localIndex && localIndex.get(runKey(s)));
-  return `<span class="st ${st}">${ST_TEXT[st]}</span>`;
+  const key = runKey(s);
+  if(upNow && upNow.key === key) return `<span class="st now" data-runkey="${escAttr(key)}">${nowText(upNow)}</span>`;
+  const st = runStatus(window.localIndex && localIndex.get(key));
+  return `<span class="st ${st}" data-runkey="${escAttr(key)}">${ST_TEXT[st]}</span>`;
+}
+const escAttr = t => String(t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+// update the badge and the run's own pill in place (no list redraw)
+function showUpNow(){
+  const b = el('upNow'); if(!b) return;
+  b.hidden = !upNow;
+  if(upNow){
+    b.querySelector('span').textContent = upNow.what+(upNow.n > 1 ? ' '+upNow.i+' of '+upNow.n : '')+(upNow.key ? ' · '+nowText(upNow) : '');
+  }
+  for(const p of document.querySelectorAll('[data-runkey]')){
+    const k = p.getAttribute('data-runkey');
+    if(upNow && upNow.key === k){ p.className = 'st now'; p.textContent = nowText(upNow); }
+    else if(p.classList.contains('now')){ const st = runStatus(window.localIndex && localIndex.get(k)); p.className = 'st '+st; p.textContent = ST_TEXT[st]; }
+  }
+}
+function setUpNow(u){ upNow = u; showUpNow(); }
+// while a run is read off the probe: its share read so far
+function watchRead(count){
+  const t = setInterval(() => { if(!upNow || upNow.phase !== 'reading'){ clearInterval(t); return; }
+    upNow.pct = Math.min(99, Math.round(100 * (dumped.length || 0) / Math.max(1, count))); showUpNow(); }, 500);
+  return () => clearInterval(t);
 }
 
 function ldbOpen(){
@@ -7590,7 +7630,8 @@ function renderLocal(){
       d.className = 'localrow';
       const when = s.epoch ? new Date(s.epoch*1000).toLocaleString() : 'no clock';
       d.innerHTML = `<span>${when}</span><span></span><span></span><span>${s.count.toLocaleString()}</span>`+
-        `<span>${fmtSize(m.bytes)}</span><span class="st ${st}" title="${m.uploaded ? 'as '+(m.uploaded.run_name||'')+' on '+m.uploaded.at : ''}">${ST_TEXT[st]}</span>`;
+        `<span>${fmtSize(m.bytes)}</span>`+(upNow && upNow.key === m.key ? `<span class="st now" data-runkey="${escAttr(m.key)}">${nowText(upNow)}</span>` :
+        `<span class="st ${st}" data-runkey="${escAttr(m.key)}" title="${m.uploaded ? 'as '+(m.uploaded.run_name||m.uploaded.inbox||'')+' on '+m.uploaded.at : ''}">${ST_TEXT[st]}</span>`);
       d.children[1].textContent = m.probe;
       d.children[2].textContent = (s.kind ? '[cal] ' : '') + (s.note || '—');
       if(m.fileSaved) d.title = 'saved '+new Date(m.fileSaved).toLocaleString()+(m.savedTo ? ' to '+m.savedTo : '');
@@ -7975,6 +8016,14 @@ function fitDoc(s, f){
     lab_soft_iron:m && Array.isArray(m.soft_iron) ? 'probe config.json' : 'none (identity)',
     method:'BoreLogger field fit (survey viewer method) v1', made_by:'BoreLogger logger app'};
 }
+// a calibration run whose fit or raw tumble is in field_calibrations counts as uploaded
+async function markCalUploaded(k, f){
+  const m = window.localIndex && localIndex.get(k);
+  if(!m || m.uploaded) return;
+  m.uploaded = {at:new Date().toISOString(), to:'field_calibrations', fit:!f.rawOnly, tumble:!!f.raw};
+  m.queued = null; m.lastError = null;
+  try{ await ldbPutMeta(m); }catch(e){}
+}
 function fitSyncSoon(tries = 0){
   if(!INBOX || !onProbe) return;
   if(!chCtrl || dumpActive || recording || (!BOARD_CAL && tries < 15)){ if(tries < 90) setTimeout(() => fitSyncSoon(tries+1), 2000); return; }
@@ -7992,13 +8041,14 @@ async function fitSync(force){
   try{
     await inboxToken();
     const mem = force ? {} : fitMem();
-    for(const s of cals){ const k = runKey(s); if(mem[k] && !fitState[k]) fitState[k] = mem[k]; }
+    for(const s of cals){ const k = runKey(s); if(mem[k] && !fitState[k]) fitState[k] = mem[k]; if(fitState[k] && fitState[k].st === 'db') await markCalUploaded(k, fitState[k]); }
     for(const s of cals){
       const k = runKey(s), f0 = fitState[k];
       // done: stored with its tumble (or the database cannot take tumbles yet), or too short to fit
       if(!force && f0 && ((f0.st === 'skip' && (f0.final || fitNoTumble)) || (f0.st === 'db' && (f0.raw || fitNoTumble)))) continue;
       if(recording || dumpActive){ fitAgain = true; break; }
       fitState[k] = {st:'up'}; renderFitSync();
+      setUpNow({what:'Fitting calibration run', i:cals.indexOf(s)+1, n:cals.length});
       try{
         const u = await calRunBytes(s);
         const m = BOARD_CAL && BOARD_CAL.mag, SI = m && Array.isArray(m.soft_iron) && m.soft_iron.length === 3 ? m.soft_iron : null;
@@ -8016,7 +8066,7 @@ async function fitSync(force){
             }catch(e){ if(/p_tumble_b64|p_calibrated_at|could not find the function|schema cache/i.test(e.message)) fitNoTumble = true; else throw e; }
           }
           fitState[k] = stored ? {st:'db', raw:true, rawOnly:true, why:f.error} : {st:'skip', why:f.error};
-          fitRemember(k, fitState[k]); renderFitSync(); continue;
+          fitRemember(k, fitState[k]); if(stored) await markCalUploaded(k, fitState[k]); renderFitSync(); continue;
         }
         const doc = fitDoc(s, f), job = (INBOX.job || '').trim();
         const name = ('fieldmag_'+doc.serial+'_'+runStamp(s)+'_'+(s.note || 'cal'+(s.seq+1))).replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 110)+'.json';
@@ -8029,7 +8079,7 @@ async function fitSync(force){
         }
         if(!res) res = await probeRpc('add_field_calibration', args);     // a database without 0020: the fit alone
         res && res.already && !(res.tumble_added) ? had++ : added++;
-        fitState[k] = {st:'db', quality:f.quality, ut:doc.field_uT, raw}; fitRemember(k, fitState[k]);
+        fitState[k] = {st:'db', quality:f.quality, ut:doc.field_uT, raw}; fitRemember(k, fitState[k]); await markCalUploaded(k, fitState[k]);
       }catch(e){
         fitState[k] = {st: e.message === 'no internet' ? 'wait' : 'err', why:e.message};
         if(e.message === 'no internet' || e.stop){ stop = e.message; break; }
@@ -8038,7 +8088,7 @@ async function fitSync(force){
       renderFitSync();
     }
   } catch(e){ stop = e.message; }
-  finally{ fitBusy = false; }
+  finally{ fitBusy = false; setUpNow(null); }
   const n = cals.length, done = cals.filter(s => fitState[runKey(s)] && fitState[runKey(s)].st === 'db').length,
         sk = cals.filter(s => fitState[runKey(s)] && fitState[runKey(s)].st === 'skip').length;
   fitMsg = stop ? (stop === 'no internet' ? 'Waiting for internet.' : stop)
@@ -8105,9 +8155,12 @@ async function runSync(){
       if(recording || dumpActive || !autoRunsOn() || !chCtrl){ runAgain = true; break; }
       const k = runKey(x); i++;
       dbMsg('Uploading runs by themselves: '+(x.note || 'run '+(x.seq+1))+' ('+i+' of '+todo.length+', '+x.count.toLocaleString()+' records)…');
+      setUpNow({what:'Uploading run', key:k, i, n:todo.length, phase: localIndex.has(k) ? 'sending' : 'reading', pct:0});
       try{
         if(!localIndex.has(k)){
-          await calRunBytes(x);                        // reads it off the probe; that read keeps it here
+          const stop = watchRead(x.count);
+          try{ await calRunBytes(x); } finally { stop(); }    // reads it off the probe; that read keeps it here
+          upNow.phase = 'sending'; showUpNow();
           for(let t = 0; t < 150 && !localIndex.has(k); t++) await new Promise(r => setTimeout(r, 200));
           if(!localIndex.has(k)) throw new Error('the run was not read whole');
         }
@@ -8123,7 +8176,7 @@ async function runSync(){
       renderLocal(); renderSessions();
     }
   } catch(e){ stop = e.message; }
-  finally{ runBusy = false; setButtons(); }
+  finally{ runBusy = false; setUpNow(null); setButtons(); }
   if(stop) dbMsg((stop === 'no internet' ? 'Waiting for internet to upload the runs.' : stop), 1);
   else if(done || had) dbMsg('Runs uploaded by themselves: '+done+' sent'+(had ? ', '+had+' already in the inbox' : '')+'.');
   if(done) log('Runs uploaded to the office inbox by themselves: '+done+'.', 'ok');
@@ -8218,6 +8271,7 @@ async function calSync(force){
     for(const r of todo){
       if(dumpActive){ calSyncAgain = true; break; }
       calState[r.name] = 'up'; renderCalFiles();
+      setUpNow({what:'Uploading calibration file', i:todo.indexOf(r)+1, n:todo.length});
       try{
         const txt = await calReadFile(r.name);
         const res = await probeRpc('add_device_calibration', {p_filename:r.name, p_content:txt});
@@ -8231,7 +8285,7 @@ async function calSync(force){
       renderCalFiles();
     }
   } catch(e){ stop = e.message; }
-  finally{ calSyncBusy = false; }
+  finally{ calSyncBusy = false; setUpNow(null); }
   const n = calFiles.rows.length, inDb = calFiles.rows.filter(r => calState[r.name] === 'db').length;
   if(stop) say('Calibration files: '+inDb+' of '+n+' in the office database. '+(stop === 'no internet' ? 'Waiting for internet.' : stop));
   else say(inDb === n ? 'All '+n+' calibration file'+(n>1?'s are':' is')+' in the office database ✓' : 'Calibration files: '+inDb+' of '+n+' in the office database'+(bad ? ', '+bad+' refused (see the log)' : '')+'.');
@@ -8302,6 +8356,7 @@ async function processQueue(){
     if(!INBOX && !dbBores.length) await dbLoadLists();
     for(const m of todo){
       dbMsg(`Uploading ${runFileName(m)} (${(m.bytes/1e6).toFixed(2)} MB)…`);
+      if(!runBusy) setUpNow({what:'Uploading run', key:m.key, i:todo.indexOf(m)+1, n:todo.length, phase:'sending'});
       try{ await (INBOX ? uploadInbox(m.key) : uploadRun(m.key)); }
       catch(e){
         m.lastError = e.message; await ldbPutMeta(m);
@@ -8312,7 +8367,7 @@ async function processQueue(){
     }
     const left = [...localIndex.values()].filter(m => m.queued && !m.uploaded).length;
     if(!left) dbMsg('All queued runs are uploaded.');
-  } finally { queueBusy = false; setButtons(); }
+  } finally { queueBusy = false; if(!runBusy) setUpNow(null); setButtons(); }
 }
 
 el('btnDbSignin').onclick = async () => {
