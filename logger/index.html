@@ -247,9 +247,9 @@
   .sesswrap{margin-top:11px;border:1px solid var(--rule);border-radius:3px;overflow-x:auto}
   .sesshead,.sessrow{
     display:grid;
-    grid-template-columns:34px 72px minmax(150px,1fr) minmax(120px,1fr) minmax(150px,1fr)
+    grid-template-columns:22px 34px 72px minmax(150px,1fr) minmax(120px,1fr) minmax(150px,1fr)
                           78px 66px 62px 62px 96px 58px;
-    min-width:1000px;
+    min-width:1030px;
     gap:8px;align-items:center;padding:7px 10px;
     font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums;
   }
@@ -258,7 +258,8 @@
   .sessbody{max-height:230px;overflow-y:auto;background:#0e141a}
   .sessrow{border-bottom:1px solid #172029;color:var(--ink)}
   .sessrow:last-child{border-bottom:0}
-  .sessrow span:first-child{color:var(--dim)}
+  .sessrow span:nth-child(2){color:var(--dim)}
+  .sesshead input,.sessrow input.sel{width:15px;height:15px;margin:0;accent-color:var(--link);cursor:pointer}
   .sessrow .nogps{color:#6b7b88;font-style:italic}
   .sessrow .sessname{color:#a3e635;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sessnote{
@@ -813,6 +814,7 @@
     <div class="memhead">
       <div class="lbl">Recording sessions</div>
       <div class="membtns">
+        <button id="btnUploadSel" class="primary" disabled hidden>Upload selected</button>
         <button id="btnSessRefresh" disabled>Refresh</button>
         <button id="btnSessCsv" disabled>Save index CSV</button>
         <button id="btnExportAll" disabled>Export everything (ZIP)</button>
@@ -831,7 +833,7 @@
     </div>
     <div class="sesswrap">
       <div class="sesshead">
-        <span>#</span><span>Type</span><span>Started</span><span>Note</span><span>Location</span>
+        <span><input type="checkbox" class="sel" id="sessAll" title="Select every run"></span><span>#</span><span>Type</span><span>Started</span><span>Note</span><span>Location</span>
         <span>Address</span><span>Records</span><span>Rate</span>
         <span>Duration</span><span>Copy</span><span></span>
       </div>
@@ -930,7 +932,8 @@
     <div class="sesswrap" id="qcRunsRows"><div class="sessempty">Connect to a probe, or read a run once, to review it here.</div></div>
   </section>
   <section class="mem" id="qcBlock">
-    <div class="memhead"><div class="lbl">Run review</div></div>
+    <div class="memhead"><div class="lbl">Run review</div>
+      <div class="membtns"><button id="btnQcUpload" hidden disabled>Upload this run</button></div></div>
     <div id="qcView"></div>
   </section>
   <section class="mem" id="ovBlock" hidden>
@@ -2200,6 +2203,7 @@ function setButtons(){
   el('btnVerify').disabled=busy;
   if(window.localIndex) el('btnUploadAll').disabled=![...localIndex.values()].some(m=>m.uploaded==null);
   el('btnDumpCsv').disabled=dumped.length===0;
+  if(typeof updSel==='function' && window.localIndex) updSel();
 }
 
 function log(msg,cls){
@@ -2716,6 +2720,7 @@ function renderSessions(){
       ? '<span class="kind cal">Calib</span>'
       : '<span class="kind meas">Measure</span>';
     d.innerHTML=
+      `<span></span>`+
       `<span>${s.seq+1}</span>`+
       `<span>${kindTag}</span>`+
       `<span>${when}</span>`+
@@ -2735,9 +2740,71 @@ function renderSessions(){
     b.onclick=()=>readSession(i);
     d.appendChild(b);
     d.querySelector('.sessname').textContent = s.note || '—';   // text, never markup
+    const key=runKey(s), cb=document.createElement('input');
+    cb.type='checkbox'; cb.className='sel'; cb.checked=sessSel.has(key);
+    cb.title='Select to upload'; cb.setAttribute('aria-label','select run '+(s.seq+1));
+    cb.onchange=()=>{ cb.checked ? sessSel.add(key) : sessSel.delete(key); updSel(); };
+    d.firstChild.appendChild(cb);
     frag.appendChild(d);
   });
   box.replaceChildren(frag);
+  updSel();
+}
+/* ── upload what is selected ──
+   Ticked runs in Recording sessions (or the run open in QC): a run not kept on
+   this device is read off the probe first (that keeps it), then all go to the
+   upload queue, which sends them when a login and internet are there. */
+const sessSel = new Set();                 // run keys
+let selBusy = false;
+function updSel(){
+  const keys = new Set(sessionsList.map(runKey));
+  for(const k of [...sessSel]) if(!keys.has(k)) sessSel.delete(k);      // runs gone from the probe
+  const n = sessSel.size, b = el('btnUploadSel'), all = el('sessAll');
+  if(b){ b.hidden = !upOn(); b.textContent = selBusy ? 'Uploading…' : 'Upload selected'+(n ? ' ('+n+')' : '');
+         b.disabled = selBusy || !n; }
+  if(all){ all.checked = n>0 && n===sessionsList.length; all.indeterminate = n>0 && n<sessionsList.length; all.disabled = !sessionsList.length; }
+  const q = el('btnQcUpload');
+  if(q && typeof QCV!=='undefined'){
+    const k = QCV.selected, m = k && localIndex.get(k);
+    q.hidden = !upOn();
+    q.textContent = m && m.uploaded ? 'Uploaded ✓' : m && m.queued ? 'Queued' : 'Upload this run';
+    q.disabled = selBusy || !k || !!(m && m.uploaded);
+  }
+}
+async function uploadKeys(keys){
+  if(selBusy || !keys.length) return;
+  selBusy = true; updSel();
+  let queued = 0, failed = 0;
+  try{
+    for(const key of keys){
+      const s = sessionsList.find(x => runKey(x)===key), m0 = localIndex.get(key);
+      if(m0 && m0.uploaded){ continue; }
+      if(!localIndex.has(key)){                       // read it off the probe first: that keeps it
+        if(!s){ failed++; continue; }
+        if(!chCtrl){ log('Run '+(s.seq+1)+' is not on this device and no probe is connected: not uploaded.','err'); failed++; continue; }
+        if(recording){ log('Stop recording to read run '+(s.seq+1)+' for upload.','err'); failed++; continue; }
+        dbMsg('Reading run '+(s.seq+1)+(s.note ? ' ('+s.note+')' : '')+' off the probe to upload it…');
+        try{
+          await readSessionAsync(s);
+          for(let t=0; t<150 && !localIndex.has(key); t++) await new Promise(r => setTimeout(r, 200));   // keepRun finishing
+        }catch(e){ log('Could not read run '+(s.seq+1)+': '+e.message,'err'); failed++; continue; }
+        if(!localIndex.has(key)){ log('Run '+(s.seq+1)+' was not read whole: not uploaded.','err'); failed++; continue; }
+      }
+      const m = localIndex.get(key);
+      m.queued = m.queued || new Date().toISOString(); m.lastError = null;
+      await ldbPutMeta(m); queued++;
+      sessSel.delete(key);
+    }
+  } finally { selBusy = false; }
+  renderLocal(); renderSessions(); setButtons();
+  const s = sbSession();
+  if(!queued) { dbMsg(failed ? 'Nothing uploaded: see the log.' : 'Those runs are already uploaded.', !!failed); updSel(); return; }
+  if(INBOX && !(INBOX.job||'').trim()){ dbMsg(queued+' run'+(queued>1?'s':'')+' queued. Type the job code under Office database and they upload.', 1); showTab('runs'); el('inboxJob').focus(); }
+  else if(!INBOX && onProbe && !DB_UPLOAD){ dbMsg(queued+' queued. Keep the probe\'s login on it under Office database and they upload.', 1); showTab('runs'); el('inboxEmail').focus(); }
+  else if(!INBOX && (!s || !s.at)){ dbMsg(queued+' queued. Sign in under Office database and they upload.', 1); showTab('runs'); }
+  else if(!navigator.onLine) dbMsg(queued+' queued. They upload when this device is back online.');
+  else { dbMsg('Uploading '+queued+' run'+(queued>1?'s':'')+'…'); await processQueue(); }
+  updSel();
 }
 function readSession(i){
   const s=sessionsList[i];
@@ -7067,7 +7134,7 @@ async function open(key, pairKey){
   const me = ++loading;
   const runs = runsList(), r = runs.find(x => x.key===key);
   if(!r){ $('qcView').innerHTML = ''; return; }
-  sel = key; renderList();
+  sel = key; renderList(); if(typeof updSel==='function') updSel();
   if(r.kind!=='measurement'){ $('qcView').innerHTML = '<div class=qccard>'+esc(r.note||'This run')+' is a calibration run: check calibrations in Field Calibration.</div>'; return; }
   const say = t => { if(me===loading) $('qcView').innerHTML = '<div class=qccard>'+t+'</div>'; };
   say('Reading '+esc(r.note||'the run')+'…');
@@ -7813,6 +7880,9 @@ el('btnInboxForget').onclick = async () => {
   INBOX = null; inboxTok = null; dbMsg('Removed from the probe.'); renderInbox(); renderLocal(); renderSessions(); setButtons();
 };
 el('btnFolder').onclick = chooseFolder;
+el('btnUploadSel').onclick = () => uploadKeys(sessionsList.map(runKey).filter(k => sessSel.has(k)));
+el('sessAll').onchange = () => { if(el('sessAll').checked) sessionsList.forEach(x => sessSel.add(runKey(x))); else sessSel.clear(); renderSessions(); };
+el('btnQcUpload').onclick = () => { const k = QCV.selected; if(k) uploadKeys([k]); };
 el('btnSaveAll').onclick = saveAllRuns;
 fsLoad();
 el('btnUploadAll').onclick = async () => {

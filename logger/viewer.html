@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BoreLogger Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Azeret+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#06121a; --deep:#040c12; --panel:#0b1e29; --panel2:#0f2531; --rule:#193544;
+  --text:#dbe9ee; --muted:#7c99a7; --faint:#4e6b79;
+  --c1:#3fd0c9; --c2:#f0a23c; --warn:#e4566e;
+  --sans:'Archivo',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'Azeret Mono',ui-monospace,'SF Mono',Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:14px;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button,select,input{font-family:inherit;color:inherit;font-size:inherit}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+[hidden]{display:none!important}
+
+/* ---------- landing ---------- */
+#landing{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;
+  align-items:center;padding:24px;gap:22px;text-align:center;
+  background:radial-gradient(120% 80% at 50% 8%,#0d2634 0%,#071520 48%,#03080d 100%);overflow-y:auto}
+#landing h1{font-size:22px;font-weight:600;letter-spacing:-.01em}
+#landing p{color:var(--muted);font-size:13px;max-width:44ch;line-height:1.65}
+#drop{width:min(420px,100%);border:1px dashed #2b5566;border-radius:4px;padding:30px 20px;
+  background:#081a24a0;transition:border-color .2s,background .2s}
+#drop.hot{border-color:var(--c1);background:#0b2b3480}
+#pick{margin-top:14px;background:var(--text);color:var(--ink);border:none;border-radius:3px;
+  padding:11px 20px;font-weight:600;cursor:pointer}
+#droplabel{color:var(--muted);font-size:12.5px}
+#err{color:var(--warn);font-size:12.5px;min-height:1em;max-width:40ch}
+#prog{color:var(--c1);font-family:var(--mono);font-size:12px;min-height:1em}
+.fine{font-size:11.5px;color:var(--faint);max-width:46ch;line-height:1.6}
+
+/* ---------- database list ---------- */
+#landing.db{justify-content:flex-start;padding-top:40px}
+.lwrap{width:min(860px,100%);display:flex;flex-direction:column;gap:14px;text-align:left}
+.lhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.lhead h1{flex:1}
+#signin{display:grid;gap:10px;width:min(360px,100%);margin:0 auto;text-align:left}
+#signin label{font-size:11.5px;color:var(--muted);display:block;margin-bottom:3px}
+#signin input,#q{width:100%;background:var(--panel2);border:1px solid var(--rule);border-radius:3px;padding:10px;color:var(--text)}
+.btn{background:var(--panel2);border:1px solid var(--rule);border-radius:3px;padding:8px 12px;cursor:pointer;color:var(--text);font-size:12.5px}
+.btn.pri{background:var(--text);color:var(--ink);border-color:var(--text);font-weight:600}
+.btn:disabled{opacity:.45;cursor:default}
+#dbbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#dbbar #q{flex:1;min-width:160px;padding:8px 10px}
+#who{font-size:11.5px;color:var(--faint)}
+.grp{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+.grp small{letter-spacing:0;text-transform:none;color:var(--faint);margin-left:6px}
+.item{display:grid;grid-template-columns:1fr auto;gap:2px 14px;width:100%;text-align:left;background:var(--panel);
+  border:1px solid var(--rule);border-radius:3px;padding:10px 12px;margin-bottom:6px;cursor:pointer;color:var(--text)}
+.item:hover,.item:focus-visible{border-color:#2f6476;background:var(--panel2);outline:none}
+.item .t1{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .t2{grid-column:1/-1;font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+.item .sz{font-family:var(--mono);font-size:11.5px;color:var(--faint);align-self:center}
+.item.open{box-shadow:inset 3px 0 0 var(--c1)}
+.chip{display:inline-block;font-size:10px;padding:1px 6px;border-radius:2px;margin-left:6px;vertical-align:1px;
+  background:#1d3a48;color:#9cc7d6;font-weight:500}
+.chip.acc{background:#1f4a35;color:#8fe0b0} .chip.inbox{background:#3a2d1a;color:#d0a45e}
+.empty{color:var(--faint);font-size:12.5px;padding:10px 0}
+#filebox{color:var(--muted);font-size:12.5px} #filebox summary{cursor:pointer;margin-bottom:10px}
+#filebox #drop{margin:0 auto}
+#tolist{flex:none;background:#0b1f2bb0;border:1px solid var(--rule);border-radius:3px;padding:6px 10px;cursor:pointer;
+  backdrop-filter:blur(8px);font-size:12px;color:var(--muted)}
+
+/* ---------- app ---------- */
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+#view{position:relative;flex:1;min-height:0;
+  background:radial-gradient(120% 90% at 50% 0%,#0d2634 0%,#071520 45%,#03080d 100%)}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ov{position:absolute;pointer-events:none}
+
+#top{top:0;left:0;right:0;padding:9px 12px;display:flex;gap:10px;align-items:center;
+  background:linear-gradient(180deg,#030a0fdd,#030a0f00);pointer-events:auto}
+#sesbtn{flex:none;display:flex;align-items:center;gap:7px;background:#0b1f2bb0;
+  border:1px solid var(--rule);border-radius:3px;padding:6px 10px;cursor:pointer;
+  backdrop-filter:blur(8px);max-width:62%}
+#sesbtn .dot{width:8px;height:8px;border-radius:50%;flex:none}
+#sesbtn .nm{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sesbtn .ch{color:var(--faint);font-size:10px}
+#topstats{display:flex;gap:12px;flex-wrap:wrap;margin-left:auto;text-align:right}
+.stat{font-size:11px;color:var(--muted);white-space:nowrap}
+.stat b{font-family:var(--mono);font-weight:400;color:var(--text)}
+
+#hint{left:50%;top:52%;transform:translate(-50%,-50%);color:#9fc2d0;font-size:13px;
+  text-align:center;line-height:1.7;transition:opacity .5s}
+#empty{left:50%;top:50%;transform:translate(-50%,-50%);color:var(--muted);font-size:13px;
+  text-align:center;line-height:1.7;max-width:30ch}
+
+#readout{right:10px;bottom:10px;text-align:right}
+#readout .big{font-family:var(--mono);font-size:25px;font-weight:300;line-height:1}
+#readout .big small{font-size:12px;color:var(--muted)}
+#readout .sub{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:3px}
+.tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:2px;color:#041018;
+  font-weight:600;font-family:var(--sans);vertical-align:2px}
+
+#legend{left:10px;bottom:44px;display:flex;flex-direction:column;gap:3px}
+#legend span{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+#legend i{width:12px;height:2px;border-radius:1px;flex:none}
+#views{left:10px;bottom:10px;display:flex;gap:4px;pointer-events:auto;flex-wrap:wrap;max-width:60%}
+#views button{background:#0a1f2ba0;border:1px solid var(--rule);color:var(--muted);
+  padding:6px 10px;border-radius:2px;font-size:11px;cursor:pointer;backdrop-filter:blur(8px)}
+#views button[aria-pressed=true]{background:var(--text);color:var(--ink);border-color:var(--text)}
+
+/* ---------- session drawer ---------- */
+#drawer{position:fixed;inset:0;background:#02080cc4;backdrop-filter:blur(3px);
+  display:flex;align-items:flex-start;justify-content:center;padding:14px;z-index:20;overflow-y:auto}
+#dbox{width:min(560px,100%);background:var(--panel);border:1px solid var(--rule);border-radius:5px;
+  overflow:hidden}
+#dhead{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--rule)}
+#dhead h2{font-size:14px;font-weight:600;flex:1}
+#dhead button{background:none;border:1px solid var(--rule);border-radius:2px;padding:5px 10px;
+  color:var(--muted);cursor:pointer;font-size:12px}
+.srow{display:flex;gap:11px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid #12293399;
+  cursor:pointer;background:none;border-left:none;border-right:none;border-top:none;width:100%;text-align:left}
+.srow:last-child{border-bottom:none}
+.srow:hover{background:#102a36}
+.srow .box{width:16px;height:16px;flex:none;border:1px solid #2e5566;border-radius:3px;margin-top:2px;
+  display:grid;place-items:center;font-size:11px;color:var(--ink)}
+.srow[aria-pressed=true] .box{background:var(--sc,#3fd0c9);border-color:var(--sc,#3fd0c9)}
+.srow .meta{flex:1;min-width:0}
+.srow .t1{font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.srow .t2{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:3px}
+.badge{font-size:9.5px;padding:1px 5px;border-radius:2px;background:#1d3a48;color:var(--muted);
+  font-family:var(--sans);font-weight:400}
+.badge.cal{background:#3a2d1a;color:#d0a45e}
+.badge.pri{background:var(--c1);color:#04131a;font-weight:600}
+#dfoot{padding:11px 14px;font-size:11.5px;color:var(--faint);line-height:1.6;border-top:1px solid var(--rule)}
+#dfoot b{color:var(--muted);font-weight:500}
+
+/* ---------- bottom sheet ---------- */
+#sheet{background:var(--deep);border-top:1px solid var(--rule);padding:8px 12px 12px;flex:none}
+#bar{display:flex;align-items:center;gap:10px}
+#play{width:36px;height:36px;flex:none;border-radius:50%;border:1px solid var(--rule);
+  background:var(--panel2);cursor:pointer;font-size:12px}
+#prof{flex:1;height:52px;display:block;cursor:crosshair;touch-action:none}
+#more{flex:none;background:none;border:1px solid var(--rule);border-radius:2px;padding:7px 9px;
+  color:var(--muted);font-size:11px;cursor:pointer}
+#panel{margin-top:10px;display:none;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:12px 18px}
+#panel.open{display:grid}
+.ctl label{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;
+  color:var(--muted);margin-bottom:3px}
+.ctl label b{font-family:var(--mono);font-weight:400;color:var(--text)}
+input[type=range]{width:100%;-webkit-appearance:none;appearance:none;background:none;height:20px}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--rule)}
+input[type=range]::-moz-range-track{height:2px;background:var(--rule)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
+  border-radius:50%;background:var(--c1);margin-top:-6px;border:none}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--c1);border:none}
+select{width:100%;background:var(--panel2);border:1px solid var(--rule);border-radius:2px;padding:6px}
+.note{grid-column:1/-1;font-size:11px;color:var(--faint);line-height:1.6}
+</style>
+</head>
+<body>
+
+<div id="landing" class="db">
+  <div class="lwrap">
+    <div class="lhead">
+      <h1>BoreLogger path viewer</h1>
+      <span id="who"></span>
+    </div>
+    <p id="lsub" style="color:var(--muted);font-size:13px;line-height:1.6">The runs collected in the office database. Choose one to fly the probe's path through the borehole in 3D.</p>
+    <form id="signin" hidden autocomplete="on">
+      <div><label for="em">Email (your portal staff login)</label><input id="em" type="email" autocomplete="username" required></div>
+      <div><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+      <button class="btn pri" id="go" type="submit">Sign in</button>
+      <div class="fine" style="margin:0">Asked once in this browser; it stays signed in. The password itself is not stored.</div>
+    </form>
+    <div id="dbwrap" hidden>
+      <div id="dbbar">
+        <input id="q" type="search" placeholder="Search project, bore, run, probe…" autocomplete="off">
+        <button class="btn" id="dbref" type="button">Refresh</button>
+        <button class="btn" id="signout" type="button">Sign out</button>
+      </div>
+      <div id="dblist"></div>
+    </div>
+    <div id="prog"></div>
+    <div id="err"></div>
+    <details id="filebox">
+      <summary>Or open a file from this device</summary>
+      <div id="drop">
+        <div id="droplabel">Drop a BoreLogger export .zip, a session .csv<br>or a raw probe file (.bin) here</div>
+        <button id="pick" type="button">Choose a file</button>
+        <input id="file" type="file" accept=".zip,.csv,.bin" hidden>
+      </div>
+    </details>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <div id="view">
+    <canvas id="c"></canvas>
+    <div class="ov" id="top">
+      <button id="tolist" title="Back to the list of collected runs">☰ Runs</button>
+      <button id="sesbtn"><span class="dot"></span><span class="nm">—</span><span class="ch">▾</span></button>
+      <div id="topstats"></div>
+    </div>
+    <div class="ov" id="hint">Drag to rotate · pinch to zoom</div>
+    <div class="ov" id="empty" hidden></div>
+    <div class="ov" id="legend"></div>
+      <div class="ov" id="readout"></div>
+    <div class="ov" id="views">
+      <button data-v="3d" aria-pressed="true">3D</button>
+      <button data-v="plan">Plan</button>
+      <button data-v="ns">N–S</button>
+      <button data-v="ew">E–W</button>
+      <button data-v="spin">Spin</button>
+    </div>
+  </div>
+  <div id="sheet">
+    <div id="bar">
+      <button id="play" aria-label="Play the run">▶</button>
+      <canvas id="prof"></canvas>
+      <button id="more">Controls</button>
+    </div>
+    <div id="panel">
+      <div class="ctl">
+        <label for="exag">Horizontal exaggeration <b id="exagv">×8</b></label>
+        <input id="exag" type="range" min="1" max="30" step="1" value="8">
+      </div>
+      <div class="ctl">
+        <label for="decl">Magnetic declination <b id="declv">−13.5°</b></label>
+        <input id="decl" type="range" min="-30" max="10" step="0.5" value="-13.5">
+      </div>
+      <div class="ctl">
+        <label for="col"><span id="collabel">Colour by</span></label>
+        <select id="col">
+          <option value="depth">Depth</option>
+          <option value="temp">Water temperature</option>
+          <option value="inc">Tilt from vertical</option>
+          <option value="mag">Magnetic disturbance</option>
+          <option value="spin">Probe spin rate</option>
+        </select>
+      </div>
+      <div class="ctl">
+        <label for="unit">Pressure column reads as</label>
+        <select id="unit">
+          <option value="9.80638">kPa — 1 m water = 9.807</option>
+          <option value="98.0638">hPa — 1 m water = 98.06</option>
+        </select>
+      </div>
+      <div class="note" id="unitnote"></div>
+    </div>
+  </div>
+</div>
+
+<div id="drawer" hidden>
+  <div id="dbox">
+    <div id="dhead">
+      <h2>Sessions</h2>
+      <button id="newfile">Back to the run list</button>
+      <button id="dclose">Done</button>
+    </div>
+    <div id="dlist"></div>
+    <div id="dfoot"></div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   BoreLogger 3D path viewer.
+   Reads the export in the browser: ZIP directory walk, CSV parse,
+   borehole survey reduction, and a hand-written 3D projection on a
+   2D canvas. No libraries.
+   The list of runs comes from the office database (Supabase), signed in
+   with a portal staff login; a chosen run's raw probe file (.bin, 32-byte
+   records) is downloaded and decoded here. Files from this device still work.
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v, lerp=(a,b,t)=>a+(b-a)*t, RAD=Math.PI/180;
+const SESCOL=['#3fd0c9','#f0a23c','#9d8cf0','#67c97a','#e4566e','#5ab6e8','#d9d06a','#e87fb0'];
+
+const S={ decl:-13.5, exag:8, col:'depth', kPerM:9.80638,
+          ti:0, playing:false, spin:true, view:'3d' };
+let SESSIONS=[], SELECTED=[], VIS=[], SCENE={maxDepth:1,maxH:1}, lastFit=0;
+
+/* ================= 1. ZIP ============================================ */
+async function readZip(buf){
+  const dv=new DataView(buf), u8=new Uint8Array(buf);
+  let e=-1;
+  for(let i=u8.length-22;i>=Math.max(0,u8.length-66000);i--)
+    if(dv.getUint32(i,true)===0x06054b50){ e=i; break; }
+  if(e<0) throw new Error('That does not look like a ZIP file.');
+  let count=dv.getUint16(e+10,true), off=dv.getUint32(e+16,true);
+  if(off===0xffffffff||count===0xffff){            // ZIP64
+    const l=dv.getUint32(e-20+8,true);
+    if(dv.getUint32(l,true)!==0x06064b50) throw new Error('Unsupported ZIP64 layout.');
+    count=Number(dv.getBigUint64(l+32,true)); off=Number(dv.getBigUint64(l+48,true));
+  }
+  const files=[], td=new TextDecoder();
+  let p=off;
+  for(let i=0;i<count && p+46<=u8.length;i++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true),
+          nlen=dv.getUint16(p+28,true), elen=dv.getUint16(p+30,true),
+          clen=dv.getUint16(p+32,true), lho=dv.getUint32(p+42,true);
+    files.push({name:td.decode(u8.subarray(p+46,p+46+nlen)), method, csize, lho});
+    p+=46+nlen+elen+clen;
+  }
+  if(!files.length) throw new Error('The ZIP has no readable entries.');
+  return {dv,u8,files};
+}
+async function unzipText(z,f){
+  if(z.dv.getUint32(f.lho,true)!==0x04034b50) throw new Error('Damaged entry: '+f.name);
+  const nlen=z.dv.getUint16(f.lho+26,true), elen=z.dv.getUint16(f.lho+28,true);
+  const s=f.lho+30+nlen+elen, data=z.u8.subarray(s,s+f.csize);
+  if(f.method===0) return new TextDecoder().decode(data);
+  if(f.method===8){
+    if(typeof DecompressionStream==='undefined')
+      throw new Error('This browser cannot expand compressed ZIPs. Unzip the export and open a session CSV instead.');
+    const st=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new TextDecoder().decode(await new Response(st).arrayBuffer());
+  }
+  throw new Error('Unsupported compression in '+f.name);
+}
+
+/* ================= 2. CSV + survey reduction ========================= */
+function parseCSV(text){
+  const lines=text.split(/\r?\n/), meta={}; let h=-1;
+  for(let i=0;i<lines.length;i++){
+    const L=lines[i];
+    if(L.startsWith('#')){ const [k,...v]=L.slice(1).trim().split('='); if(v.length) meta[k.trim()]=v.join('=').trim(); }
+    else if(L.trim()){ h=i; break; }
+  }
+  if(h<0) throw new Error('No data rows found.');
+  const cols=lines[h].split(',').map(s=>s.trim());
+  const ix={}; cols.forEach((c,i)=>ix[c]=i);
+  for(const need of ['t_s','ax','ay','az','press','mx','my','mz'])
+    if(ix[need]===undefined) throw new Error('Missing column "'+need+'".');
+  const rows=[]; 
+  for(let i=h+1;i<lines.length;i++){
+    const L=lines[i]; if(!L) continue;
+    const f=L.split(',');
+    if(f.length<cols.length) continue;
+    rows.push(f);
+  }
+  const n=rows.length, g=c=>{ const j=ix[c]; if(j===undefined) return null;
+    const a=new Float64Array(n); for(let i=0;i<n;i++) a[i]=+rows[i][j]; return a; };
+  return {meta, cols, n, t:g('t_s'), ax:g('ax'), ay:g('ay'), az:g('az'),
+    gx:g('gx'), press:g('press'), temp:g('temp'), mx:g('mx'), my:g('my'), mz:g('mz')};
+}
+const med = a => { if(!a.length) return NaN; const b=Float64Array.from(a).sort(); 
+  const m=b.length>>1; return b.length%2?b[m]:(b[m-1]+b[m])/2; };
+function niceBin(x){ for(const v of [0.02,0.05,0.1,0.2,0.25,0.5,1,2]) if(x<=v) return v; return 5; }
+
+function reduce(raw, meta, kPerM){
+  const n=raw.n, depth=new Float64Array(n), inc=new Float64Array(n),
+        azm=new Float64Array(n), dip=new Float64Array(n), Bt=new Float64Array(n);
+  const p0=med(raw.press.subarray(0,Math.min(60,n)));
+  let maxDepth=-1e9, imax=0;
+  for(let i=0;i<n;i++){
+    depth[i]=(raw.press[i]-p0)/kPerM;
+    if(depth[i]>maxDepth){ maxDepth=depth[i]; imax=i; }
+    const Gx=-raw.ax[i], Gy=-raw.ay[i], Gz=-raw.az[i];
+    const Bx=raw.mx[i], By=raw.my[i], Bz=raw.mz[i];
+    const Gt=Math.hypot(Gx,Gy,Gz), B=Math.hypot(Bx,By,Bz);
+    Bt[i]=B;
+    inc[i]=Math.atan2(Math.hypot(Gy,Gz),Gx)/RAD;
+    azm[i]=((Math.atan2(-Gt*(By*Gz-Bz*Gy), Bx*(Gy*Gy+Gz*Gz)-Gx*(By*Gy+Bz*Gz))/RAD)%360+360)%360;
+    dip[i]=Math.asin(clamp((Bx*Gx+By*Gy+Bz*Gz)/Math.max(1e-9,B*Gt),-1,1))/RAD;
+  }
+  // undisturbed field reference, taken well away from the surface gear
+  const lo=Math.max(3,maxDepth*0.05), hi=Math.max(lo+1,maxDepth*0.7), rb=[], rd=[];
+  for(let i=0;i<n;i++) if(depth[i]>lo&&depth[i]<hi){ rb.push(Bt[i]); rd.push(dip[i]); }
+  const refB=rb.length?med(rb):med(Bt), refDip=rd.length?med(rd):med(dip);
+
+  const bin=niceBin(maxDepth/450);
+  function stations(a,b){
+    const map=new Map();
+    for(let i=a;i<=b;i++){
+      if(depth[i]<=bin*0.5) continue;
+      const k=Math.floor(depth[i]/bin);
+      let e=map.get(k); if(!e){ e={inc:[],sx:[],sy:[],Bt:[],dip:[],temp:[],t:[],spin:[]}; map.set(k,e); }
+      e.inc.push(inc[i]); e.sx.push(Math.cos(azm[i]*RAD)); e.sy.push(Math.sin(azm[i]*RAD));
+      e.Bt.push(Bt[i]); e.dip.push(dip[i]); e.temp.push(raw.temp?raw.temp[i]:NaN);
+      e.t.push(raw.t[i]); e.spin.push(raw.gx?Math.abs(raw.gx[i]):0);
+    }
+    const out=[...map.entries()].filter(([,e])=>e.inc.length>=3).sort((x,y)=>x[0]-y[0])
+      .map(([k,e])=>({ d:(k+0.5)*bin, inc:med(e.inc),
+        azm:((Math.atan2(med(e.sy),med(e.sx))/RAD)%360+360)%360,
+        Bt:med(e.Bt), dip:med(e.dip), temp:med(e.temp), t:med(e.t), spin:med(e.spin), nn:e.inc.length }));
+    out.forEach(s=> s.bad = Math.abs(s.dip-refDip)>6 || Math.abs(s.Bt-refB)>3);
+    return out;
+  }
+  const down=stations(0,imax), up=stations(imax,n-1);
+  const step=Math.max(1,Math.ceil(n/1400)), T={t:[],depth:[],inc:[],azm:[],temp:[],Bt:[],spin:[]};
+  for(let i=0;i<n;i+=step){
+    T.t.push(raw.t[i]); T.depth.push(depth[i]); T.inc.push(inc[i]); T.azm.push(azm[i]);
+    T.temp.push(raw.temp?raw.temp[i]:NaN); T.Bt.push(Bt[i]); T.spin.push(raw.gx?Math.abs(raw.gx[i]):0);
+  }
+  return { p0, maxDepth, bin, refB, refDip, tBottom:raw.t[imax],
+    duration:raw.t[n-1]-raw.t[0], down, up, timeline:T,
+    hasPath: maxDepth>2 && down.length>4 && up.length>4 };
+}
+function integrate(st, decl){
+  const out=[]; let N=0,E=0,MD=0;
+  for(let i=0;i<st.length;i++){
+    const s=st[i], I2=s.inc*RAD, A2=(((s.azm+decl)%360)+360)%360*RAD;
+    if(i===0){ MD=s.d/Math.cos(I2); N=MD*Math.sin(I2)*Math.cos(A2); E=MD*Math.sin(I2)*Math.sin(A2); }
+    else{
+      const q=st[i-1], I1=q.inc*RAD, A1=(((q.azm+decl)%360)+360)%360*RAD, dT=s.d-q.d;
+      const DL=Math.acos(clamp(Math.cos(I2-I1)-Math.sin(I1)*Math.sin(I2)*(1-Math.cos(A2-A1)),-1,1));
+      const RF=DL<1e-6?1:Math.tan(DL/2)/(DL/2);
+      const dMD=2*dT/((Math.cos(I1)+Math.cos(I2))*RF);
+      N+=dMD/2*(Math.sin(I1)*Math.cos(A1)+Math.sin(I2)*Math.cos(A2))*RF;
+      E+=dMD/2*(Math.sin(I1)*Math.sin(A1)+Math.sin(I2)*Math.sin(A2))*RF;
+      MD+=dMD;
+    }
+    out.push({d:s.d,n:N,e:E,md:MD,inc:s.inc,azm:s.azm,temp:s.temp,Bt:s.Bt,dip:s.dip,
+              t:s.t,spin:s.spin,bad:s.bad});
+  }
+  return out;
+}
+
+/* ================= 3. loading ======================================== */
+function setProg(t){ $('#prog').textContent=t||''; }
+function setErr(t){ $('#err').textContent=t||''; }
+const sleep = ()=> new Promise(r=>setTimeout(r,0));
+
+async function loadFile(file){
+  setErr(''); setProg('Reading '+file.name+' …');
+  try{
+    const list=[];
+    if(/\.zip$/i.test(file.name)){
+      const z=await readZip(await file.arrayBuffer());
+      const idxF=z.files.find(f=>/(^|\/)index\.csv$/i.test(f.name));
+      let index=null;
+      if(idxF){
+        const txt=await unzipText(z,idxF), ln=txt.split(/\r?\n/).filter(l=>l.trim());
+        const hd=ln[0].split(',').map(s=>s.trim()); index=new Map();
+        for(let i=1;i<ln.length;i++){
+          const f=ln[i].match(/("[^"]*"|[^,]*)/g).filter((_,k)=>k%2===0).map(s=>s.replace(/^"|"$/g,''));
+          const o={}; hd.forEach((h,k)=>o[h]=f[k]);
+          if(o.file) index.set(o.file.split('/').pop(), o);
+        }
+      }
+      const csvs=z.files.filter(f=>/\.csv$/i.test(f.name) && !/(^|\/)index\.csv$/i.test(f.name)
+                                   && !f.name.includes('__MACOSX'));
+      if(!csvs.length) throw new Error('No session CSVs inside that ZIP.');
+      csvs.sort((a,b)=>a.name.localeCompare(b.name));
+      for(let i=0;i<csvs.length;i++){
+        setProg('Reading session '+(i+1)+' of '+csvs.length+' …'); await sleep();
+        list.push({name:csvs[i].name.split('/').pop(),
+                   text:await unzipText(z,csvs[i]),
+                   idx:index?index.get(csvs[i].name.split('/').pop()):null});
+      }
+    } else if(/\.bin$/i.test(file.name)){
+      list.push({name:file.name, raw:decodeBin(await file.arrayBuffer()), idx:null, meta:metaFromName(file.name)});
+    } else {
+      list.push({name:file.name, text:await file.text(), idx:null});
+    }
+    await useList(list, true);
+  }catch(e){ setProg(''); setErr(e.message||String(e)); }
+}
+// list: [{name, text|raw, idx, meta}] -> SESSIONS (fresh=true replaces them, else adds), shows the first
+async function useList(list, fresh){
+  {
+    if(fresh) SESSIONS=[];
+    const added=[];
+    for(let i=0;i<list.length;i++){
+      setProg('Reducing '+list[i].name+' …'); await sleep();
+      try{
+        const raw=list[i].raw || parseCSV(list[i].text);
+        const meta=Object.assign({}, raw.meta, list[i].idx||{}, list[i].meta||{});
+        const red=reduce(raw, meta, S.kPerM);
+        const id = fresh ? +(meta.session||i+1) : (Math.max(0,...SESSIONS.map(x=>x.id))+1);
+        added.push(id);
+        SESSIONS.push({file:list[i].name, raw, meta, red, key:list[i].key||null,
+          id,
+          note:(meta.note||list[i].name).replace(/^"|"$/g,''),
+          type:meta.type||(/calibration/i.test(list[i].name)?'calibration':'measurement'),
+          when:meta.started_local||'', colour:SESCOL[SESSIONS.length%SESCOL.length]});
+      }catch(e){ console.warn(list[i].name, e); }
+    }
+    if(!added.length) throw new Error('None of those files could be read as session data.');
+    SESSIONS.sort((a,b)=>a.id-b.id);
+    SESSIONS.forEach((s,i)=> s.colour=SESCOL[i%SESCOL.length]);
+    const mine=SESSIONS.filter(s=>added.includes(s.id)), first=mine.find(s=>s.red.hasPath)||mine[0];
+    SELECTED=[first.id]; S.ti=0;
+    setProg(''); start();
+  }
+}
+function reduceAll(){
+  SESSIONS.forEach(s=>{ try{ s.red=reduce(s.raw, s.meta, S.kPerM); }catch(e){} });
+}
+
+/* ================= 3b. raw probe files (.bin) ======================== */
+// 32-byte little-endian records <IhhhhhhihhhhhH>: t ms, accel (16384/g), gyro (0.00875 dps),
+// pressure (raw/100 = kPa), water temp (/100 degC), mag (/75 uT), IMU temp, battery mV.
+// A sensor that is down writes a sentinel (-32768, or -1 for pressure): those records are left out.
+function decodeBin(buf){
+  const dv=new DataView(buf), N=Math.floor(buf.byteLength/32);
+  if(N<10) throw new Error('That file has too few records to draw.');
+  const keep=[];
+  for(let i=0;i<N;i++){ const b=i*32;
+    if(dv.getInt16(b+4,true)===-32768 || dv.getInt32(b+16,true)===-1 || dv.getInt16(b+22,true)===-32768) continue;
+    keep.push(b); }
+  const n=keep.length, A=()=>new Float64Array(n);
+  const o={meta:{}, cols:[], n, t:A(), ax:A(), ay:A(), az:A(), gx:A(), press:A(), temp:A(), mx:A(), my:A(), mz:A()};
+  keep.forEach((b,i)=>{
+    o.t[i]=dv.getUint32(b,true)/1000;
+    o.ax[i]=dv.getInt16(b+4,true)/16384; o.ay[i]=dv.getInt16(b+6,true)/16384; o.az[i]=dv.getInt16(b+8,true)/16384;
+    o.gx[i]=dv.getInt16(b+10,true)*0.00875;
+    o.press[i]=dv.getInt32(b+16,true)/100;
+    const w=dv.getInt16(b+20,true); o.temp[i]=w===-32768?NaN:w/100;
+    o.mx[i]=dv.getInt16(b+22,true)/75; o.my[i]=dv.getInt16(b+24,true)/75; o.mz[i]=dv.getInt16(b+26,true)/75;
+  });
+  if(n<10) throw new Error('Too few records with every sensor working to draw this run.');
+  o.binary=true;
+  return o;
+}
+// <stamp>_<note>_<probe>.bin, optionally <job>__ in front (the probe inbox)
+function metaFromName(name){
+  const base=name.split('/').pop().replace(/\.bin$/i,'');
+  const m=/^(?:(.*?)__)?(\d{12}|noclock)_(.*)_([^_]+)$/.exec(base);
+  if(!m) return {note:base};
+  const st=m[2]==='noclock'?'':m[2].slice(0,4)+'-'+m[2].slice(4,6)+'-'+m[2].slice(6,8)+' '+m[2].slice(8,10)+':'+m[2].slice(10,12);
+  return {note:m[3], probe:m[4], job:m[1]||'', started_local:st, type:'measurement'};
+}
+
+/* ================= 3c. the office database ========================== */
+// The public key is public by design (the portal ships it); what a login may read is decided
+// by the database's own rules. Only on the laptop itself may tests point it elsewhere.
+const SB_LOCAL=/^(localhost|127\.0\.0\.1)$/.test(location.hostname), QS=new URLSearchParams(location.search);
+const SB=(SB_LOCAL&&QS.get('sb'))||'https://zqucjogarhnhalyxihim.supabase.co';
+const SB_KEY=(SB_LOCAL&&QS.get('sbkey'))||'sb_publishable_BPNyIbZKtELJ6x-waN2ogw_IBfylSZg';
+const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const lsSet=(k,v)=>{ try{ v==null?localStorage.removeItem(k):localStorage.setItem(k,v); }catch(e){} };
+const sess=()=>{ try{ return JSON.parse(lsGet('blv_sb')||'null'); }catch(e){ return null; } };
+async function auth(body, grant){
+  let r; try{ r=await fetch(SB+'/auth/v1/token?grant_type='+grant,{method:'POST',
+    headers:{apikey:SB_KEY,'Content-Type':'application/json'},body:JSON.stringify(body)}); }
+  catch(e){ throw new Error('No internet connection.'); }
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok){ if(grant==='refresh_token') lsSet('blv_sb',null);
+    throw new Error(d.error_description||d.msg||d.message||('Sign-in failed ('+r.status+')')); }
+  const s={at:d.access_token, rt:d.refresh_token, exp:Date.now()/1000+(d.expires_in||3600)-60,
+           email:(d.user&&d.user.email)||body.email||''};
+  if(grant==='refresh_token' && !sess()) throw new Error('signed out');     // signed out while this renewal was on its way
+  lsSet('blv_sb',JSON.stringify(s)); return s;
+}
+async function token(){
+  let s=sess(); if(!s) throw new Error('not signed in');
+  if(Date.now()/1000>s.exp) s=await auth({refresh_token:s.rt},'refresh_token');
+  return s.at;
+}
+async function api(path, opt={}, retried){
+  const at=await token(); let r;
+  try{ r=await fetch(SB+path,Object.assign({},opt,{headers:Object.assign({apikey:SB_KEY,Authorization:'Bearer '+at},opt.headers||{})})); }
+  catch(e){ throw new Error('No internet connection.'); }
+  if(r.status===401&&!retried){ const s=sess(); if(s&&s.rt){ await auth({refresh_token:s.rt},'refresh_token'); return api(path,opt,true); } }
+  return r;
+}
+async function apiJson(path, opt){
+  const r=await api(path,opt), t=await r.text(); let d=null; try{ d=t?JSON.parse(t):null; }catch(e){}
+  if(!r.ok) throw new Error((d&&(d.message||d.error||d.msg))||('HTTP '+r.status));
+  return d;
+}
+let ITEMS=[], OPENED=new Map(), listGen=0;      // list entries; key -> session id once opened
+const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtSize=n=>n==null?'':n<1e6?(n/1e3).toFixed(0)+' kB':(n/1e6).toFixed(1)+' MB';
+const fmtWhen=iso=>{ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?String(iso):d.toLocaleString([], {year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); };
+async function loadList(){
+  const gen=++listGen;
+  setErr(''); setProg('Loading the list of collected runs…');
+  const items=[], problems=[];
+  // runs in the database, with their raw files (staff see every run; others only accepted ones)
+  try{
+    const runs=await apiJson('/rest/v1/runs?select=id,name,run_number,status,is_accepted,field_started_at,created_at,'+
+      'bores(name,projects(name,field_code)),raw_files(storage_path,filename,size_bytes,sha256)&order=created_at.desc&limit=500')||[];
+    for(const r of runs) for(const f of (r.raw_files||[])){
+      const b=r.bores||{}, p=b.projects||{};
+      items.push({key:'run:'+r.id+':'+f.sha256, src:'run', title:r.name||f.filename, bore:b.name||'', project:p.name||'', code:p.field_code||'',
+        status:r.status, accepted:r.is_accepted, when:r.field_started_at||r.created_at, size:f.size_bytes,
+        bucket:'raw-recordings', path:f.storage_path, filename:f.filename});
+    }
+  }catch(e){ problems.push('runs: '+e.message); }
+  // raw files still waiting in the probes' inboxes (staff only), one folder per probe
+  try{
+    const list=(pre)=>apiJson('/storage/v1/object/list/probe-inbox',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({prefix:pre,limit:1000,offset:0,sortBy:{column:'created_at',order:'desc'}})});
+    for(const dir of ((await list(''))||[]).filter(x=>x.id===null)){
+      for(const f of ((await list(dir.name+'/'))||[]).filter(x=>x.id!==null && !/^\.empty/.test(x.name))){
+        const m=metaFromName(f.name);
+        items.push({key:'inbox:'+dir.name+'/'+f.name, src:'inbox', title:m.note||f.name, bore:'', project:'', code:m.job||'',
+          probe:dir.name, when:f.created_at, stamp:m.started_local, size:f.metadata&&f.metadata.size, bucket:'probe-inbox', path:dir.name+'/'+f.name, filename:f.name});
+      }
+    }
+  }catch(e){ problems.push('probe inboxes: '+e.message); }
+  if(gen!==listGen) return;                  // signed out (or reloaded) meanwhile
+  ITEMS=items; setProg('');
+  if(problems.length) setErr('Could not read '+problems.join('; ')+'.');
+  renderItems();
+}
+function renderItems(){
+  const q=($('#q').value||'').trim().toLowerCase();
+  const hit=it=>!q||[it.title,it.bore,it.project,it.code,it.probe,it.filename,it.status].join(' ').toLowerCase().includes(q);
+  const runs=ITEMS.filter(i=>i.src==='run'&&hit(i)), inbox=ITEMS.filter(i=>i.src==='inbox'&&hit(i));
+  const row=it=>`<button class="item${OPENED.has(it.key)?' open':''}" data-k="${esc(it.key)}">
+      <span class="t1">${esc(it.title)}${it.src==='run'?(it.accepted?'<span class="chip acc">accepted</span>':'')+
+        `<span class="chip">${esc(it.status||'')}</span>`:'<span class="chip inbox">in the inbox</span>'}</span>
+      <span class="sz">${fmtSize(it.size)}</span>
+      <span class="t2">${esc([it.project&&(it.project+(it.code?' ('+it.code+')':'')), it.bore&&('bore '+it.bore),
+        it.src==='inbox'&&it.code&&('job '+it.code), it.probe&&('probe '+it.probe), it.stamp?('started '+it.stamp):fmtWhen(it.when)].filter(Boolean).join(' · '))}</span>
+    </button>`;
+  $('#dblist').innerHTML=
+    `<div class="grp">Runs in the database<small>${runs.length}</small></div>`+
+    (runs.length?runs.map(row).join(''):`<div class="empty">${q?'No run matches.':'No runs with a raw file are visible to this login yet.'}</div>`)+
+    `<div class="grp">Waiting in the probes' inboxes<small>${inbox.length} · uploaded from the field, not yet taken in by the office</small></div>`+
+    (inbox.length?inbox.map(row).join(''):`<div class="empty">${q?'No file matches.':'The inboxes are empty.'}</div>`);
+  $('#dblist').querySelectorAll('.item').forEach(b=>b.addEventListener('click',()=>openItem(ITEMS.find(i=>i.key===b.dataset.k))));
+}
+let opening=0;
+async function openItem(it){
+  if(!it) return;
+  if(OPENED.has(it.key) && SESSIONS.some(s=>s.id===OPENED.get(it.key))){ SELECTED=[OPENED.get(it.key)]; S.ti=0; start(); return; }
+  const me=++opening; setErr('');
+  try{
+    setProg('Downloading '+it.filename+' …');
+    const r=await api('/storage/v1/object/'+it.bucket+'/'+it.path.split('/').map(encodeURIComponent).join('/'));
+    if(!r.ok){ const t=await r.text(); let d=null; try{ d=JSON.parse(t); }catch(e){} throw new Error((d&&(d.message||d.error))||('HTTP '+r.status)); }
+    let buf;
+    if(r.body && it.size){ const rd=r.body.getReader(), parts=[]; let got=0;
+      for(;;){ const {done,value}=await rd.read(); if(done) break; parts.push(value); got+=value.length;
+        if(me===opening) setProg('Downloading '+it.filename+' … '+Math.min(100,Math.round(got/it.size*100))+'%'); }
+      const u=new Uint8Array(got); let o=0; for(const p of parts){ u.set(p,o); o+=p.length; } buf=u.buffer; }
+    else buf=await r.arrayBuffer();
+    if(me!==opening) return;
+    setProg('Reducing …'); await sleep();
+    const meta={note:it.title, type:'measurement', started_local:it.stamp||fmtWhen(it.when)};
+    let list;
+    if(/\.zip$/i.test(it.filename)||/\.csv$/i.test(it.filename)){ setProg(''); return loadFile(new File([buf], it.filename)); }
+    list=[{name:it.filename, raw:decodeBin(buf), idx:null, meta, key:it.key}];
+    const before=new Set(SESSIONS.map(s=>s.id));
+    await useList(list, false);
+    const s=SESSIONS.find(x=>!before.has(x.id)); if(s) OPENED.set(it.key, s.id);
+    renderItems();
+  }catch(e){ if(me===opening){ setProg(''); setErr('Could not open '+it.filename+': '+(e.message||e)); } }
+}
+function showLanding(){
+  $('#app').hidden=true; $('#landing').hidden=false; stop&&stop();
+  const s=sess();
+  $('#signin').hidden=!!s; $('#dbwrap').hidden=!s;
+  if(!s){ $('#dblist').innerHTML=''; ITEMS=[]; }
+  $('#who').textContent=s?'signed in as '+s.email:'';
+  $('#filebox').open=false;
+  if(s && !ITEMS.length) loadList().then(()=>{}, e=>setErr(e.message));
+  else if(s) renderItems();
+}
+$('#signin').addEventListener('submit',async e=>{
+  e.preventDefault(); setErr(''); $('#go').disabled=true; setProg('Signing in…');
+  try{ await auth({email:$('#em').value.trim(), password:$('#pw').value},'password'); $('#pw').value=''; setProg(''); ITEMS=[]; showLanding(); }
+  catch(err){ setProg(''); setErr(err.message); }
+  finally{ $('#go').disabled=false; }
+});
+$('#signout').addEventListener('click',()=>{ listGen++; setProg(''); lsSet('blv_sb',null); ITEMS=[]; OPENED.clear(); $('#dblist').innerHTML=''; showLanding(); });
+$('#dbref').addEventListener('click',()=>loadList());
+$('#q').addEventListener('input',renderItems);
+$('#tolist').addEventListener('click',showLanding);
+
+/* ================= 4. selection & scene bounds ======================= */
+function refresh(){
+  VIS = SELECTED.map(id=>SESSIONS.find(s=>s.id===id)).filter(s=>s&&s.red.hasPath)
+    .map((s,i)=>({s, colour:s.colour, primary:i===0,
+      traj:{down:integrate(s.red.down,S.decl), up:integrate(s.red.up,S.decl)}}));
+  SCENE.maxDepth = Math.max(1,...VIS.map(v=>v.s.red.maxDepth));
+  SCENE.maxH = Math.max(1,...VIS.flatMap(v=>[...v.traj.down,...v.traj.up].map(p=>Math.hypot(p.n,p.e))));
+  const p=primary();
+  if(p){ S.ti=clamp(S.ti,0,p.s.red.timeline.t.length-1); } else S.ti=0;
+  if(Math.abs(SCENE.maxDepth-lastFit)/SCENE.maxDepth>0.01){ fitCam(); lastFit=SCENE.maxDepth; }
+  calcRange(); chrome(); drawProf(); draw();
+}
+const primary = ()=> VIS.find(v=>v.primary) || null;
+
+/* ================= 5. colour ========================================= */
+const RAMPS={
+  depth:{s:[[0,[127,233,220]],[.45,[44,159,196]],[.75,[59,87,176]],[1,[70,42,120]]]},
+  temp:{s:[[0,[47,111,208]],[.5,[159,214,196]],[.8,[239,196,106]],[1,[226,96,63]]]},
+  inc:{s:[[0,[47,143,138]],[.5,[216,208,122]],[1,[228,86,110]]]},
+  mag:{s:[[0,[58,90,104]],[.35,[104,182,196]],[1,[228,86,110]]]},
+  spin:{s:[[0,[38,74,88]],[.5,[111,208,201]],[1,[240,162,60]]]}
+};
+function ramp(t){ t=clamp(t,0,1); const s=RAMPS[S.col].s;
+  for(let i=1;i<s.length;i++) if(t<=s[i][0]||i===s.length-1){
+    const a=s[i-1],b=s[i],f=clamp((t-a[0])/Math.max(1e-6,b[0]-a[0]),0,1);
+    return 'rgb('+Math.round(lerp(a[1][0],b[1][0],f))+','+Math.round(lerp(a[1][1],b[1][1],f))+','+
+           Math.round(lerp(a[1][2],b[1][2],f))+')'; } }
+const metric = (p,v) => S.col==='temp'?p.temp : S.col==='inc'?p.inc :
+  S.col==='mag'?Math.abs(p.dip-v.s.red.refDip) : S.col==='spin'?p.spin : p.d;
+let mrange=[0,1];
+function calcRange(){
+  const a=[]; VIS.forEach(v=>[...v.traj.down,...v.traj.up].forEach(p=>{ if(p.d>1) a.push(metric(p,v)); }));
+  a.sort((x,y)=>x-y);
+  mrange = a.length?[a[Math.floor(a.length*.02)],a[Math.floor(a.length*.98)]]:[0,1];
+}
+
+/* ================= 6. 3D renderer ==================================== */
+const cv=$('#c'), g=cv.getContext('2d');
+const cam={az:0.7,el:0.30,dist:300,ty:-100};
+let W=0,H=0,focal=1,CP={},R1={},U1={},F1={};
+function fitCam(){ cam.dist=SCENE.maxDepth*1.75; cam.ty=-SCENE.maxDepth/2; }
+function resize(){
+  const r=Math.min(devicePixelRatio||1,2);
+  W=cv.clientWidth; H=cv.clientHeight;
+  cv.width=W*r; cv.height=H*r; g.setTransform(r,0,0,r,0,0);
+  focal=0.5*H/Math.tan(21*RAD); draw();
+}
+function updateCam(){
+  const ce=Math.cos(cam.el),se=Math.sin(cam.el),sa=Math.sin(cam.az),ca=Math.cos(cam.az);
+  CP={x:cam.dist*ce*sa,y:cam.ty+cam.dist*se,z:cam.dist*ce*ca};
+  R1={x:ca,y:0,z:-sa}; U1={x:-se*sa,y:ce,z:-se*ca}; F1={x:-ce*sa,y:-se,z:-ce*ca};
+}
+function proj(x,y,z){
+  const vx=x-CP.x,vy=y-CP.y,vz=z-CP.z, d=vx*F1.x+vy*F1.y+vz*F1.z;
+  if(d<=1) return null; const s=focal/d;
+  return {x:W/2+(vx*R1.x+vy*R1.y+vz*R1.z)*s, y:H/2-(vx*U1.x+vy*U1.y+vz*U1.z)*s, d, s};
+}
+function strokePts(pts,style,w){
+  g.beginPath(); let up=false;
+  for(const p of pts){ if(!p){up=false;continue;} up?g.lineTo(p.x,p.y):(g.moveTo(p.x,p.y),up=true); }
+  g.strokeStyle=style; g.lineWidth=w; g.stroke();
+}
+function ringPts(r,y,seg){ const a=[];
+  for(let i=0;i<=seg;i++){ const t=i/seg*Math.PI*2; a.push(proj(Math.cos(t)*r,y,Math.sin(t)*r)); } return a; }
+function label(txt,x,y,z,col,size){ const p=proj(x,y,z); if(!p) return;
+  g.font="400 "+size+"px 'Azeret Mono', ui-monospace, monospace";
+  g.fillStyle=col; g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt,p.x,p.y); }
+
+function depthStep(m){ for(const v of [1,2,5,10,25,50,100]) if(m/v<=12) return v; return 200; }
+function drawFrame(){
+  const Rr=Math.max(SCENE.maxH*S.exag*1.6,SCENE.maxDepth*0.06);
+  const ds=depthStep(SCENE.maxDepth);
+  for(let d=Math.ceil(SCENE.maxDepth/ds)*ds; d>=0; d-=ds){
+    const y=-Math.min(d,SCENE.maxDepth);
+    strokePts(ringPts(Rr*0.6,y,64), d===0?'rgba(83,165,189,.55)':'rgba(23,57,74,.9)', d===0?1.4:1);
+    if(d>0&&d<=SCENE.maxDepth) label(d+' m', Rr*0.95, y, 0, '#3f5f6d', 10);
+  }
+  const hs=niceBin(SCENE.maxH/4);
+  for(let r=hs;r*S.exag<=Rr;r+=hs) strokePts(ringPts(r*S.exag,0,56),'rgba(39,80,95,.75)',1);
+  label(hs+' m', 0, SCENE.maxDepth*0.012, hs*S.exag, '#54798a', 9.5);
+  [['N',0],['E',90],['S',180],['W',270]].forEach(([t,a])=>
+    label(t, Math.sin(a*RAD)*Rr*1.15, 0, -Math.cos(a*RAD)*Rr*1.15, t==='N'?'#cfe6ee':'#5c808f', t==='N'?13:11));
+  const a=proj(0,0,0), b=proj(0,-SCENE.maxDepth,0);
+  if(a&&b){ g.setLineDash([5,6]); strokePts([a,b],'rgba(58,100,116,.85)',1); g.setLineDash([]); }
+}
+function collect(){
+  const out=[], multi=VIS.length>1;
+  const base=Math.max(1.3,SCENE.maxDepth*0.009);
+  VIS.forEach(v=>{
+    ['down','up'].forEach(k=>{
+      const all=v.traj[k].filter(p=>p.d>v.s.red.bin);
+      const st=Math.max(1,Math.round(SCENE.maxDepth/400/v.s.red.bin));
+      const a=all.filter((_,i)=>i%st===0||i===all.length-1);
+      let q=null,qp=null;
+      for(const p of a){
+        const pr=proj(p.e*S.exag,-p.d,-p.n*S.exag);
+        if(q&&pr&&qp) out.push({z:(pr.d+qp.d)/2, a:qp, b:pr, bad:q.bad,
+          c: multi ? v.colour : ramp((metric(q,v)-mrange[0])/Math.max(1e-6,mrange[1]-mrange[0])),
+          al: v.primary ? (k==='up'?0.8:1) : (k==='up'?0.3:0.45),
+          w: base*(k==='up'?0.7:1)*(v.primary?1:0.7)*(pr.s+qp.s)/2});
+        q=p; qp=pr;
+      }
+    });
+  });
+  out.sort((x,y)=>y.z-x.z);
+  return out;
+}
+function drawShadow(){
+  const y=-SCENE.maxDepth*1.005;
+  VIS.forEach(v=>['down','up'].forEach(k=>{
+    const pts=v.traj[k].filter((p,i)=>p.d>v.s.red.bin&&i%2===0)
+      .map(p=>proj(p.e*S.exag,y,-p.n*S.exag));
+    g.globalAlpha=v.primary?0.26:0.12; strokePts(pts, v.colour, 1.4); g.globalAlpha=1;
+  }));
+}
+function sample(arr,depth){
+  if(!arr.length) return null;
+  if(depth<=arr[0].d) return arr[0];
+  for(let i=1;i<arr.length;i++) if(arr[i].d>=depth){
+    const p=arr[i-1],q=arr[i],f=(depth-p.d)/Math.max(1e-6,q.d-p.d);
+    return {d:depth,n:lerp(p.n,q.n,f),e:lerp(p.e,q.e,f),inc:lerp(p.inc,q.inc,f),
+      temp:lerp(p.temp,q.temp,f),azm:q.azm,bad:q.bad};
+  }
+  return arr[arr.length-1];
+}
+const idx = ()=>{ const p=primary(); return p?clamp(Math.round(S.ti),0,p.s.red.timeline.t.length-1):0; };
+function drawProbe(){
+  const v=primary(); if(!v) return;
+  const T=v.s.red.timeline, i=idx(), depth=T.depth[i];
+  if(depth<Math.max(0.4,v.s.red.bin)) { drawReadout(v,i,depth,null); return; }
+  const phase=T.t[i]<=v.s.red.tBottom?'down':'up';
+  const p=sample(v.traj[phase],depth); if(!p) return;
+  const x=p.e*S.exag, y=-depth, z=-p.n*S.exag, c=proj(x,y,z); if(!c) return;
+  const L=Math.max(SCENE.maxDepth*0.03, SCENE.maxDepth*0.02);
+  const inc=T.inc[i]*RAD, az=((((T.azm[i]+S.decl)%360)+360)%360)*RAD;
+  const ax={x:Math.sin(inc)*Math.sin(az),y:-Math.cos(inc),z:-Math.sin(inc)*Math.cos(az)};
+  const t1=proj(x-ax.x*L/2,y-ax.y*L/2,z-ax.z*L/2), t2=proj(x+ax.x*L/2,y+ax.y*L/2,z+ax.z*L/2);
+  g.beginPath(); g.arc(c.x,c.y,Math.max(7,c.s*L*0.5),0,7); g.fillStyle='rgba(219,233,238,.10)'; g.fill();
+  if(t1&&t2){ strokePts([t1,t2],'#f4f9fb',Math.max(2.5,c.s*L*0.13));
+    g.beginPath(); g.arc(t2.x,t2.y,Math.max(2.5,c.s*L*0.11),0,7); g.fillStyle='#f0a23c'; g.fill(); }
+  if(T.inc[i]>0.8){
+    const hl=L*1.4, h=proj(x+Math.sin(az)*hl,y,z-Math.cos(az)*hl);
+    if(h){ strokePts([c,h],'rgba(63,208,201,.85)',1.6);
+      g.beginPath(); g.arc(h.x,h.y,2.6,0,7); g.fillStyle='#3fd0c9'; g.fill(); }
+  }
+  drawReadout(v,i,depth,p);
+}
+function draw(){
+  if(!W) return;
+  updateCam(); g.clearRect(0,0,W,H);
+  $('#empty').hidden = VIS.length>0;
+  if(!VIS.length){ $('#readout').innerHTML=''; return; }
+  drawShadow(); drawFrame();
+  for(const s of collect()){
+    g.globalAlpha=s.al; strokePts([s.a,s.b],s.c,Math.max(0.8,s.w));
+    if(s.bad){ g.globalAlpha=s.al*0.8; strokePts([s.a,s.b],'rgba(228,86,110,.8)',Math.max(0.8,s.w)*0.45); }
+    g.globalAlpha=1;
+  }
+  drawProbe();
+}
+
+/* ================= 7. chrome ========================================= */
+const fmt=s=>Math.floor(s/60)+':'+String(Math.round(s%60)).padStart(2,'0');
+function drawReadout(v,i,depth,p){
+  const T=v.s.red.timeline;
+  const tag = depth<0.4?['surface','#5c808f'] :
+    (T.t[i]<=v.s.red.tBottom?['descending','#3fd0c9']:['ascending','#f0a23c']);
+  $('#readout').innerHTML =
+    `<div class="big">${Math.max(depth,0).toFixed(1)}<small> m</small></div>`+
+    (p?`<div class="sub">${p.n>=0?'N ':'S '}${Math.abs(p.n).toFixed(2)} · ${p.e>=0?'E ':'W '}`+
+       `${Math.abs(p.e).toFixed(2)} · tilt ${T.inc[i].toFixed(1)}°</div>`:'')+
+    `<div class="sub">${fmt(T.t[i]-T.t[0])} of ${fmt(v.s.red.duration)} `+
+    `<span class="tag" style="background:${tag[1]}">${tag[0]}</span></div>`;
+}
+function chrome(){
+  const v=primary();
+  const b=$('#sesbtn');
+  $('#legend').innerHTML='';
+  if(!v){
+    const s0=SESSIONS.find(x=>x.id===SELECTED[0]);
+    b.querySelector('.nm').textContent = s0?s0.note:'Choose a session';
+    b.querySelector('.dot').style.background='#2e5566'; $('#topstats').innerHTML='';
+    $('#empty').innerHTML = s0
+      ? `<b>${s0.note}</b> never left the surface`+
+        (s0.type==='calibration'?' — it is a calibration spin, not a run down a hole.':'.')+
+        `<br><br>Tap the name above to pick a session with a depth profile.`
+      : 'Tap the name above to choose a session.';
+    return; }
+  b.querySelector('.nm').textContent = v.s.note + (VIS.length>1?' +'+(VIS.length-1):'');
+  $('#collabel').textContent = VIS.length>1 ? 'Colour by (session, while comparing)' : 'Colour by';
+  if(VIS.length>1) $('#legend').innerHTML = VIS.map(x=>
+    `<span><i style="background:${x.colour}"></i>${x.s.note}${x.primary?'':' '}</span>`).join('');
+  b.querySelector('.dot').style.background = v.colour;
+  const dn=v.traj.down[v.traj.down.length-1], up=v.traj.up[v.traj.up.length-1];
+  const drift=Math.hypot(dn.n,dn.e), brg=((Math.atan2(dn.e,dn.n)/RAD)+360)%360;
+  const gap=Math.hypot(dn.n-up.n,dn.e-up.e);
+  $('#topstats').innerHTML =
+    `<span class="stat">Depth <b>${v.s.red.maxDepth.toFixed(1)} m</b></span>`+
+    `<span class="stat">Drift <b>${drift.toFixed(1)} m ±${gap.toFixed(1)}</b></span>`+
+    `<span class="stat">Bearing <b>${Math.round(brg)}°</b></span>`;
+}
+/* depth-over-time scrubber */
+const pc=$('#prof'), pg=pc.getContext('2d');
+function drawProf(){
+  const r=Math.min(devicePixelRatio||1,2), w=Math.max(pc.clientWidth,100), h=52;
+  pc.width=w*r; pc.height=h*r; pg.setTransform(r,0,0,r,0,0); pg.clearRect(0,0,w,h);
+  const v=primary(); if(!v) return;
+  const T=v.s.red.timeline, t0=T.t[0], t1=T.t[T.t.length-1], md=v.s.red.maxDepth;
+  const X=t=>4+(t-t0)/Math.max(1e-6,t1-t0)*(w-8), Y=d=>5+clamp(d,0,md)/md*(h-13);
+  pg.strokeStyle='#142c38'; pg.lineWidth=1;
+  [0,.5,1].forEach(f=>{ pg.beginPath(); pg.moveTo(4,Y(f*md)+.5); pg.lineTo(w-4,Y(f*md)+.5); pg.stroke(); });
+  for(let i=1;i<T.t.length;i++){
+    pg.beginPath(); pg.moveTo(X(T.t[i-1]),Y(T.depth[i-1])); pg.lineTo(X(T.t[i]),Y(T.depth[i]));
+    pg.strokeStyle=T.t[i]<=v.s.red.tBottom?'#3fd0c9':'#f0a23c'; pg.lineWidth=1.8; pg.stroke();
+  }
+  const i=idx();
+  pg.strokeStyle='#dbe9ee'; pg.lineWidth=1;
+  pg.beginPath(); pg.moveTo(X(T.t[i]),2); pg.lineTo(X(T.t[i]),h-6); pg.stroke();
+  pg.beginPath(); pg.arc(X(T.t[i]),Y(T.depth[i]),3.2,0,7); pg.fillStyle='#fff'; pg.fill();
+}
+function seek(e){
+  const v=primary(); if(!v) return;
+  const r=pc.getBoundingClientRect(), n=v.s.red.timeline.t.length;
+  S.ti=clamp(Math.round((e.clientX-r.left-4)/(r.width-8)*(n-1)),0,n-1);
+  drawProf(); draw();
+}
+pc.addEventListener('pointerdown',e=>{ pc.setPointerCapture(e.pointerId); stop(); seek(e); });
+pc.addEventListener('pointermove',e=>{ if(e.buttons||e.pressure>0) seek(e); });
+
+/* ================= 8. session drawer ================================= */
+function openDrawer(){ renderList(); $('#drawer').hidden=false; }
+function renderList(){
+  $('#dlist').innerHTML = SESSIONS.map(s=>{
+    const on=SELECTED.includes(s.id), pri=SELECTED[0]===s.id;
+    const d=s.red.hasPath? s.red.maxDepth.toFixed(1)+' m · '+fmt(s.red.duration) : 'no depth change';
+    return `<button class="srow" data-id="${s.id}" aria-pressed="${on}" style="--sc:${s.colour}">
+      <span class="box">${on?'✓':''}</span>
+      <span class="meta">
+        <span class="t1">${s.note}
+          ${s.type==='calibration'?'<span class="badge cal">calibration</span>':''}
+          ${pri?'<span class="badge pri">shown in detail</span>':''}
+          ${!s.red.hasPath&&s.type!=='calibration'?'<span class="badge">flat</span>':''}</span>
+        <span class="t2">session ${s.id} · ${s.when||'—'} · ${d}</span>
+      </span></button>`;
+  }).join('');
+  $('#dlist').querySelectorAll('.srow').forEach(b=>b.addEventListener('click',()=>toggle(+b.dataset.id)));
+  const n=SESSIONS.filter(s=>s.red.hasPath).length;
+  $('#dfoot').innerHTML = `<b>${n} of ${SESSIONS.length}</b> sessions have a depth profile to draw. `+
+    `Tick several to overlay them — useful for repeat runs of the same hole. `+
+    `The first one ticked drives the readout, the probe animation and the depth-time strip.`;
+}
+function toggle(id){
+  const s=SESSIONS.find(x=>x.id===id);
+  if(SELECTED.includes(id)){ if(SELECTED.length>1) SELECTED=SELECTED.filter(x=>x!==id); }
+  else if(s.red.hasPath || SELECTED.length===0) SELECTED=[...SELECTED,id];
+  else SELECTED=[id];
+  if(SELECTED.length===1) S.ti=0;
+  renderList(); refresh();
+}
+$('#sesbtn').addEventListener('click',openDrawer);
+$('#dclose').addEventListener('click',()=>$('#drawer').hidden=true);
+$('#drawer').addEventListener('click',e=>{ if(e.target.id==='drawer') $('#drawer').hidden=true; });
+$('#newfile').addEventListener('click',()=>{ $('#drawer').hidden=true; showLanding(); });
+
+/* ================= 9. interaction ==================================== */
+const ptrs=new Map(); let pinch0=0,dist0=0,moved=false;
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; pinch0=Math.hypot(a.x-b.x,a.y-b.y); dist0=cam.dist; }
+  S.spin=false; setPressed();
+});
+cv.addEventListener('pointermove',e=>{
+  const prev=ptrs.get(e.pointerId); if(!prev) return;
+  const dx=e.clientX-prev.x, dy=e.clientY-prev.y;
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size>=2){
+    const [a,b]=[...ptrs.values()], d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(pinch0>0) cam.dist=clamp(dist0*pinch0/d,SCENE.maxDepth*0.12,SCENE.maxDepth*7);
+    cam.ty=clamp(cam.ty+dy*cam.dist*0.0012,-SCENE.maxDepth*1.3,SCENE.maxDepth*0.15);
+  } else { cam.az-=dx*0.0062; cam.el=clamp(cam.el+dy*0.0052,-1.45,1.45); }
+  if(!moved&&Math.abs(dx)+Math.abs(dy)>2){ moved=true; fadeHint(); }
+  S.view='free'; setPressed(); draw();
+});
+const rel=e=>{ ptrs.delete(e.pointerId); if(ptrs.size<2) pinch0=0; };
+cv.addEventListener('pointerup',rel); cv.addEventListener('pointercancel',rel);
+cv.addEventListener('wheel',e=>{ e.preventDefault(); S.spin=false;
+  cam.dist=clamp(cam.dist*(1+Math.sign(e.deltaY)*0.12),SCENE.maxDepth*0.12,SCENE.maxDepth*7); draw();
+},{passive:false});
+
+function setView(v){
+  S.view=v; S.spin=(v==='spin');
+  const md=SCENE.maxDepth;
+  if(v==='plan'){ cam.el=1.42; cam.az=0; cam.dist=Math.max(SCENE.maxH*S.exag*4.2,md*0.35); cam.ty=-md/2; }
+  if(v==='ns'){ cam.el=0.015; cam.az=Math.PI/2; cam.dist=md*1.6; cam.ty=-md/2; }
+  if(v==='ew'){ cam.el=0.015; cam.az=0; cam.dist=md*1.6; cam.ty=-md/2; }
+  if(v==='3d'||v==='spin'){ cam.el=0.30; cam.dist=md*1.75; cam.ty=-md/2; if(v==='3d') cam.az=0.7; }
+  setPressed(); draw();
+}
+const setPressed=()=>document.querySelectorAll('#views button')
+  .forEach(b=>b.setAttribute('aria-pressed', b.dataset.v===S.view));
+document.querySelectorAll('#views button').forEach(b=>
+  b.addEventListener('click',()=>{ fadeHint(); setView(b.dataset.v); }));
+function fadeHint(){ const h=$('#hint'); if(h&&h.style.opacity!=='0'){ h.style.opacity=0;
+  setTimeout(()=>h.remove(),600); } }
+
+$('#more').addEventListener('click',()=>{ $('#panel').classList.toggle('open');
+  requestAnimationFrame(()=>{ resize(); drawProf(); }); });
+$('#exag').addEventListener('input',e=>{ S.exag=+e.target.value; $('#exagv').textContent='×'+S.exag;
+  if(S.view==='plan') setView('plan'); else draw(); });
+$('#decl').addEventListener('input',e=>{ S.decl=+e.target.value;
+  $('#declv').textContent=(S.decl<0?'−':'+')+Math.abs(S.decl).toFixed(1)+'°'; refresh(); });
+$('#col').addEventListener('change',e=>{ S.col=e.target.value; calcRange(); draw(); });
+$('#unit').addEventListener('change',e=>{ S.kPerM=+e.target.value; reduceAll(); refresh(); renderList(); });
+function stop(){ S.playing=false; $('#play').textContent='▶'; }
+$('#play').addEventListener('click',()=>{
+  const v=primary(); if(!v) return;
+  S.playing=!S.playing;
+  if(S.playing&&S.ti>=v.s.red.timeline.t.length-1) S.ti=0;
+  $('#play').textContent=S.playing?'❚❚':'▶';
+});
+addEventListener('keydown',e=>{
+  if($('#app').hidden) return;
+  if(e.key===' '){ e.preventDefault(); $('#play').click(); }
+  if(e.key==='Escape') $('#drawer').hidden=true;
+  const v=primary(); if(!v) return;
+  const n=v.s.red.timeline.t.length;
+  if(e.key==='ArrowLeft'){ stop(); S.ti=clamp(S.ti-8,0,n-1); drawProf(); draw(); }
+  if(e.key==='ArrowRight'){ stop(); S.ti=clamp(S.ti+8,0,n-1); drawProf(); draw(); }
+});
+addEventListener('resize',()=>{ if(!$('#app').hidden){ resize(); drawProf(); } });
+
+/* ================= 10. file input ==================================== */
+$('#pick').addEventListener('click',()=>$('#file').click());
+$('#file').addEventListener('change',e=>{ if(e.target.files[0]) loadFile(e.target.files[0]); });
+const dz=$('#drop');
+['dragenter','dragover'].forEach(t=>dz.addEventListener(t,e=>{e.preventDefault();dz.classList.add('hot');}));
+['dragleave','drop'].forEach(t=>dz.addEventListener(t,e=>{e.preventDefault();dz.classList.remove('hot');}));
+dz.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{ e.preventDefault();
+  if($('#landing').hidden) return; const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
+showLanding();
+
+function start(){
+  $('#landing').hidden=true; $('#app').hidden=false;
+  const p=SESSIONS.find(s=>s.red.hasPath);
+  if(SESSIONS.length && SESSIONS.every(s=>s.raw.binary)){ $('#unitnote').innerHTML='Depth comes from the barometer: the surface reading '+
+    'is subtracted and the rest divided by 9.807 kPa per metre of water. Raw probe files store pressure in a known unit (kPa), so leave this on kPa.'; }
+  else $('#unitnote').innerHTML =
+    `Depth comes from the barometer: surface reading subtracted, remainder divided by the figure above. `+
+    `The export README calls this column hPa, but a surface reading of `+
+    `${(SESSIONS[0]?SESSIONS[0].red.p0:0).toFixed(1)} hPa would be near vacuum, so it is read as kPa `+
+    `${p?'(giving '+p.red.maxDepth.toFixed(0)+' m for '+p.note+')':''}. Switch it if you know otherwise — `+
+    `every depth here scales by ten.`;
+  refresh(); resize(); drawProf(); setView('spin'); renderList();
+}
+let last=performance.now();
+(function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min((now-last)/1000,0.1); last=now;
+  if($('#app').hidden) return;
+  let dirty=false;
+  if(S.spin&&VIS.length){ cam.az+=dt*0.16; dirty=true; }
+  if(S.playing){
+    const v=primary();
+    if(!v) stop(); else{
+      const T=v.s.red.timeline, span=Math.max(1e-6,T.t[T.t.length-1]-T.t[0]);
+      S.ti+=dt*45/span*(T.t.length-1);
+      if(S.ti>=T.t.length-1){ S.ti=T.t.length-1; stop(); }
+      drawProf(); dirty=true;
+    }
+  }
+  if(dirty) draw();
+})(last);
+</script>
+</body>
+</html>
