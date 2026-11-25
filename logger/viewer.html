@@ -2128,6 +2128,14 @@ async function dbLoadList(){
       body:JSON.stringify({prefix:pre, limit:1000, offset:0, sortBy:{column:'created_at', order:'desc'}})});
     for(const dir of ((await list(''))||[]).filter(x=>x.id===null))
       for(const f of ((await list(dir.name+'/'))||[]).filter(x=>x.id!==null && !/^\.empty/.test(x.name))){
+        const cm = /^(cal|fieldcal)__(.+)$/.exec(f.name);
+        if(cm){                              // a calibration file the probe's app put beside its runs
+          const when = (/(\d{4}-\d\d-\d\d)T(\d\d)(\d\d)/.exec(cm[2])||[]).slice(1);
+          items.push({key:'inbox:'+dir.name+'/'+f.name, src:cm[1]==='cal'?'devcal':'fieldcal', title:cm[2].replace(/\.json$/i,''), probe:dir.name,
+            when:f.created_at, stamp: when.length ? when[0]+' '+when[1]+':'+when[2] : '', size:f.metadata&&f.metadata.size,
+            bucket:'probe-inbox', path:dir.name+'/'+f.name, filename:cm[2]});
+          continue;
+        }
         const m = metaFromName(f.name);
         items.push({key:'inbox:'+dir.name+'/'+f.name, src:'inbox', title:m.note||f.name, code:m.job||'', probe:dir.name,
           when:f.created_at, stamp:m.started_local, size:f.metadata&&f.metadata.size, bucket:'probe-inbox', path:dir.name+'/'+f.name, filename:f.name});
@@ -2140,23 +2148,69 @@ async function dbLoadList(){
 }
 function dbRender(){
   const q = ($('dbQ').value||'').trim().toLowerCase();
-  const hit = it => !q || [it.title,it.bore,it.project,it.code,it.client,it.probe,it.filename,it.status].join(' ').toLowerCase().includes(q);
-  const on = it => dbLoaded.has(it.key) && state.datasets.some(d=>d.key===dbLoaded.get(it.key));
+  const hit = it => !q || [it.title,it.bore,it.project,it.code,it.client,it.probe,it.filename,it.status,it.src==='devcal'?'device calibration':it.src==='fieldcal'?'field calibration':''].join(' ').toLowerCase().includes(q);
+  const on = it => dbLoaded.has(it.key) && (state.datasets.some(d=>d.key===dbLoaded.get(it.key)) ||
+    state.cals.some(c=>c.name===dbLoaded.get(it.key)) || state.fieldCals.some(f=>f.srcKey===dbLoaded.get(it.key)));
   const row = it => `<button class="dbitem${on(it)?' on':''}" data-k="${escH(it.key)}" type="button">
       <span class="t1">${escH(it.title)}${it.src==='run' ? (it.accepted?'<span class="tag acc">accepted</span>':'')+(it.status?`<span class="tag">${escH(it.status)}</span>`:'')
-                                                         : '<span class="tag inbox">inbox</span>'}</span>
+                                       : it.src==='devcal' ? '<span class="tag">device calibration</span>' : it.src==='fieldcal' ? '<span class="tag">field calibration</span>'
+                                       : '<span class="tag inbox">inbox</span>'}</span>
       <span class="t2">${escH([it.client, it.project&&(it.project+(it.code?' ('+it.code+')':'')), it.bore&&('bore '+it.bore), it.stations&&(it.stations+' stations'), it.src==='inbox'&&it.code&&('job '+it.code),
         it.probe&&it.probe, it.stamp||fmtWhen(it.when), fmtKB(it.size)].filter(Boolean).join(' · '))}</span></button>`;
-  const runs = dbItems.filter(i=>i.src==='run'&&hit(i)), inbox = dbItems.filter(i=>i.src==='inbox'&&hit(i));
+  const runs = dbItems.filter(i=>i.src==='run'&&hit(i)), inbox = dbItems.filter(i=>i.src==='inbox'&&hit(i)),
+        cals = dbItems.filter(i=>(i.src==='devcal'||i.src==='fieldcal')&&hit(i));
   $('dbList').innerHTML =
     `<div class="dbgrp">Runs<small>${runs.length}</small></div>`+
     (runs.length ? runs.map(row).join('') : `<div class="dbnone">${q?'No run matches.':'No runs with a raw file are visible to this login.'}</div>`)+
     `<div class="dbgrp">Waiting in probe inboxes<small>${inbox.length}</small></div>`+
-    (inbox.length ? inbox.map(row).join('') : `<div class="dbnone">${q?'No file matches.':'Empty: nothing uploaded from the field is waiting.'}</div>`);
+    (inbox.length ? inbox.map(row).join('') : `<div class="dbnone">${q?'No file matches.':'Empty: nothing uploaded from the field is waiting.'}</div>`)+
+    `<div class="dbgrp">Calibration files<small>${cals.length}</small></div>`+
+    (cals.length ? cals.map(row).join('') : `<div class="dbnone">${q?'No file matches.':'None uploaded yet: the logger app uploads them from the probe.'}</div>`);
   for(const b of $('dbList').querySelectorAll('.dbitem')) b.onclick = () => dbOpen(dbItems.find(i=>i.key===b.dataset.k));
+}
+// the logger app's field fit (m_cal = W (m_raw - b), raw axes, uT) as this page's field iron
+function fieldFitFrom(o){
+  const b = o.hard_iron_b, W = o.soft_iron_W, ok = v => typeof v==='number' && isFinite(v);
+  if(!Array.isArray(b) || b.length!==3 || !b.every(ok) || !Array.isArray(W) || W.length!==3 || !W.every(r=>Array.isArray(r)&&r.length===3&&r.every(ok)))
+    throw new Error('not a magnetometer fit (hard_iron_b, soft_iron_W)');
+  const spread = ok(o.residual) ? o.residual*100 : NaN, coverage = ok(o.coverage) ? o.coverage : NaN;
+  const quality = spread < 1 && coverage >= 0.8 ? 'Good' : spread < 2 && coverage >= 0.5 ? 'Usable' : 'Poor';
+  return {hi:b.slice(), SI:W.map(r=>r.slice()), R:+o.field_uT || NaN, mode:'full', note:'fitted in the logger app', spread, coverage,
+          n:o.points||0, dropped:0, quality, warn:[]};
+}
+async function dbOpenCal(it){
+  if(dbLoaded.has(it.key)){ dbSay(it.title+' is already in.'); return; }
+  try{
+    dbSay('Downloading '+it.filename+'…');
+    const r = await dbFetch('/storage/v1/object/'+it.bucket+'/'+it.path.split('/').map(encodeURIComponent).join('/'));
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const text = await r.text();
+    if(it.src==='devcal'){
+      const had = state.cals.find(c => c.text === text);         // already here (kept from an earlier visit)
+      if(!had){
+        const n0 = state.cals.length;
+        addCalibration(it.filename, text, true);
+        if(state.cals.length === n0) throw new Error('it is not a calibration this page can read');
+        saveCals(); if(state.mode === 'raw') setMode('cal');
+      }
+      dbLoaded.set(it.key, (had || state.cals[state.cals.length-1]).name);
+      dbSay(had ? it.filename+' was already under Calibration.' : 'Added '+it.filename+' under Calibration.');
+    } else {
+      let o; try{ o = JSON.parse(text); }catch(e){ throw new Error('not JSON'); }
+      const fit = fieldFitFrom(o), t = Date.parse(o.fitted_at), srcKey = 'db:'+it.path;
+      if(!state.fieldCals.some(f=>f.srcKey===srcKey))
+        state.fieldCals.push({id:nextId++, srcKey, srcIds:[], fit, t: isFinite(t) ? t : NaN, started:o.fitted_at||'', pooled:false,
+                              name:(o.serial||it.probe||'')+' field fit '+(it.stamp||''), restored:true});
+      saveFieldCals();
+      dbLoaded.set(it.key, srcKey);
+      dbSay('Added the field calibration '+it.title+': recordings use the one nearest them in time.');
+    }
+    refreshAll(); dbRender();
+  }catch(e){ dbSay('Could not add '+it.filename+': '+(e.message||e), true); }
 }
 async function dbOpen(it){
   if(!it) return;
+  if(it.src==='devcal' || it.src==='fieldcal') return dbOpenCal(it);
   const have = dbLoaded.get(it.key), d0 = have && state.datasets.find(d=>d.key===have);
   if(d0){ d0.visible = true; refreshAll(); dbSay(it.title+' is already loaded (under Recordings).'); return; }
   try{

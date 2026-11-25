@@ -1002,6 +1002,7 @@
         <button id="btnFit">Calibrate</button>
         <button id="btnApplyCal" disabled>Use calibration</button>
         <button id="btnSaveCal" disabled>Save</button>
+        <button id="btnUpCal" hidden disabled title="This fit to the probe's inbox in the office database">Upload</button>
         <button id="btnLoadCal">Load</button>
         <input id="inpMagCal" type="file" accept=".json,application/json" hidden>
       </div>
@@ -1200,7 +1201,8 @@
     <section class="mem" id="calFilesBlock">
     <div class="memhead">
       <div class="lbl">Calibration files on this probe</div>
-      <div class="membtns"><button id="btnCalFilesRefresh" disabled>Refresh</button></div>
+      <div class="membtns"><button id="btnCalFilesUp" hidden disabled title="Each file to this probe's inbox in the office database; files already there are skipped">Upload to database</button>
+        <button id="btnCalFilesRefresh" disabled>Refresh</button></div>
     </div>
     <div class="ctlhint" style="margin-top:6px">Every calibration saved to the probe is kept, named after the probe and the
       time it was done. Saving adds a file; nothing is overwritten or deleted. The probe only stores them; they are
@@ -3772,6 +3774,7 @@ function showCal(f){
   el('cResid').textContent=(f.resid*100).toFixed(2)+'%';
   el('btnApplyCal').disabled=false;
   el('btnSaveCal').disabled=false;
+  if(typeof renderInbox==='function' && onProbe && !DB_UPLOAD) renderInbox();
 }
 
 /* Accept a saved calibration file. Validated strictly: a malformed matrix
@@ -6635,7 +6638,7 @@ function calReadFile(name){
 function calFrame(f){
   const t = f[0], dv = new DataView(f.buffer, f.byteOffset, f.byteLength), dec = b => new TextDecoder().decode(b);
   if(t===0x62 && calFiles && f.length>=9) calFiles.rows.push({size:dv.getUint32(5,true), name:dec(f.slice(9))});
-  else if(t===0x63){ clearTimeout(calListT); if(calFiles){ calFiles.done = true; renderCalFiles(); } }
+  else if(t===0x63){ clearTimeout(calListT); if(calFiles){ calFiles.done = true; renderCalFiles(); if(onProbe && !DB_UPLOAD) renderInbox(); } }
   else if(t===0x64 && calRead) calRead.parts.push(f.slice(2));
   else if(t===0x65 && calRead && f.length>=5){
     const r = calRead; calRead = null;
@@ -6715,11 +6718,14 @@ async function calSaveToProbe(){
   await send(CMD.CAL_FINISH);
   const r = await answer;
   el('cbSaveProbe').disabled = !chCtrl;
-  if(r.ok){ msg('Saved on the probe as '+r.text+'. Earlier files are kept.'); log('Calibration saved on the probe as '+r.text,'ok'); calListRequest(); }
+  if(r.ok){ msg('Saved on the probe as '+r.text+'. Earlier files are kept.'); log('Calibration saved on the probe as '+r.text,'ok'); calListRequest();
+    if(INBOX) setTimeout(() => uploadCalFiles([r.text], true), 1500); }
   else { msg('Not saved: '+r.text); log('The probe did not save the calibration: '+r.text,'err'); }
 }
 el('cbSaveProbe').onclick = calSaveToProbe;
 el('btnCalFilesRefresh').onclick = calListRequest;
+el('btnCalFilesUp').onclick = () => { if(calFiles && calFiles.done) uploadCalFiles(calFiles.rows.map(r => r.name)); };
+el('btnUpCal').onclick = uploadFieldFit;
 
 
 /* ── new run: bore, run number, tube -> the run's label ──────────────────
@@ -7786,6 +7792,52 @@ async function uploadInbox(key){
   log((already ? 'Already in the office inbox: ' : 'Uploaded to the office inbox: ')+'probe-inbox/'+path, 'ok');
   return true;
 }
+// one file into this probe's inbox (calibration files): 'uploaded' or 'already' (same name there)
+async function inboxPut(name, body, type){
+  if(!INBOX) throw new Error('no probe login kept on this probe');
+  let at = await inboxToken();
+  const path = INBOX.tool+'/'+name;
+  const put = tok => fetch(SB+'/storage/v1/object/probe-inbox/'+path.split('/').map(encodeURIComponent).join('/'),
+    {method:'POST', headers:{apikey:SB_KEY, Authorization:'Bearer '+tok, 'Content-Type':type || 'application/json', 'x-upsert':'false'}, body});
+  let r;
+  try{ r = await put(at); if(r.status === 401){ at = await inboxToken(true); r = await put(at); } }
+  catch(e){ if(e.stop) throw e; throw new Error('no internet'); }
+  if(r.ok) return 'uploaded';
+  const txt = await r.text(); let d = null; try{ d = JSON.parse(txt); }catch(e){}
+  const why = (d && (d.message || d.error || d.msg)) || txt || 'HTTP '+r.status;
+  if(r.status === 409 || /duplicate|already exists/i.test(why)) return 'already';
+  throw new Error(why);
+}
+/* Calibration files go to the inbox beside the runs: cal__<file on the probe> for a device
+   calibration, fieldcal__fieldmag_<probe>_<time>.json for a magnetometer fit from the field. */
+async function uploadCalFiles(names, quiet){
+  const say = t => { el('calFilesMsg').textContent = t; };
+  let up = 0, had = 0, bad = 0;
+  for(const name of names){
+    try{
+      if(!quiet) say('Uploading '+name+'…');
+      const txt = await calReadFile(name);
+      (await inboxPut('cal__'+name, txt, 'application/json')) === 'uploaded' ? up++ : had++;
+    }catch(e){ bad++; log('Could not upload '+name+': '+e.message, 'err'); if(e.message==='no internet' || e.stop) break; }
+  }
+  const t = `Calibration files to the office database: ${up} uploaded, ${had} already there`+(bad ? `, ${bad} failed (see the log)` : '')+'.';
+  say(t); log(t, bad ? 'err' : 'ok');
+}
+async function uploadFieldFit(){
+  if(!cal || !INBOX) return;
+  const serial = (probeInfo && probeInfo.serial) || el('brandName').textContent || 'probe', when = localIso(new Date());
+  const out = {format:'borelogger-field-mag-calibration', serial, ble_name:el('brandName').textContent || null, fitted_at:when,
+    note:'m_cal = W * (m_raw - b), microtesla, raw magnetometer axes', hard_iron_b:cal.b,
+    soft_iron_W:[cal.W.slice(0,3),cal.W.slice(3,6),cal.W.slice(6,9)], field_uT:cal.field, semi_axes_uT:cal.axes,
+    residual:cal.resid, coverage:cloud ? +cloud.cov.toFixed(3) : null, points:pN, made_by:'BoreLogger logger app'};
+  const name = 'fieldcal__fieldmag_'+String(serial).replace(/[^A-Za-z0-9_-]/g,'-')+'_'+when.slice(0,16).replace(':','')+'.json';
+  el('btnUpCal').disabled = true;
+  try{
+    const r = await inboxPut(name, JSON.stringify(out, null, 2)+'\n', 'application/json');
+    log((r==='uploaded' ? 'Field calibration uploaded: ' : 'Already in the office inbox: ')+'probe-inbox/'+INBOX.tool+'/'+name, 'ok');
+  }catch(e){ log('Could not upload the field calibration: '+e.message, 'err'); }
+  finally{ el('btnUpCal').disabled = !(cal && INBOX); }
+}
 function renderInbox(){
   const box = el('inboxBox'); if(!box) return;
   const on = onProbe && !DB_UPLOAD;
@@ -7795,6 +7847,8 @@ function renderInbox(){
   el('dbSignin').hidden = true; el('dbTarget').hidden = true; el('dbWho').innerHTML = '';
   el('inboxSet').hidden = !!INBOX; el('inboxOn').hidden = !INBOX;
   el('btnUploadAll').style.display = INBOX ? '' : 'none';
+  el('btnCalFilesUp').hidden = !INBOX; el('btnCalFilesUp').disabled = !INBOX || !chCtrl || !(calFiles && calFiles.done && calFiles.rows.length);
+  el('btnUpCal').hidden = !INBOX; el('btnUpCal').disabled = !INBOX || !cal;
   if(INBOX){
     el('inboxWho').textContent = 'probe-inbox/'+(INBOX.tool || '…')+'/  as '+INBOX.email;
     if(document.activeElement !== el('inboxJob')) el('inboxJob').value = INBOX.job || '';
