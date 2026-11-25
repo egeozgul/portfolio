@@ -873,6 +873,18 @@
       <div><label for="dbBore">Bore (used when a run's note names none)</label><select id="dbBore"></select></div>
       <div><button id="btnDbRefresh">Refresh lists</button></div>
     </div>
+    <div id="inboxBox" hidden>
+      <div id="inboxSet" class="dbform">
+        <div><label for="inboxEmail">The probe's login (its email)</label><input id="inboxEmail" type="email" autocomplete="off" placeholder="bl-a001@tools.borelogger.io"></div>
+        <div><label for="inboxPass">Password</label><input id="inboxPass" type="password" autocomplete="new-password"></div>
+        <div><button id="btnInboxSave" class="primary">Check and keep on the probe</button></div>
+      </div>
+      <div id="inboxOn" class="dbform" hidden>
+        <div><label for="inboxJob">Job code (starts each file name)</label><input id="inboxJob" placeholder="J-2026-005" autocomplete="off"></div>
+        <div><label>Uploads go to</label><div class="covnote" id="inboxWho" style="padding:7px 0"></div></div>
+        <div><button id="btnInboxForget">Remove the login</button></div>
+      </div>
+    </div>
     <div class="dbmsg" id="dbMsg">The BoreLogger office portal's database. Same login as the portal.
       Uploads use this phone's or laptop's internet; without it they wait in the queue.</div>
   </section>
@@ -2111,10 +2123,10 @@ el('btnStop').onclick=()=>send(CMD.STOP);
 el('btnStopCal').onclick=()=>send(CMD.STOP);
 el('btnErase').onclick=()=>{
   const meta = x => localIndex.get(runKey(x)) || {};
-  const unsafe = sessionsList.filter(x => DB_UPLOAD ? meta(x).uploaded == null : !meta(x).fileSaved);
+  const unsafe = sessionsList.filter(x => upOn() ? meta(x).uploaded == null : !meta(x).fileSaved);
   const notKept = unsafe.filter(x => !localIndex.has(runKey(x))).length;
   if(!confirm((unsafe.length
-        ? (DB_UPLOAD
+        ? (upOn()
             ? `${unsafe.length} of the ${sessionsList.length} runs on the probe are NOT uploaded to the office database`+
               ` (${notKept} not even kept on this device). `
             : `${unsafe.length} of the ${sessionsList.length} runs on the probe are NOT saved as a file`+
@@ -7159,7 +7171,7 @@ function runKey(s){
 function runStatus(m){
   if(!m) return 'probe';
   if(m.uploaded) return 'up';
-  if(m.queued && DB_UPLOAD) return 'queued';
+  if(m.queued && upOn()) return 'queued';
   return 'local';
 }
 const fmtSize = n => n < 100000 ? (n/1000).toFixed(1)+' kB' : (n/1e6).toFixed(2)+' MB';
@@ -7486,7 +7498,7 @@ function renderLocal(){
       const btns = document.createElement('span'); btns.className = 'btns';
       const mk = (txt, fn, dis) => { const b = document.createElement('button'); b.textContent = txt; b.onclick = fn; b.disabled = !!dis; btns.appendChild(b); };
       mk(m.fileSaved ? 'Saved ✓' : 'Save file', () => saveRunFile(m.key));
-      if(DB_UPLOAD) mk(m.uploaded ? 'Uploaded' : 'Upload', () => requestUpload(m.key), !!m.uploaded);
+      if(upOn()) mk(m.uploaded ? 'Uploaded' : 'Upload', () => requestUpload(m.key), !!m.uploaded);
       mk('Delete', () => deleteRun(m.key));
       d.appendChild(btns);
       if(m.lastError && !m.uploaded){ const w = document.createElement('div'); w.className = 'why'; w.textContent = 'last try: '+m.lastError; d.appendChild(w); }
@@ -7498,7 +7510,7 @@ function renderLocal(){
   const saved = rows.filter(m => m.fileSaved).length;
   el('localInfo').textContent = rows.length
     ? `${rows.length} run${rows.length>1?'s':''} on this device · `+
-      (DB_UPLOAD ? `${up} uploaded · ${q} queued` : `${saved} saved as a file`)
+      (upOn() ? `${up} uploaded · ${q} queued` : `${saved} saved as a file`)
     : '';
   if(navigator.storage && navigator.storage.estimate) navigator.storage.estimate().then(e => {
     if(rows.length) el('localInfo').textContent += ` · browser storage ${(e.usage/1e6).toFixed(1)} of ${(e.quota/1e6).toFixed(0)} MB`;
@@ -7517,7 +7529,14 @@ const SB_KEY = (SB_LOCAL && new URLSearchParams(location.search).get('sbkey')) |
 // database (login and a test project from the portal team). Until then it only
 // runs in local tests, against a stand-in: http://localhost...?sb=<stand-in>.
 // To switch it on for everyone: const DB_UPLOAD = true;
-const DB_UPLOAD = SB_LOCAL && new URLSearchParams(location.search).has('sb');
+// (&inbox: tests of the probe-login upload against the stand-in, which keeps staff upload off)
+const DB_UPLOAD = SB_LOCAL && new URLSearchParams(location.search).has('sb') && !new URLSearchParams(location.search).has('inbox');
+/* The probe's own login (its probe account): typed once on the probe's cable page, kept ON
+   THE PROBE (/api/dblogin, never over Bluetooth), used by every phone or laptop plugged in.
+   That account may only add files to its own inbox folder: probe-inbox/<tool>/<job>__<file>.
+   The office picks them up from there. */
+let INBOX = null, inboxTok = null;       // {email, password, job, tool}; {at, exp}
+const upOn = () => DB_UPLOAD || !!INBOX;
 const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
 const lsSet = (k, v) => { try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){} };
 // same storage key and format as the probe's field page, so one sign-in serves both
@@ -7562,6 +7581,7 @@ function dbMsg(t, err){ el('dbMsg').innerHTML = err ? '<span class="err"></span>
 
 let dbProjects = [], dbBores = [];
 function renderDb(){
+  if(onProbe && !DB_UPLOAD) return renderInbox();
   const s = sbSession(), on = !!(s && s.at);
   el('dbSignin').hidden = on;
   el('dbTarget').hidden = !on;
@@ -7645,6 +7665,77 @@ async function uploadRun(key){
   return true;
 }
 
+// ── the probe's login: upload into its inbox ──
+function jwtTool(t){
+  try{ const p = JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+       return (p.app_metadata && p.app_metadata.tool) || null; }catch(e){ return null; }
+}
+const dbLoginApi = body => fetch('/api/dblogin', body ? {method:'POST', cache:'no-store', headers:{'X-BoreLogger':'1', 'Content-Type':'application/json'}, body:JSON.stringify(body)}
+                                                     : {cache:'no-store', headers:{'X-BoreLogger':'1'}}).then(r => r.json());
+async function inboxLoad(){                // the probe's page only: is a login kept on this probe?
+  if(!onProbe || DB_UPLOAD) return;
+  try{ const d = await dbLoginApi();
+       INBOX = d && d.ok && d.set ? {email:d.email, password:d.password, job:d.job || '', tool:INBOX && INBOX.email===d.email ? INBOX.tool : null} : null; }
+  catch(e){ INBOX = null; }
+  inboxTok = null;
+  renderInbox(); renderLocal(); renderSessions(); setButtons();
+  if(INBOX && navigator.onLine) inboxToken().then(() => { renderInbox(); processQueue(); }, e => dbMsg(e.message, 1));
+}
+async function inboxToken(force){
+  if(!force && inboxTok && Date.now()/1000 < inboxTok.exp) return inboxTok.at;
+  let r;
+  try{ r = await fetch(SB+'/auth/v1/token?grant_type=password', {method:'POST', headers:{apikey:SB_KEY, 'Content-Type':'application/json'},
+         body:JSON.stringify({email:INBOX.email, password:INBOX.password})}); }
+  catch(e){ throw new Error('no internet'); }
+  const d = await r.json().catch(() => ({}));
+  if(!r.ok){ const e = new Error('the office database refused the probe\'s login: '+(d.error_description || d.msg || d.message || 'HTTP '+r.status)); e.stop = true; throw e; }
+  const tool = jwtTool(d.access_token);
+  if(!tool){ const e = new Error('this login is not a probe account (its app metadata has no tool), so it has no inbox'); e.stop = true; throw e; }
+  INBOX.tool = tool; inboxTok = {at:d.access_token, exp:Date.now()/1000 + (d.expires_in || 3600) - 60};
+  return inboxTok.at;
+}
+async function uploadInbox(key){
+  const m = localIndex.get(key);
+  if(!m || m.uploaded) return true;
+  const job = (INBOX.job || '').trim();
+  if(!job){ const e = new Error('no job code — type it under Office database'); e.stop = true; throw e; }
+  const buf = await ldbGetBytes(key);
+  if(!buf) throw new Error('the run\'s data is gone from this browser');
+  if(await sha256Hex(buf) !== m.sha256) throw new Error('the stored copy no longer matches its checksum');
+  let at = await inboxToken();
+  const file = safePart(job)+'__'+runFileName(m), path = INBOX.tool+'/'+file;
+  const put = tok => fetch(SB+'/storage/v1/object/probe-inbox/'+path.split('/').map(encodeURIComponent).join('/'),
+    {method:'POST', headers:{apikey:SB_KEY, Authorization:'Bearer '+tok, 'Content-Type':'application/octet-stream', 'x-upsert':'false'}, body:buf});
+  let r;
+  try{ r = await put(at); if(r.status === 401){ at = await inboxToken(true); r = await put(at); } }
+  catch(e){ if(e.stop) throw e; throw new Error('no internet'); }
+  const txt = await r.text(); let d = null; try{ d = JSON.parse(txt); }catch(e){}
+  const why = (d && (d.message || d.error || d.msg)) || txt || 'HTTP '+r.status;
+  const already = !r.ok && (r.status === 409 || /duplicate|already exists/i.test(why));
+  if(!r.ok && !already) throw new Error(why);
+  m.uploaded = {at:new Date().toISOString(), inbox:'probe-inbox/'+path, job, already};
+  m.queued = null; m.lastError = null;
+  await ldbPutMeta(m);
+  log((already ? 'Already in the office inbox: ' : 'Uploaded to the office inbox: ')+'probe-inbox/'+path, 'ok');
+  return true;
+}
+function renderInbox(){
+  const box = el('inboxBox'); if(!box) return;
+  const on = onProbe && !DB_UPLOAD;
+  box.hidden = !on;
+  if(!on) return;
+  el('dbBlock').hidden = false;
+  el('dbSignin').hidden = true; el('dbTarget').hidden = true; el('dbWho').innerHTML = '';
+  el('inboxSet').hidden = !!INBOX; el('inboxOn').hidden = !INBOX;
+  el('btnUploadAll').style.display = INBOX ? '' : 'none';
+  if(INBOX){
+    el('inboxWho').textContent = 'probe-inbox/'+(INBOX.tool || '…')+'/  as '+INBOX.email;
+    if(document.activeElement !== el('inboxJob')) el('inboxJob').value = INBOX.job || '';
+    if(!/inbox|Upload|upload|refused|Queued|job/.test(el('dbMsg').textContent))
+      dbMsg('Each run is uploaded into this probe\'s inbox in the office database, where the office checks it. The login is kept on the probe: nobody types it again. Uploads use this phone\'s or laptop\'s internet; without it they wait in the queue.');
+  } else dbMsg('To upload runs, keep the probe\'s own login on it, once: its email (e.g. bl-a001@tools.borelogger.io) and password. It is checked with the office database first, then kept on the probe, so any phone or laptop plugged in uploads without typing it. Bluetooth never sends it.');
+}
+
 // Upload now if possible, else queue it; the queue empties itself when it can.
 async function requestUpload(key){
   const m = localIndex.get(key); if(!m || m.uploaded) return;
@@ -7652,26 +7743,28 @@ async function requestUpload(key){
   await ldbPutMeta(m);
   renderLocal(); renderSessions();
   const s = sbSession();
-  if(!s || !s.at){ dbMsg('Queued. Sign in below and it uploads.'); showTab('runs'); el('dbEmail').focus(); return; }
+  if(INBOX && !(INBOX.job||'').trim()){ dbMsg('Queued. Type the job code below and it uploads.', 1); showTab('runs'); el('inboxJob').focus(); return; }
+  if(!INBOX && onProbe && !DB_UPLOAD){ dbMsg('Queued. Keep the probe\'s login on it below and it uploads.'); showTab('runs'); el('inboxEmail').focus(); return; }
+  if(!INBOX && (!s || !s.at)){ dbMsg('Queued. Sign in below and it uploads.'); showTab('runs'); el('dbEmail').focus(); return; }
   if(!navigator.onLine){ dbMsg('Queued. It uploads when this device is back online.'); return; }
   processQueue();
 }
 let queueBusy = false;
 async function processQueue(){
-  if(queueBusy || !DB_UPLOAD) return;
-  const s = sbSession(); if(!s || !s.at || !navigator.onLine) return;
+  if(queueBusy || !upOn()) return;
+  const s = sbSession(); if((!INBOX && (!s || !s.at)) || !navigator.onLine) return;
   const todo = [...localIndex.values()].filter(m => m.queued && !m.uploaded);
   if(!todo.length) return;
   queueBusy = true;
   try{
-    if(!dbBores.length) await dbLoadLists();
+    if(!INBOX && !dbBores.length) await dbLoadLists();
     for(const m of todo){
       dbMsg(`Uploading ${runFileName(m)} (${(m.bytes/1e6).toFixed(2)} MB)…`);
-      try{ await uploadRun(m.key); }
+      try{ await (INBOX ? uploadInbox(m.key) : uploadRun(m.key)); }
       catch(e){
         m.lastError = e.message; await ldbPutMeta(m);
         dbMsg('Upload of '+runFileName(m)+' failed: '+e.message+(e.message==='no internet' ? ' — it stays queued.' : ''), 1);
-        if(e.message==='no internet' || e.message==='not signed in') break;
+        if(e.message==='no internet' || e.message==='not signed in' || e.stop) break;
       }
       renderLocal(); renderSessions();
     }
@@ -7691,6 +7784,34 @@ el('dbPass').addEventListener('keydown', e => { if(e.key==='Enter') el('btnDbSig
 el('dbProj').onchange = () => dbLoadBores();
 el('dbBore').onchange = () => lsSet('bl_sb_bore', el('dbBore').value);
 el('btnDbRefresh').onclick = () => dbLoadLists();
+el('btnInboxSave').onclick = async () => {
+  const em = el('inboxEmail').value.trim(), pw = el('inboxPass').value;
+  if(!/@/.test(em) || !pw){ dbMsg('Type the probe\'s login email and its password.', 1); return; }
+  const old = INBOX;
+  INBOX = {email:em, password:pw, job:(old && old.job) || '', tool:null}; inboxTok = null;
+  dbMsg('Checking the login with the office database…');
+  try{ await inboxToken(true); }
+  catch(e){ INBOX = old; renderInbox(); dbMsg(e.message==='no internet' ? 'No internet to check the login: connect this phone or laptop to the internet, then try again.' : e.message, 1); return; }
+  let r; try{ r = await dbLoginApi({email:em, password:pw, job:INBOX.job}); }catch(e){ r = {ok:false, error:e.message}; }
+  if(!r.ok){ INBOX = old; renderInbox(); dbMsg('Could not keep it on the probe: '+r.error, 1); return; }
+  el('inboxPass').value = '';
+  dbMsg('Kept on the probe. Runs upload into probe-inbox/'+INBOX.tool+'/.'+(INBOX.job ? '' : ' Type the job code to start.'));
+  renderInbox(); renderLocal(); renderSessions(); setButtons(); processQueue();
+};
+el('inboxPass').addEventListener('keydown', e => { if(e.key==='Enter') el('btnInboxSave').click(); });
+el('inboxJob').onchange = async () => {
+  if(!INBOX) return;
+  const j = el('inboxJob').value.trim().slice(0, 60);
+  let r; try{ r = await dbLoginApi({job:j}); }catch(e){ r = {ok:false, error:e.message}; }
+  if(!r.ok){ dbMsg('Could not keep the job code on the probe: '+r.error, 1); return; }
+  INBOX.job = j; dbMsg(j ? 'Job code '+j+' kept on the probe.' : 'No job code: uploads wait.', !j); processQueue();
+};
+el('btnInboxForget').onclick = async () => {
+  if(!confirm('Remove the office-database login from this probe? Runs will stop uploading until it is kept again.')) return;
+  let r; try{ r = await dbLoginApi({forget:true}); }catch(e){ r = {ok:false, error:e.message}; }
+  if(!r.ok){ dbMsg('Could not remove it: '+r.error, 1); return; }
+  INBOX = null; inboxTok = null; dbMsg('Removed from the probe.'); renderInbox(); renderLocal(); renderSessions(); setButtons();
+};
 el('btnFolder').onclick = chooseFolder;
 el('btnSaveAll').onclick = saveAllRuns;
 fsLoad();
@@ -7698,13 +7819,14 @@ el('btnUploadAll').onclick = async () => {
   for(const m of localIndex.values()) if(!m.uploaded && !m.queued){ m.queued = new Date().toISOString(); await ldbPutMeta(m); }
   renderLocal(); renderSessions();
   const s = sbSession();
-  if(!s || !s.at){ dbMsg('Queued. Sign in below and they upload.'); el('dbEmail').focus(); return; }
+  if(!INBOX && (!s || !s.at)){ dbMsg(onProbe && !DB_UPLOAD ? 'Queued. Keep the probe\'s login on it below and they upload.' : 'Queued. Sign in below and they upload.'); return; }
   processQueue();
 };
 addEventListener('online', () => processQueue());
 setInterval(processQueue, 60000);
 el('dbBlock').hidden = !DB_UPLOAD;
 el('btnUploadAll').style.display = DB_UPLOAD ? '' : 'none';
+renderInbox();
 ldbLoadIndex().then(() => { renderLocal(); renderSessions(); setButtons();
   if(DB_UPLOAD && sbSession()) dbLoadLists().then(processQueue); })
   .catch(e => { el('localInfo').textContent = 'This browser cannot keep runs ('+e.message+') — use Save file after each read.'; });
@@ -7728,6 +7850,7 @@ if(location.protocol==='http:'){
       '<p>The field page (checks, runs, QC, firmware update) is at <a href="/field">/field</a>.</p>';
     addEventListener('pagehide', cableClose);
     cableConnect();
+    inboxLoad();
   }).catch(() => {});
 }
 
