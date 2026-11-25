@@ -2114,13 +2114,13 @@ async function dbLoadList(){
   const gen = ++dbGen; dbSay('Loading the collected runs…');
   const items = [], problems = [];
   try{
-    const runs = await dbJson('/rest/v1/runs?select=id,name,run_number,status,is_accepted,field_started_at,created_at,'+
-      'bores(name,projects(name,field_code)),raw_files(storage_path,filename,size_bytes,sha256)&order=created_at.desc&limit=500') || [];
-    for(const r of runs) for(const f of (r.raw_files||[])){
-      const b = r.bores||{}, p = b.projects||{};
-      items.push({key:'run:'+r.id+':'+f.sha256, src:'run', title:r.name||f.filename, bore:b.name||'', project:p.name||'', code:p.field_code||'',
-        status:r.status, accepted:r.is_accepted, when:r.field_started_at||r.created_at, size:f.size_bytes,
-        bucket:'raw-recordings', path:f.storage_path, filename:f.filename});
+    // staff_runs(): the office's own staff list (signed-in users may not read runs/raw_files directly)
+    const sr = await dbJson('/rest/v1/rpc/staff_runs', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}) || {};
+    const bucket = sr.bucket || 'raw-recordings';
+    for(const r of (sr.runs||[])) for(const f of (r.files||[])){
+      items.push({key:'run:'+r.id+':'+f.path, src:'run', title:r.run||f.name, bore:r.bore||'', project:r.project||'', code:r.project_code||'',
+        client:r.client||'', status:r.status, accepted:r.accepted, stations:r.stations, when:r.field_started_at||r.created_at,
+        size:f.bytes, bucket, path:f.path, filename:f.name});
     }
   }catch(e){ problems.push('runs: '+e.message); }
   try{
@@ -2140,12 +2140,12 @@ async function dbLoadList(){
 }
 function dbRender(){
   const q = ($('dbQ').value||'').trim().toLowerCase();
-  const hit = it => !q || [it.title,it.bore,it.project,it.code,it.probe,it.filename,it.status].join(' ').toLowerCase().includes(q);
+  const hit = it => !q || [it.title,it.bore,it.project,it.code,it.client,it.probe,it.filename,it.status].join(' ').toLowerCase().includes(q);
   const on = it => dbLoaded.has(it.key) && state.datasets.some(d=>d.key===dbLoaded.get(it.key));
   const row = it => `<button class="dbitem${on(it)?' on':''}" data-k="${escH(it.key)}" type="button">
       <span class="t1">${escH(it.title)}${it.src==='run' ? (it.accepted?'<span class="tag acc">accepted</span>':'')+(it.status?`<span class="tag">${escH(it.status)}</span>`:'')
                                                          : '<span class="tag inbox">inbox</span>'}</span>
-      <span class="t2">${escH([it.project&&(it.project+(it.code?' ('+it.code+')':'')), it.bore&&('bore '+it.bore), it.src==='inbox'&&it.code&&('job '+it.code),
+      <span class="t2">${escH([it.client, it.project&&(it.project+(it.code?' ('+it.code+')':'')), it.bore&&('bore '+it.bore), it.stations&&(it.stations+' stations'), it.src==='inbox'&&it.code&&('job '+it.code),
         it.probe&&it.probe, it.stamp||fmtWhen(it.when), fmtKB(it.size)].filter(Boolean).join(' · '))}</span></button>`;
   const runs = dbItems.filter(i=>i.src==='run'&&hit(i)), inbox = dbItems.filter(i=>i.src==='inbox'&&hit(i));
   $('dbList').innerHTML =
