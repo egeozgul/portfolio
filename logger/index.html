@@ -685,13 +685,14 @@
     </div>
     <div class="stats">
       <div class="lbl">Compass</div>
-      <div class="bigread"><span>Heading</span><b id="cHdg">—</b></div>
+      <div class="bigread"><span id="cHdgLbl">Azimuth</span><b id="cHdg">—</b></div>
       <div class="heading" id="cCard">—</div>
       <div class="covnote" id="cRef">magnetic north</div>
       <div class="statrow"><span>Tube tilt</span><b id="cTilt">—</b></div>
       <div class="statrow"><span>Calibration</span><b id="cCalShort">none</b></div>
       <div class="statrow decl"><span>Declination °</span>
         <input id="inpDecl" type="number" step="0.1" value="0" aria-label="Magnetic declination in degrees (west negative)" title="For true north, e.g. about -14 in Boston; west is negative"></div>
+      <button id="btnCompassMode" type="button" style="margin-top:8px" title="Azimuth: where the lower end of the probe points. Relative: the board's +y axis, across the tube.">Show relative heading</button>
       <div style="display:none">   <!-- kept for the code that updates them; not shown -->
 
       <div class="lbl" style="margin-bottom:8px">Compass</div>
@@ -4485,7 +4486,19 @@ function updateHeading(s, H){
   if(!(wn>1e-6)){ H.ok=false; H.why='field too close to vertical'; return; }
   W=[W[0]/wn,W[1]/wn,W[2]/wn];
   const N=[W[1]*U[2]-W[2]*U[1], W[2]*U[0]-W[0]*U[2], W[0]*U[1]-W[1]*U[0]];
-  // +y's northward and eastward parts (east = -west)
+  // The absolute azimuth: where the probe's LOWER END points, clockwise from north -- the long axis
+  // (+x when it hangs normally, -x when it is upside down), as a borehole survey gives it. Undefined
+  // within 2 degrees of vertical, where the horizontal part of the axis is too small to have a direction.
+  const sg = U[0] < 0 ? 1 : -1, xn = sg*N[0], xe = -sg*W[0], xh = Math.hypot(xn, xe);
+  if(xh < Math.sin(2*Math.PI/180)){ H.azOk=false; H.azWhy='vertical: no azimuth (tilt it past 2°)'; }
+  else {
+    const dtA = H.tAz==null ? 1e9 : s.t-H.tAz; H.tAz=s.t;
+    const kA = !H.azOk || !(dtA>0) || dtA>1 ? 1 : 1-Math.exp(-dtA/HDG_TAU);
+    H.ac = (H.azOk ? H.ac : 0) + kA*(xn/xh - (H.azOk ? H.ac : 0));
+    H.as = (H.azOk ? H.as : 0) + kA*(xe/xh - (H.azOk ? H.as : 0));
+    H.az = ((Math.atan2(H.as, H.ac)*180/Math.PI)%360+360)%360; H.azOk=true; H.azWhy='';
+  }
+  // +y's northward and eastward parts (east = -west): the relative heading
   const n=N[1], e=-W[1], hz=Math.hypot(n,e);
   if(hz<0.2){ H.ok=false; H.why='y axis close to vertical -- no bearing'; return; }
   const dt = H.tLast===null ? 1e9 : s.t-H.tLast; H.tLast=s.t;
@@ -4494,7 +4507,10 @@ function updateHeading(s, H){
   H.deg = ((Math.atan2(H.s,H.c)*180/Math.PI)%360+360)%360;
   H.ok=true; H.why='';
 }
-const hdgShown = (H=HDG) => H.ok ? (((H.deg+hdgDecl)%360)+360)%360 : null;
+// what the compass shows: the absolute azimuth of the lower end (default) or the relative heading of +y
+let compassAbs = (() => { try{ return localStorage.getItem('bl_compass') !== 'rel'; }catch(e){ return true; } })();
+const hdgShown = (H=HDG) => compassAbs ? (H.azOk ? (((H.az+hdgDecl)%360)+360)%360 : null)
+                                        : (H.ok ? (((H.deg+hdgDecl)%360)+360)%360 : null);
 
 /* ── the compass panel, drawn like the iPhone Compass app ────────────── */
 function drawCompass(){
@@ -4564,11 +4580,12 @@ function drawCompass(){
   el('cHdgRaw').textContent = both ? hb.toFixed(1)+'°' : '—';
   el('cHdgDiff').textContent = both ? ((((hd-hb+540)%360)-180)>=0?'+':'')+((((hd-hb+540)%360)-180)).toFixed(1)+'°' : '—';
   el('cView').textContent = viewName.toLowerCase();
-  if(!live){ g.font='12px '+FONT; g.fillStyle='#8a99a6'; g.fillText(HDG.why, cx, cy); }
+  if(!live){ g.font='12px '+FONT; g.fillStyle='#8a99a6'; g.fillText(compassAbs ? (HDG.azWhy || HDG.why) : HDG.why, cx, cy+R*0.45); }
   // the readouts beside it
   el('cHdg').textContent = live ? hd.toFixed(1)+'°' : '—';
   el('cCard').textContent = live ? card8(hd) : '—';
-  el('cRef').textContent = hdgDecl ? 'true north (declination '+(hdgDecl>0?'+':'')+hdgDecl+'°)' : 'magnetic north';
+  el('cRef').textContent = (compassAbs ? 'lower end of the probe, from ' : '+y axis, from ')+(hdgDecl ? 'true north (declination '+(hdgDecl>0?'+':'')+hdgDecl+'°)' : 'magnetic north');
+  el('cHdgLbl').textContent = compassAbs ? 'Azimuth' : 'Relative heading';
   el('cTilt').textContent = HDG.tilt===null ? '—' : HDG.tilt.toFixed(1)+'°';
   el('cCal').textContent = CAL && (calUse||calBoth) ? 'from config' : calApplied ? 'cloud fit' : 'uncalibrated';
 }
@@ -6582,6 +6599,11 @@ for(const [kind,P] of [['acc','vfAcc'],['mag','vfMag']]){
   sync();
 }
 el('btnPoseCheck').onclick = startPoseCheck;
+el('btnCompassMode').onclick = () => { compassAbs = !compassAbs;
+  try{ localStorage.setItem('bl_compass', compassAbs ? 'abs' : 'rel'); }catch(e){}
+  el('btnCompassMode').textContent = compassAbs ? 'Show relative heading' : 'Show azimuth';
+  el('cHdgLbl').textContent = compassAbs ? 'Azimuth' : 'Relative heading'; drawCompass(); dirty = true; };
+el('btnCompassMode').textContent = compassAbs ? 'Show relative heading' : 'Show azimuth';
 el('btnArrows').onclick = () => { showArrows=!showArrows;
   el('btnArrows').textContent = showArrows ? 'Hide axis arrows' : 'Show axis arrows'; dirty=true; };
 /* Accel + Mag thresholds: each field writes straight into AM */
