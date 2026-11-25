@@ -255,8 +255,9 @@ const SECTIONS = [
    cols:'id,device_serial,device_id,calibrated_at,cal_version,filename,content,sha256,size_bytes,org_id,uploaded_by,created_at', order:'calibrated_at.desc',
    name:r=>r.filename, list:[['device_serial','Probe','mono'],['calibrated_at','Calibrated','date'],['cal_version','Version','num'],['filename','File','mono'],['size_bytes','Size','bytes']]},
   {id:'field_calibrations', title:'Field calibrations', desc:'Magnetometer fits made on site, per probe and job site.', table:'field_calibrations',
-   cols:'id,device_serial,device_id,job_code,project_id,source_run_id,lat,lon,gps_accuracy_m,calibrated_at,field_ut,residual,coverage,points,filename,content,sha256,size_bytes,org_id,uploaded_by,created_at', order:'calibrated_at.desc',
-   name:r=>r.filename, list:[['device_serial','Probe','mono'],['calibrated_at','Fitted','date'],['job_code','Job code','mono'],['project_id','Job site','ref:projects'],['field_ut','Field µT','num']]},
+   cols:'id,device_serial,device_id,job_code,project_id,source_run_id,lat,lon,gps_accuracy_m,calibrated_at,field_ut,residual,coverage,points,filename,content,sha256,size_bytes,tumble_records,tumble_bytes,tumble_sha256,org_id,uploaded_by,created_at',
+   colsOld:'id,device_serial,device_id,job_code,project_id,source_run_id,lat,lon,gps_accuracy_m,calibrated_at,field_ut,residual,coverage,points,filename,content,sha256,size_bytes,org_id,uploaded_by,created_at', order:'calibrated_at.desc',
+   name:r=>r.filename, list:[['device_serial','Probe','mono'],['calibrated_at','Fitted','date'],['job_code','Job code','mono'],['project_id','Job site','ref:projects'],['field_ut','Field µT','num'],['tumble_records','Tumble records','num']]},
   {id:'probe_inbox_files', title:'Probe inbox', desc:'Files uploaded from the field, waiting for the office.', table:'probe_inbox_files', cols:'tool,object_path,bytes,created_at', order:'created_at.desc', key:r=>r.object_path,
    name:r=>String(r.object_path||'').split('/').pop(), list:[['tool','Probe','mono'],['object_path','File','file'],['bytes','Size','bytes'],['created_at','Uploaded','date']]},
   {group:'People & access'},
@@ -340,8 +341,11 @@ async function loadSection(s){
       const {d} = await api('/rest/v1/rpc/'+s.rpc, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
       const rows = s.pick(d); data[s.id] = {rows, total:rows.length};
     } else {
-      const lim = s.limit || 1000;
-      const {d, total} = await api('/rest/v1/'+s.table+'?select='+s.cols+'&order='+s.order+'&limit='+lim, {headers:{Prefer:'count=exact'}});
+      const lim = s.limit || 1000, get = cols => api('/rest/v1/'+s.table+'?select='+cols+'&order='+s.order+'&limit='+lim, {headers:{Prefer:'count=exact'}});
+      let r;
+      try{ r = await get(s.cols); }
+      catch(e){ if(!s.colsOld || !/column|does not exist/i.test(e.message)) throw e; r = await get(s.colsOld); }   // a database without the newest columns
+      const {d, total} = r;
       data[s.id] = {rows:d || [], total: total != null ? total : (d || []).length};
     }
   }catch(e){ data[s.id] = {rows:[], total:0, error:e.message}; }

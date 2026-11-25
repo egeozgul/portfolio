@@ -2127,11 +2127,12 @@ async function dbLoadList(){
   try{
     const sc = await dbJson('/rest/v1/rpc/staff_calibrations', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}) || {};
     for(const c of (sc.device||[]))
-      items.push({key:'dcal:'+c.id, src:'devcal', title:c.filename.replace(/\.json$/i,''), probe:c.device_serial, when:c.calibrated_at,
+      items.push({key:'dcal:'+c.id, src:'devcal', table:true, title:c.filename.replace(/\.json$/i,''), probe:c.device_serial, when:c.calibrated_at,
         stamp:fmtWhen(c.calibrated_at), size:c.size_bytes, filename:c.filename, content:c.content});
     for(const c of (sc.field||[]))
-      items.push({key:'fcal:'+c.id, src:'fieldcal', title:c.filename.replace(/\.json$/i,''), probe:c.device_serial, when:c.calibrated_at,
-        stamp:fmtWhen(c.calibrated_at), size:c.size_bytes, filename:c.filename, content:c.content, code:c.job_code||'', project:c.project||''});
+      items.push({key:'fcal:'+c.id, src:'fieldcal', id:c.id, title:c.filename.replace(/\.(json|bin)$/i,''), probe:c.device_serial, when:c.calibrated_at,
+        stamp:fmtWhen(c.calibrated_at), size:c.size_bytes || c.tumble_bytes, filename:c.filename, content:c.content, table:true,
+        hasTumble:!!c.has_tumble, records:c.tumble_records, code:c.job_code||'', project:c.project||''});
   }catch(e){ problems.push('calibrations: '+e.message); }
   try{
     const list = pre => dbJson('/storage/v1/object/list/probe-inbox', {method:'POST', headers:{'Content-Type':'application/json'},
@@ -2163,7 +2164,8 @@ function dbRender(){
     state.cals.some(c=>c.name===dbLoaded.get(it.key)) || state.fieldCals.some(f=>f.srcKey===dbLoaded.get(it.key)));
   const row = it => `<button class="dbitem${on(it)?' on':''}" data-k="${escH(it.key)}" type="button">
       <span class="t1">${escH(it.title)}${it.src==='run' ? (it.accepted?'<span class="tag acc">accepted</span>':'')+(it.status?`<span class="tag">${escH(it.status)}</span>`:'')
-                                       : it.src==='devcal' ? '<span class="tag">device calibration</span>' : it.src==='fieldcal' ? '<span class="tag">field calibration</span>'
+                                       : it.src==='devcal' ? '<span class="tag">device calibration</span>'
+                                       : it.src==='fieldcal' ? '<span class="tag">field calibration</span>'+(it.content==null && it.hasTumble ? '<span class="tag">raw tumble only</span>' : it.hasTumble ? '<span class="tag">+ raw tumble</span>' : '')
                                        : '<span class="tag inbox">inbox</span>'}</span>
       <span class="t2">${escH([it.client, it.project&&(it.project+(it.code?' ('+it.code+')':'')), it.bore&&('bore '+it.bore), it.stations&&(it.stations+' stations'), it.src==='inbox'&&it.code&&('job '+it.code),
         it.probe&&it.probe, it.stamp||fmtWhen(it.when), fmtKB(it.size)].filter(Boolean).join(' · '))}</span></button>`;
@@ -2190,9 +2192,10 @@ function fieldFitFrom(o){
 }
 async function dbOpenCal(it){
   if(dbLoaded.has(it.key)){ dbSay(it.title+' is already in.'); return; }
+  if(it.src==='fieldcal' && it.table && it.content==null && it.hasTumble) return dbOpenTumble(it);
   try{
     let text = it.content;                           // from the calibration tables: already here
-    if(text == null){                                // an older one in a probe inbox
+    if(text == null && !it.table){                   // an older one in a probe inbox
       dbSay('Downloading '+it.filename+'…');
       const r = await dbFetch('/storage/v1/object/'+it.bucket+'/'+it.path.split('/').map(encodeURIComponent).join('/'));
       if(!r.ok) throw new Error('HTTP '+r.status);
@@ -2220,6 +2223,26 @@ async function dbOpenCal(it){
     }
     refreshAll(); dbRender();
   }catch(e){ dbSay('Could not add '+it.filename+': '+(e.message||e), true); }
+}
+// a field calibration stored as raw tumble only: load it as a calibration recording (fitted when it loads)
+async function dbOpenTumble(it){
+  try{
+    dbSay('Downloading the raw tumble '+it.filename+'…');
+    const t = await dbJson('/rest/v1/rpc/staff_field_tumble', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p_id:it.id})});
+    if(!t || !t.tumble_b64) throw new Error('no raw tumble stored');
+    const bin = Uint8Array.from(atob(t.tumble_b64.replace(/\s/g,'')), c => c.charCodeAt(0));
+    const m = metaFromName(it.filename.replace(/\.json$/i,'.bin'));
+    const meta = Object.assign(m, {type:'calibration', note:'', started_iso:it.when||'', started_local:m.started_local || fmtWhen(it.when), source:'office database, field calibration'});
+    const before = new Set(state.datasets.map(d=>d.key));
+    const res = addDataset(binToCsv(bin.buffer, meta), it.title.replace(/[\\/]/g,'-')+' (tumble).csv');
+    if(res !== true && res !== 'already loaded') throw new Error(res);
+    const fresh = state.datasets.filter(d=>d.type==='calibration' && d.hasMag && !state.fieldCals.some(f=>f.srcIds.includes(d.id)));
+    for(const d of fresh) addFieldCal([d], true);
+    refreshAll();
+    const added = state.datasets.find(d=>!before.has(d.key)); if(added) dbLoaded.set(it.key, added.key);
+    dbSay('Loaded the raw tumble '+it.title+' under Recordings'+(fresh.length ? '; it was fitted under Field magnetometer calibration.' : '.'));
+    dbRender();
+  }catch(e){ dbSay('Could not open '+it.filename+': '+(e.message||e), true); }
 }
 async function dbOpen(it){
   if(!it) return;

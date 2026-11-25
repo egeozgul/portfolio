@@ -468,6 +468,9 @@
   .calrow{display:grid;grid-template-columns:150px minmax(200px,1fr) 70px 130px 280px;gap:8px;align-items:center;
     padding:7px 10px;border-bottom:1px solid #172029;font-family:var(--mono);font-size:11.5px}
   .calrow .cst{font-size:10.5px;white-space:nowrap} .calrow .cst.db{color:#7bd88f} .calrow .cst.up{color:var(--link)} .calrow .cst.err{color:#ff8080} .calrow .cst.wait{color:var(--dim)}
+  .fitrow{display:grid;grid-template-columns:40px minmax(140px,1fr) 80px 150px 170px;gap:8px;align-items:center;padding:6px 10px;font-family:var(--mono);font-size:11.5px;border-bottom:1px solid #172029;min-width:590px}
+  .fitrow.head{background:#131a21;color:var(--dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+  .fitrow .cst{font-size:10.5px} .fitrow .cst.db{color:#7bd88f} .fitrow .cst.up{color:var(--link)} .fitrow .cst.err{color:#ff8080} .fitrow .cst.wait{color:var(--dim)}
   .calrow.head{background:#131a21;color:var(--dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
   .calrow .btns{display:flex;gap:5px;justify-content:flex-end}
   .calrow button{padding:4px 8px;font-size:9.5px;letter-spacing:.08em}
@@ -1013,6 +1016,16 @@
         <button id="btnClearMag">Clear points</button>
       </div>
     </div>
+  </section>
+
+  <section class="mem" id="fitSyncBlock" hidden>
+    <div class="memhead"><div class="lbl">Field fits in the office database</div>
+      <div class="membtns"><button id="btnFitSync" title="Fit every calibration run again; fits already in the database are skipped">Fit and upload again</button></div></div>
+    <div class="ctlhint" style="margin-top:6px">Each calibration run on the probe is fitted here (hard and soft iron, as the survey viewer does it) and the
+      fit goes into the office database by itself when there is internet, with the run's raw readings. The runs stay on the probe.
+      A run too short to fit is stored as raw readings only; hover over it for the reason.</div>
+    <div class="sesswrap" id="fitSyncRows"></div>
+    <div class="dbmsg" id="fitSyncMsg"></div>
   </section>
 
     <section class="mem" id="calRuns">
@@ -2707,6 +2720,7 @@ function renderKindList(boxId, kind){
 }
 function renderSessions(){
   if(typeof QCV!=='undefined') QCV.refresh();
+  if(typeof renderFitSync==='function' && window.localIndex){ renderFitSync(); if(INBOX && onProbe && !fitBusy) fitSyncSoon(); }
   renderKindList('boreRunsRows', 0);
   renderKindList('calRunsRows', 1);
   const box=el('sessRows');
@@ -4295,6 +4309,7 @@ function calLoadText(txt, src){
   if(!o || typeof o!=='object' || Array.isArray(o) || (!o.accel && !o.mag)){
     log('That file has no accel or mag calibration in it.','err'); return false; }
   CAL=calBuild(o); CAL.src = src || 'file'; CAL.json = o;
+  if(src === 'board') BOARD_CAL = o;
   CALB.loaded = o; cbRender();          // the calibration wizard starts from it
   el('chkCalUse').disabled=false; el('chkCalBoth').disabled=false;
   calStatus();
@@ -6731,7 +6746,8 @@ async function calSaveToProbe(){
 el('cbSaveProbe').onclick = calSaveToProbe;
 el('btnCalFilesRefresh').onclick = calListRequest;
 el('btnCalFilesUp').onclick = () => calSync(true);
-addEventListener('online', () => calSync(false));
+addEventListener('online', () => { calSync(false); fitSyncSoon(); });
+el('btnFitSync').onclick = () => fitSync(true);
 addEventListener('offline', () => renderCalFiles());
 el('btnUpCal').onclick = uploadFieldFit;
 
@@ -7761,8 +7777,290 @@ async function inboxLoad(){                // the probe's page only: is a login 
   inboxTok = null;
   renderInbox(); renderLocal(); renderSessions(); setButtons();
   if(INBOX && navigator.onLine) inboxToken().then(() => { renderInbox(); processQueue(); }, e => dbMsg(e.message, 1));
-  if(INBOX) calSyncSoon();
+  if(INBOX){ calSyncSoon(); fitSyncSoon(); }
 }
+
+/* ── Field fits from the probe's calibration recordings, into the office database ──
+   Every calibration recording on the probe (a tumble) is fitted here, with the survey viewer's own
+   field fit (the same code: clean readings only, outliers dropped, soft iron only when the tumble
+   pointed in enough directions, graded Good / Usable / Poor), and the result goes into
+   field_calibrations through add_field_calibration(), with the recording's raw bytes when the
+   database takes them (0020). The stored fit is made only from the recording (its time, position,
+   readings), never from the time of upload, so fitting it again gives the same file and the database
+   answers "already". A tumble too short to fit is listed with the reason. Never while recording or
+   reading a run; the recording stays on the probe. */
+const MAGFIT = (function(){
+const mv = (R,v) => [R[0][0]*v[0]+R[0][1]*v[1]+R[0][2]*v[2], R[1][0]*v[0]+R[1][1]*v[1]+R[1][2]*v[2], R[2][0]*v[0]+R[2][1]*v[1]+R[2][2]*v[2]];
+const norm = a => Math.hypot(a[0],a[1],a[2]);
+function jacobiEig(S){
+  const a = S.map(r=>r.slice()), V = [[1,0,0],[0,1,0],[0,0,1]];
+  for(let sweep=0; sweep<50; sweep++){
+    let off = 0; for(let p=0;p<3;p++) for(let q=p+1;q<3;q++) off += a[p][q]*a[p][q];
+    if(off < 1e-24) break;
+    for(let p=0;p<3;p++) for(let q=p+1;q<3;q++){
+      if(Math.abs(a[p][q]) < 1e-300) continue;
+      const th = (a[q][q]-a[p][p])/(2*a[p][q]);
+      const t = Math.sign(th||1)/(Math.abs(th)+Math.sqrt(th*th+1)), c = 1/Math.sqrt(t*t+1), s = t*c;
+      for(let k=0;k<3;k++){ const akp=a[k][p], akq=a[k][q]; a[k][p]=c*akp-s*akq; a[k][q]=s*akp+c*akq; }
+      for(let k=0;k<3;k++){ const apk=a[p][k], aqk=a[q][k]; a[p][k]=c*apk-s*aqk; a[q][k]=s*apk+c*aqk; }
+      for(let k=0;k<3;k++){ const vkp=V[k][p], vkq=V[k][q]; V[k][p]=c*vkp-s*vkq; V[k][q]=s*vkp+c*vkq; }
+    }
+  }
+  return {vals:[a[0][0],a[1][1],a[2][2]], vecs:V};       // columns of V are eigenvectors
+}
+function symFn(S, fn){                                      // V diag(fn(l)) V^T
+  const {vals, vecs:V} = jacobiEig(S), d = vals.map(fn), R = [[0,0,0],[0,0,0],[0,0,0]];
+  for(let i=0;i<3;i++) for(let j=0;j<3;j++){ let s=0; for(let k=0;k<3;k++) s += V[i][k]*d[k]*V[j][k]; R[i][j]=s; }
+  return R;
+}
+function solveLS(rows, rhs){                                // normal equations + Gauss-Jordan
+  const n = rows[0].length, A = Array.from({length:n},()=>new Float64Array(n+1));
+  for(let r=0;r<rows.length;r++){ const x=rows[r];
+    for(let i=0;i<n;i++){ A[i][n]+=x[i]*rhs[r]; for(let j=0;j<n;j++) A[i][j]+=x[i]*x[j]; } }
+  for(let c=0;c<n;c++){
+    let p=c; for(let r=c+1;r<n;r++) if(Math.abs(A[r][c])>Math.abs(A[p][c])) p=r;
+    if(Math.abs(A[p][c]) < 1e-12) return null;
+    [A[c],A[p]]=[A[p],A[c]];
+    for(let r=0;r<n;r++) if(r!==c){ const k=A[r][c]/A[c][c]; for(let j=c;j<=n;j++) A[r][j]-=k*A[c][j]; }
+  }
+  return Array.from({length:n},(_,i)=>A[i][n]/A[i][i]);
+}
+const det3 = M => M[0][0]*(M[1][1]*M[2][2]-M[1][2]*M[2][1]) - M[0][1]*(M[1][0]*M[2][2]-M[1][2]*M[2][0]) + M[0][2]*(M[1][0]*M[2][1]-M[1][1]*M[2][0]);
+function inv3(M){
+  const [a,b,c]=M[0],[d,e,f]=M[1],[g,h,i]=M[2], A=e*i-f*h, B=-(d*i-f*g), C=d*h-e*g, D=a*A+b*B+c*C;
+  return [[A/D,-(b*i-c*h)/D,(b*f-c*e)/D],[B/D,(a*i-c*g)/D,-(a*f-c*d)/D],[C/D,-(a*h-b*g)/D,(a*e-b*d)/D]];
+}
+/* 72 equal-area direction bins, the debug page's coverage measure */
+function coverageOf(pts, center, W){
+  const bins = new Uint8Array(72);
+  for(const p of pts){
+    const u = mv(W, [p[0]-center[0], p[1]-center[1], p[2]-center[2]]), r = norm(u); if(!(r>0)) continue;
+    const lon = (Math.atan2(u[1],u[0])+Math.PI)/(2*Math.PI), lat = (u[2]/r+1)/2;
+    bins[Math.min(11,(lon*12)|0)*6 + Math.min(5,(lat*6)|0)] = 1;
+  }
+  let h=0; for(const b of bins) h+=b; return h/72;
+}
+/* raw magnetometer points of one or more recordings, thinned so that time
+   spent still in one pose does not outweigh the rest of the tumble */
+function tumblePoints(dsList){
+  const pts = [];
+  for(const ds of dsList){
+    let last = null;
+    for(let i=0;i<ds.n;i++){
+      if(ds.badM[i]) continue;
+      const p = [ds.d.mx[i], ds.d.my[i], ds.d.mz[i]];
+      if(!p.every(isFinite)) continue;
+      if(last && Math.hypot(p[0]-last[0],p[1]-last[1],p[2]-last[2]) < 0.5) continue;   // 0.5 uT
+      pts.push(p); last = p;
+    }
+  }
+  return pts;
+}
+function residuals(pts, c, W, R){
+  return pts.map(p => norm(mv(W,[p[0]-c[0],p[1]-c[1],p[2]-c[2]])) - R);
+}
+function fitEllipsoid(pts){
+  const s = 50, rows = pts.map(([x,y,z]) => { x/=s; y/=s; z/=s; return [x*x,y*y,z*z,2*x*y,2*x*z,2*y*z,2*x,2*y,2*z]; });
+  const p = solveLS(rows, rows.map(()=>1)); if(!p) return null;
+  const A = [[p[0],p[3],p[4]],[p[3],p[1],p[5]],[p[4],p[5],p[2]]], v = [p[6],p[7],p[8]];
+  const Ai = inv3(A); const c = mv(Ai, v).map(x=>-x);
+  const k = 1 + c[0]*(A[0][0]*c[0]+A[0][1]*c[1]+A[0][2]*c[2]) + c[1]*(A[1][0]*c[0]+A[1][1]*c[1]+A[1][2]*c[2]) + c[2]*(A[2][0]*c[0]+A[2][1]*c[1]+A[2][2]*c[2]);
+  const M = A.map(r=>r.map(x=>x/k)), ev = jacobiEig(M).vals;
+  if(!(k > 0) || ev.some(l => !(l > 0))) return null;         // not an ellipsoid
+  const W0 = symFn(M, Math.sqrt), g = Math.cbrt(det3(W0));
+  const W = W0.map(r=>r.map(x=>x/g));                          // determinant 1
+  const semi = ev.map(l => 1/Math.sqrt(l)*s);
+  return {hi:c.map(x=>x*s), SI:W, R:s/g, axisRatio: Math.max(...semi)/Math.min(...semi)};
+}
+function fitSphere(pts, SIlab){                                // hard iron only, keeping the lab soft iron
+  const u = pts.map(p=>mv(SIlab,p));
+  const q = solveLS(u.map(([x,y,z])=>[2*x,2*y,2*z,1]), u.map(([x,y,z])=>x*x+y*y+z*z)); if(!q) return null;
+  const c = [q[0],q[1],q[2]], R = Math.sqrt(q[3]+c[0]*c[0]+c[1]*c[1]+c[2]*c[2]);
+  return {hi: mv(inv3(SIlab), c), SI: SIlab.map(r=>r.slice()), R};
+}
+/* The whole procedure. Returns the fit and a plain-language verdict. */
+function fieldMagFit(points, SIlab){
+  SIlab = SIlab || [[1,0,0],[0,1,0],[0,0,1]];
+  let pts = points.slice();
+  if(pts.length < 150) return {error:`only ${pts.length} distinct magnetometer readings; a tumble needs a few hundred`};
+  // A turn about one axis draws a flat ring, which says nothing about the third
+  // direction. Measured without any fitted centre: the cloud's thinnest
+  // dimension against its widest (a full tumble is about 1, a ring near 0).
+  const mean = [0,1,2].map(k=>pts.reduce((a,p)=>a+p[k],0)/pts.length);
+  const Cv = [0,1,2].map(i=>[0,1,2].map(j=>pts.reduce((a,p)=>a+(p[i]-mean[i])*(p[j]-mean[j]),0)/pts.length));
+  const ev = jacobiEig(Cv).vals.sort((a,b)=>a-b), flat = ev[0]/ev[2];
+  if(flat < 0.05) return {error:'the readings lie almost in one plane, as when the probe is turned about one axis only (in a hole, for example). That cannot calibrate the magnetometer; tumble it through every direction', coverage:0};
+  // direction coverage judged on a rough centre first
+  const pre = fitSphere(pts, [[1,0,0],[0,1,0],[0,0,1]]);
+  if(!pre) return {error:'the readings do not define a centre'};
+  const cov0 = coverageOf(pts, pre.hi, [[1,0,0],[0,1,0],[0,0,1]]);
+  if(cov0 < 0.25) return {error:`the probe only pointed in ${Math.round(cov0*100)}% of directions; tumble it through every direction, including upside down`, coverage:cov0};
+  let mode = cov0 >= 0.6 ? 'full' : 'hard', note = '';
+  const run = (P) => mode==='full' ? (fitEllipsoid(P) || (mode='hard', note='the full fit did not converge, so only hard iron was fitted', fitSphere(P, SIlab))) : fitSphere(P, SIlab);
+  let f = run(pts); if(!f) return {error:'the fit did not converge'};
+  // one outlier pass: drop readings far off the fitted shell (knocks, nearby steel)
+  let r = residuals(pts, f.hi, f.SI, f.R), sd = Math.sqrt(r.reduce((a,v)=>a+v*v,0)/r.length);
+  const lim = Math.max(3*sd, 0.02*f.R), kept = pts.filter((_,i)=>Math.abs(r[i]) <= lim), dropped = pts.length-kept.length;
+  if(dropped && kept.length >= 150){ const f2 = run(kept); if(f2){ f = f2; pts = kept; } }
+  r = residuals(pts, f.hi, f.SI, f.R); sd = Math.sqrt(r.reduce((a,v)=>a+v*v,0)/r.length);
+  const spread = 100*sd/f.R, coverage = coverageOf(pts, f.hi, f.SI);
+  if(mode==='hard' && !note) note = `the probe pointed in only ${Math.round(cov0*100)}% of directions, too few to fit soft iron, so only hard iron was fitted and the lab soft iron kept`;
+  const quality = spread < 1 && coverage >= 0.8 ? 'Good' : spread < 2 && coverage >= 0.5 ? 'Usable' : 'Poor';
+  const warn = [];
+  if(f.R < 20 || f.R > 70) warn.push(`field strength ${f.R.toFixed(1)} µT is outside the Earth’s 20–70 µT: steel or a magnet was close`);
+  if(spread >= 2) warn.push(`readings sit ${spread.toFixed(1)}% off the fitted shell: the field changed during the tumble, often from moving past metal`);
+  if(f.axisRatio && f.axisRatio > 1.3) warn.push(`strong distortion (axes differ by ${Math.round((f.axisRatio-1)*100)}%): check for steel attached to the probe`);
+  return {hi:f.hi, SI:f.SI, R:f.R, mode, note, spread, coverage, n:pts.length, dropped, quality, warn};
+}
+return {fit: fieldMagFit};
+})();
+let BOARD_CAL = null;                                 // the probe's own config.json, when it has been read
+const fitState = {};                                  // run key -> {st, why, quality, ut, raw}
+let fitBusy = false, fitAgain = false, fitForce = false, fitMsg = '', fitNoTumble = false;
+const fitMemKey = () => 'bl_fitsync_'+(INBOX && INBOX.tool || '');
+function fitMem(){ try{ return JSON.parse(localStorage.getItem(fitMemKey()) || '{}'); }catch(e){ return {}; } }
+function fitRemember(k, v){ try{ const o = fitMem(); o[k] = v; localStorage.setItem(fitMemKey(), JSON.stringify(o)); }catch(e){} }
+const r4 = (x, n) => +(+x).toFixed(n);
+const b64of = u => { let t = ''; for(let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(t); };
+// the recording's own local time, with the offset the phone had then (s.tz, minutes east of UTC)
+function sessionIso(s){
+  if(!s.epoch) return null;
+  const tz = s.tz || 0, d = new Date((s.epoch + tz*60) * 1000), sg = tz >= 0 ? '+' : '-', a = Math.abs(tz);
+  return d.getUTCFullYear()+'-'+pad2(d.getUTCMonth()+1)+'-'+pad2(d.getUTCDate())+'T'+pad2(d.getUTCHours())+':'+pad2(d.getUTCMinutes())+':'+pad2(d.getUTCSeconds())+
+         sg+pad2(Math.floor(a/60))+':'+pad2(a%60);
+}
+// the recording's bytes: the copy kept here, else read off the probe (kept by that read); what was shown stays
+async function calRunBytes(s){
+  const key = runKey(s);
+  if(localIndex.has(key)){ const b = await ldbGetBytes(key); if(b) return new Uint8Array(b); }
+  const prev = {dumped, dumpedRaw, dataSession};
+  try{
+    await readSessionAsync(s);
+    if(dumped.length !== s.count) throw new Error('read '+dumped.length+' of '+s.count+' records');
+    let n = 0; for(const c of dumpedRaw) n += c.length;
+    const u = new Uint8Array(n); let o = 0; for(const c of dumpedRaw){ u.set(c, o); o += c.length; }
+    return u;
+  } finally { dumped = prev.dumped; dumpedRaw = prev.dumpedRaw; dataSession = prev.dataSession; setButtons(); }
+}
+function magPointsOf(u){                             // clean raw readings, thinned to 0.5 uT steps (as the viewer)
+  const pts = []; let last = null;
+  for(let o = 0; o + REC_SIZE <= u.length; o += REC_SIZE){
+    const r = decodeRec(u, o); if(r.health[2] !== '1') continue;
+    const q = [r.mx, r.my, r.mz]; if(!q.every(isFinite)) continue;
+    if(last && Math.hypot(q[0]-last[0], q[1]-last[1], q[2]-last[2]) < 0.5) continue;
+    pts.push(q); last = q;
+  }
+  return pts;
+}
+function fitDoc(s, f){
+  const serial = (probeInfo && probeInfo.serial) || el('brandName').textContent || 'probe';
+  const m = BOARD_CAL && BOARD_CAL.mag;
+  return {format:'borelogger-field-mag-calibration', serial, calibrated_at:sessionIso(s),
+    source:{kind:'calibration recording', session:s.seq+1, note:s.note || '', flash_start:s.start, records:s.count,
+            sample_hz:s.sampleMs ? r4(1000/s.sampleMs, 3) : null},
+    note:'m_cal = W * (m_raw - b), microtesla, raw magnetometer axes', mode:f.mode,
+    hard_iron_b:f.hi.map(x => r4(x, 4)), soft_iron_W:f.SI.map(r => r.map(x => r4(x, 6))), field_uT:r4(f.R, 3),
+    residual:r4(f.spread/100, 5), coverage:r4(f.coverage, 3), points:f.n, dropped:f.dropped, quality:f.quality,
+    warnings:f.warn, fit_note:f.note || null,
+    lat:s.gps ? s.lat : null, lon:s.gps ? s.lon : null, gps_accuracy_m:s.gps ? s.acc : null,
+    lab_soft_iron:m && Array.isArray(m.soft_iron) ? 'probe config.json' : 'none (identity)',
+    method:'BoreLogger field fit (survey viewer method) v1', made_by:'BoreLogger logger app'};
+}
+function fitSyncSoon(tries = 0){
+  if(!INBOX || !onProbe) return;
+  if(!chCtrl || dumpActive || recording || (!BOARD_CAL && tries < 15)){ if(tries < 90) setTimeout(() => fitSyncSoon(tries+1), 2000); return; }
+  fitSync(false);
+}
+async function fitSync(force){
+  if(!INBOX || !onProbe || !chCtrl) return;
+  if(fitBusy){ fitAgain = true; fitForce = fitForce || !!force; return; }
+  const cals = sessionsList.filter(x => x.kind && x.count);
+  if(!cals.length){ renderFitSync(); return; }
+  if(!navigator.onLine){ fitMsg = 'Waiting for internet.'; renderFitSync(); return; }
+  fitBusy = true;
+  let added = 0, had = 0, stop = null;
+  try{
+    await inboxToken();
+    const mem = force ? {} : fitMem();
+    for(const s of cals){ const k = runKey(s); if(mem[k] && !fitState[k]) fitState[k] = mem[k]; }
+    for(const s of cals){
+      const k = runKey(s), f0 = fitState[k];
+      // done: stored with its tumble (or the database cannot take tumbles yet), or too short to fit
+      if(!force && f0 && ((f0.st === 'skip' && (f0.final || fitNoTumble)) || (f0.st === 'db' && (f0.raw || fitNoTumble)))) continue;
+      if(recording || dumpActive){ fitAgain = true; break; }
+      fitState[k] = {st:'up'}; renderFitSync();
+      try{
+        const u = await calRunBytes(s);
+        const m = BOARD_CAL && BOARD_CAL.mag, SI = m && Array.isArray(m.soft_iron) && m.soft_iron.length === 3 ? m.soft_iron : null;
+        const f = MAGFIT.fit(magPointsOf(u), SI);
+        if(!s.epoch){ fitState[k] = {st:'skip', final:true, why:'the recording has no clock time, so it has no date'}; fitRemember(k, fitState[k]); continue; }
+        if(f.error){                                    // too short to fit: keep the raw tumble alone (0020), else list it
+          const job = (INBOX.job || '').trim(), serial = (probeInfo && probeInfo.serial) || el('brandName').textContent || 'probe';
+          let stored = false;
+          if(!fitNoTumble){
+            try{
+              const name = ('fieldtumble_'+serial+'_'+runStamp(s)+'_'+(s.note || 'cal'+(s.seq+1))).replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 110)+'.bin';
+              const res = await probeRpc('add_field_calibration', {p_filename:name, p_tumble_b64:b64of(u), p_calibrated_at:sessionIso(s), p_job_code:job || null,
+                p_lat:s.gps ? s.lat : null, p_lon:s.gps ? s.lon : null, p_gps_accuracy_m:s.gps ? s.acc : null});
+              res && res.already ? had++ : added++; stored = true;
+            }catch(e){ if(/p_tumble_b64|p_calibrated_at|could not find the function|schema cache/i.test(e.message)) fitNoTumble = true; else throw e; }
+          }
+          fitState[k] = stored ? {st:'db', raw:true, rawOnly:true, why:f.error} : {st:'skip', why:f.error};
+          fitRemember(k, fitState[k]); renderFitSync(); continue;
+        }
+        const doc = fitDoc(s, f), job = (INBOX.job || '').trim();
+        const name = ('fieldmag_'+doc.serial+'_'+runStamp(s)+'_'+(s.note || 'cal'+(s.seq+1))).replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 110)+'.json';
+        const args = {p_filename:name, p_content:JSON.stringify(doc, null, 2)+'\n', p_job_code:job || null,
+                      p_lat:doc.lat, p_lon:doc.lon, p_gps_accuracy_m:doc.gps_accuracy_m};
+        let res = null, raw = false;
+        if(!fitNoTumble){
+          try{ res = await probeRpc('add_field_calibration', Object.assign({p_tumble_b64:b64of(u)}, args)); raw = true; }
+          catch(e){ if(/p_tumble_b64|could not find the function|schema cache/i.test(e.message)) fitNoTumble = true; else throw e; }
+        }
+        if(!res) res = await probeRpc('add_field_calibration', args);     // a database without 0020: the fit alone
+        res && res.already && !(res.tumble_added) ? had++ : added++;
+        fitState[k] = {st:'db', quality:f.quality, ut:doc.field_uT, raw}; fitRemember(k, fitState[k]);
+      }catch(e){
+        fitState[k] = {st: e.message === 'no internet' ? 'wait' : 'err', why:e.message};
+        if(e.message === 'no internet' || e.stop){ stop = e.message; break; }
+        log('Field fit of calibration run '+(s.seq+1)+' not stored: '+e.message, 'err');
+      }
+      renderFitSync();
+    }
+  } catch(e){ stop = e.message; }
+  finally{ fitBusy = false; }
+  const n = cals.length, done = cals.filter(s => fitState[runKey(s)] && fitState[runKey(s)].st === 'db').length,
+        sk = cals.filter(s => fitState[runKey(s)] && fitState[runKey(s)].st === 'skip').length;
+  fitMsg = stop ? (stop === 'no internet' ? 'Waiting for internet.' : stop)
+                : done+' of '+n+' calibration run'+(n>1?'s':'')+' fitted and in the office database'+(sk ? ', '+sk+' too short to fit' : '')+'.';
+  if(added) log('Field fits to the office database: '+added+' added'+(had ? ', '+had+' already there' : '')+'.', 'ok');
+  renderFitSync();
+  if(fitAgain){ const f = fitForce; fitAgain = false; fitForce = false; setTimeout(() => f ? fitSync(true) : fitSyncSoon(), f ? 300 : 3000); }
+}
+function renderFitSync(){
+  const box = el('fitSyncRows'); if(!box) return;
+  const on = onProbe && !DB_UPLOAD && !!INBOX;
+  el('fitSyncBlock').hidden = !on;
+  if(!on) return;
+  const cals = sessionsList.filter(x => x.kind && x.count).sort((a, b) => b.seq - a.seq);
+  el('fitSyncMsg').textContent = fitMsg;
+  if(!cals.length){ box.innerHTML = '<div class="sessempty">No calibration runs on this probe.</div>'; return; }
+  const frag = document.createDocumentFragment(), h = document.createElement('div');
+  h.className = 'fitrow head'; h.innerHTML = '<span>#</span><span>Note</span><span>Records</span><span>Fit</span><span>Office database</span>'; frag.appendChild(h);
+  for(const s of cals){
+    const f = fitState[runKey(s)] || {}, d = document.createElement('div');
+    d.className = 'fitrow'; d.innerHTML = '<span></span><span></span><span></span><span></span><span class="cst"></span>';
+    d.children[0].textContent = s.seq+1; d.children[1].textContent = s.note || '—'; d.children[2].textContent = s.count.toLocaleString();
+    d.children[3].textContent = f.st === 'db' ? (f.rawOnly ? 'too short to fit' : f.quality+(f.ut ? ' · '+f.ut.toFixed(1)+' µT' : '')) : f.st === 'skip' ? 'not fitted' : '—';
+    const c = d.children[4];
+    c.className = 'cst '+(f.st === 'db' ? 'db' : f.st === 'up' ? 'up' : f.st === 'err' ? 'err' : 'wait');
+    c.textContent = f.st === 'db' ? (f.rawOnly ? 'raw readings in database ✓' : 'in database ✓'+(f.raw ? ' + raw' : '')) : f.st === 'up' ? 'fitting…' : f.st === 'skip' ? 'too short' : f.st === 'err' ? 'refused' : navigator.onLine ? 'not yet' : 'waiting for internet';
+    if(f.why) c.title = f.why;
+    frag.appendChild(d);
+  }
+  box.replaceChildren(frag);
+}
+
 // once the cable link is up and the probe login is known: list the calibration files (the sync follows)
 function calSyncSoon(tries = 0){
   if(!INBOX || !onProbe) return;
@@ -7969,7 +8267,7 @@ el('btnInboxSave').onclick = async () => {
   if(!r.ok){ INBOX = old; renderInbox(); dbMsg('Could not keep it on the probe: '+r.error, 1); return; }
   el('inboxPass').value = '';
   dbMsg('Kept on the probe. Runs upload into probe-inbox/'+INBOX.tool+'/.'+(INBOX.job ? '' : ' Type the job code to start.'));
-  renderInbox(); renderLocal(); renderSessions(); setButtons(); processQueue(); calSyncSoon();
+  renderInbox(); renderLocal(); renderSessions(); setButtons(); processQueue(); calSyncSoon(); fitSyncSoon();
 };
 el('inboxPass').addEventListener('keydown', e => { if(e.key==='Enter') el('btnInboxSave').click(); });
 el('inboxJob').onchange = async () => {
