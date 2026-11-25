@@ -446,6 +446,11 @@ function openRecord(sid, key, quiet){
     h += '<div class="sub-h">Stations · '+st.length+'</div>' + (st.length ? '<div class="mini tw"><table><thead><tr><th class="num">Depth m</th><th class="num">Inc °</th><th class="num">Azi °</th></tr></thead><tbody>'+
       st.slice(0, 300).map(x => '<tr><td class="num">'+esc(fmtNum(x.depth_m))+'</td><td class="num">'+esc(fmtNum(x.inclination))+'</td><td class="num">'+esc(fmtNum(x.azimuth))+'</td></tr>').join('')+'</tbody></table></div>' : '<div class="status">None loaded for this run.</div>');
   }
+  if(sid === 'field_calibrations' && r.tumble_records){   // its raw tumble, fetched on request
+    h += '<div class="sub-h">Raw tumble · '+r.tumble_records.toLocaleString()+' records · '+esc(fmtBytes(r.tumble_bytes))+'</div>'+
+         '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-tumble="'+esc(r.id)+'">Show the readings</button>'+
+         '<button class="btn" type="button" data-tumbledl="'+esc(r.id)+'">Download .bin</button></div><div id="tumbleBox"></div>';
+  }
   if(sid === 'projects'){                             // its bores
     const b = ((data.bores && data.bores.rows) || []).filter(x => String(x.project_id) === String(r.id));
     h += '<div class="sub-h">Bores · '+b.length+'</div>' + (b.length ? '<div class="mini"><table><tbody>'+b.map(x => '<tr><td><a data-go="bores" data-k="'+esc(x.id)+'" style="color:var(--accent);cursor:pointer">'+esc(x.name)+'</a></td><td>'+esc(x.design_type||'')+'</td></tr>').join('')+'</tbody></table></div>' : '<div class="status">None.</div>');
@@ -470,6 +475,50 @@ $('sections').addEventListener('click', e => {
 });
 $('sections').addEventListener('keydown', e => {
   const tr = e.target.closest('tbody tr[data-s]'); if(tr && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); openRecord(tr.dataset.s, tr.dataset.k); }
+});
+/* ---------- a raw tumble: the probe's 32-byte records ---------- */
+const tumbles = {};                                  // id -> {bytes, filename}
+async function getTumble(id){
+  if(tumbles[id]) return tumbles[id];
+  const {d} = await api('/rest/v1/rpc/staff_field_tumble', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p_id:id})});
+  if(!d || !d.tumble_b64) throw new Error('no raw tumble is stored for this calibration');
+  const bin = Uint8Array.from(atob(d.tumble_b64.replace(/\s/g, '')), c => c.charCodeAt(0));
+  return tumbles[id] = {bytes:bin, filename:d.filename || 'tumble'};
+}
+function tumbleTable(u){
+  const dv = new DataView(u.buffer, u.byteOffset, u.byteLength), n = Math.floor(u.byteLength / 32), rows = [], show = Math.min(n, 2000);
+  const f = (v, k) => v == null ? '' : v.toFixed(k);
+  for(let i = 0; i < show; i++){
+    const b = i*32, gx = dv.getInt16(b+10, true), p = dv.getInt32(b+16, true), mx = dv.getInt16(b+22, true), mv = dv.getUint16(b+30, true);
+    const okI = gx !== -32768, okB = p !== -1, okM = mx !== -32768;
+    rows.push('<tr><td class="num">'+(dv.getUint32(b, true)/1000).toFixed(3)+'</td>'+
+      [okI ? dv.getInt16(b+4, true)/16384 : null, okI ? dv.getInt16(b+6, true)/16384 : null, okI ? dv.getInt16(b+8, true)/16384 : null].map(v => '<td class="num">'+f(v, 4)+'</td>').join('')+
+      [okI ? gx*0.00875 : null, okI ? dv.getInt16(b+12, true)*0.00875 : null, okI ? dv.getInt16(b+14, true)*0.00875 : null].map(v => '<td class="num">'+f(v, 2)+'</td>').join('')+
+      '<td class="num">'+f(okB ? p/10 : null, 1)+'</td><td class="num">'+f(okB ? dv.getInt16(b+20, true)/100 : null, 2)+'</td>'+
+      [okM ? mx/75 : null, okM ? dv.getInt16(b+24, true)/75 : null, okM ? dv.getInt16(b+26, true)/75 : null].map(v => '<td class="num">'+f(v, 2)+'</td>').join('')+
+      '<td class="num">'+(mv ? (mv/1000).toFixed(3) : '')+'</td><td class="mono">'+(okI?'1':'0')+(okB?'1':'0')+(okM?'1':'0')+'1'+(mv?'1':'0')+'</td></tr>');
+  }
+  return '<div class="status" style="margin:10px 0 6px">'+n.toLocaleString()+' records'+(n > show ? ', the first '+show.toLocaleString()+' shown' : '')+
+    '. Units: time s, accel g, gyro °/s, pressure hPa, water °C, mag µT, battery V; health: IMU, baro, mag, flash, battery (1 = working).</div>'+
+    '<div class="mini tw" style="max-height:420px;overflow:auto"><table><thead><tr><th class="num">t</th><th class="num">ax</th><th class="num">ay</th><th class="num">az</th>'+
+    '<th class="num">gx</th><th class="num">gy</th><th class="num">gz</th><th class="num">press</th><th class="num">temp</th><th class="num">mx</th><th class="num">my</th><th class="num">mz</th>'+
+    '<th class="num">batt</th><th>health</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
+}
+$('pBody').addEventListener('click', async e => {
+  const t = e.target.closest('[data-tumble]'), dl = e.target.closest('[data-tumbledl]');
+  if(!t && !dl) return;
+  const id = (t || dl).dataset.tumble || (t || dl).dataset.tumbledl, box = $('tumbleBox'), btn = t || dl;
+  btn.disabled = true; if(t) box.innerHTML = '<div class="status">Fetching the raw tumble…</div>';
+  try{
+    const tb = await getTumble(id);
+    if(t) box.innerHTML = tumbleTable(tb.bytes);
+    else {
+      const url = URL.createObjectURL(new Blob([tb.bytes], {type:'application/octet-stream'}));
+      const a = document.createElement('a'); a.href = url; a.download = tb.filename.replace(/\.json$/i, '') .replace(/\.bin$/i, '') + (/\.bin$/i.test(tb.filename) ? '.bin' : '_tumble.bin');
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+  }catch(err){ box.innerHTML = '<div class="status err">Could not fetch the raw tumble: '+esc(err.message)+'</div>'; }
+  finally{ btn.disabled = false; }
 });
 $('pBody').addEventListener('click', e => {
   const go = e.target.closest('[data-go]'); if(go){ e.preventDefault(); openRecord(go.dataset.go, go.dataset.k); return; }

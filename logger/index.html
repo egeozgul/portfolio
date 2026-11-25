@@ -888,6 +888,7 @@
       <div id="inboxOn" class="dbform" hidden>
         <div><label for="inboxJob">Job code (starts each file name)</label><input id="inboxJob" placeholder="J-2026-005" autocomplete="off"></div>
         <div><label>Uploads go to</label><div class="covnote" id="inboxWho" style="padding:7px 0"></div></div>
+        <div><label class="tog" style="margin-top:18px"><input type="checkbox" id="chkAutoRuns"> Upload runs automatically</label></div>
         <div><button id="btnInboxForget">Remove the login</button></div>
       </div>
     </div>
@@ -2720,7 +2721,7 @@ function renderKindList(boxId, kind){
 }
 function renderSessions(){
   if(typeof QCV!=='undefined') QCV.refresh();
-  if(typeof renderFitSync==='function' && window.localIndex){ renderFitSync(); if(INBOX && onProbe && !fitBusy) fitSyncSoon(); }
+  if(typeof renderFitSync==='function' && window.localIndex){ renderFitSync(); if(INBOX && onProbe && !fitBusy) fitSyncSoon(); if(INBOX && onProbe && !runBusy) runSyncSoon(); }
   renderKindList('boreRunsRows', 0);
   renderKindList('calRunsRows', 1);
   const box=el('sessRows');
@@ -6746,8 +6747,10 @@ async function calSaveToProbe(){
 el('cbSaveProbe').onclick = calSaveToProbe;
 el('btnCalFilesRefresh').onclick = calListRequest;
 el('btnCalFilesUp').onclick = () => calSync(true);
-addEventListener('online', () => { calSync(false); fitSyncSoon(); });
+addEventListener('online', () => { calSync(false); fitSyncSoon(); runSyncSoon(); });
 el('btnFitSync').onclick = () => fitSync(true);
+el('chkAutoRuns').onchange = () => { lsSet('bl_autoup', el('chkAutoRuns').checked ? null : '0');
+  dbMsg(el('chkAutoRuns').checked ? 'Runs upload by themselves when there is internet.' : 'Runs upload only when you press Upload.'); if(el('chkAutoRuns').checked) runSyncSoon(); };
 addEventListener('offline', () => renderCalFiles());
 el('btnUpCal').onclick = uploadFieldFit;
 
@@ -7931,13 +7934,20 @@ function sessionIso(s){
 }
 // the recording's bytes: the copy kept here, else read off the probe (kept by that read); what was shown stays
 async function calRunBytes(s){
-  const key = runKey(s);
-  if(localIndex.has(key)){ const b = await ldbGetBytes(key); if(b) return new Uint8Array(b); }
+  const key = runKey(s), want = s.count * REC_SIZE;
+  if(localIndex.has(key)){
+    const b = await ldbGetBytes(key);
+    if(b && b.byteLength === want) return new Uint8Array(b);       // a kept copy, whole
+  }
+  for(let t = 0; dumpActive && t < 300; t++) await new Promise(r => setTimeout(r, 200));   // one read on the link at a time
+  if(dumpActive) throw new Error('the probe link is busy reading another run');
   const prev = {dumped, dumpedRaw, dataSession};
   try{
     await readSessionAsync(s);
     if(dumped.length !== s.count) throw new Error('read '+dumped.length+' of '+s.count+' records');
     let n = 0; for(const c of dumpedRaw) n += c.length;
+    // every upload is checked: exactly one 32-byte record per record of the run, or nothing is sent
+    if(n !== want) throw new Error('the read gave '+n+' bytes for '+s.count+' records ('+want+' expected); it will be read again');
     const u = new Uint8Array(n); let o = 0; for(const c of dumpedRaw){ u.set(c, o); o += c.length; }
     return u;
   } finally { dumped = prev.dumped; dumpedRaw = prev.dumpedRaw; dataSession = prev.dataSession; setButtons(); }
@@ -7974,6 +7984,7 @@ function fitSyncSoon(tries = 0){
 async function fitSync(force){
   if(!INBOX || !onProbe || !chCtrl) return;
   if(fitBusy){ fitAgain = true; fitForce = fitForce || !!force; return; }
+  if(calSyncBusy || (typeof runBusy !== 'undefined' && runBusy)){ setTimeout(() => force ? fitSync(true) : fitSyncSoon(), 4000); return; }   // one job on the link at a time
   const cals = sessionsList.filter(x => x.kind && x.count);
   if(!cals.length){ renderFitSync(); return; }
   if(!navigator.onLine){ fitMsg = 'Waiting for internet.'; renderFitSync(); return; }
@@ -8061,6 +8072,67 @@ function renderFitSync(){
   box.replaceChildren(frag);
 }
 
+/* ── Measurement runs into the office inbox, by themselves ──
+   With the probe's login kept on it, a job code, internet and the cable link: every measurement run on
+   the probe that is not yet uploaded is read off the probe (kept on this device too) and sent to
+   probe-inbox/<tool>/<job>__<file>.bin, oldest first, one at a time. The runs stay on the probe. The inbox
+   refuses a name it already has ("already there"), and this device remembers what it sent. Never while
+   recording or reading a run, and never at the same time as the calibration uploads. A switch under
+   Office database turns it off. */
+let runBusy = false, runAgain = false;
+const autoRunsOn = () => lsGet('bl_autoup') !== '0';
+const runMemKey = () => 'bl_runsync_'+(INBOX && INBOX.tool || '');
+function runMem(){ try{ return new Set(JSON.parse(localStorage.getItem(runMemKey()) || '[]')); }catch(e){ return new Set(); } }
+function runRemember(k){ try{ const m = runMem(); m.add(k); localStorage.setItem(runMemKey(), JSON.stringify([...m])); }catch(e){} }
+function runSyncSoon(tries = 0){
+  if(!INBOX || !onProbe || !autoRunsOn()) return;
+  if(!chCtrl || dumpActive || recording){ if(tries < 90) setTimeout(() => runSyncSoon(tries+1), 3000); return; }
+  runSync();
+}
+async function runSync(){
+  if(!INBOX || !onProbe || !chCtrl || !autoRunsOn()) return;
+  if(runBusy){ runAgain = true; return; }
+  if(calSyncBusy || fitBusy || queueBusy){ setTimeout(() => runSyncSoon(), 4000); return; }   // one job on the link at a time
+  if(!navigator.onLine) return;
+  if(!(INBOX.job || '').trim()){ dbMsg('Runs upload by themselves once the job code is typed below.', 1); return; }
+  const mem = runMem();
+  const todo = sessionsList.filter(x => !x.kind && x.count > 0).sort((a, b) => a.seq - b.seq)
+    .filter(x => { const k = runKey(x), m = localIndex.get(k); return !(m && m.uploaded) && !mem.has(k); });
+  if(!todo.length) return;
+  runBusy = true;
+  let done = 0, had = 0, stop = null, i = 0;
+  try{
+    await inboxToken();
+    for(const x of todo){
+      if(recording || dumpActive || !autoRunsOn() || !chCtrl){ runAgain = true; break; }
+      const k = runKey(x); i++;
+      dbMsg('Uploading runs by themselves: '+(x.note || 'run '+(x.seq+1))+' ('+i+' of '+todo.length+', '+x.count.toLocaleString()+' records)…');
+      try{
+        if(!localIndex.has(k)){
+          await calRunBytes(x);                        // reads it off the probe; that read keeps it here
+          for(let t = 0; t < 150 && !localIndex.has(k); t++) await new Promise(r => setTimeout(r, 200));
+          if(!localIndex.has(k)) throw new Error('the run was not read whole');
+        }
+        const m = localIndex.get(k);
+        if(!m.uploaded){ m.queued = m.queued || new Date().toISOString(); await ldbPutMeta(m); await uploadInbox(k); }
+        localIndex.get(k).uploaded && localIndex.get(k).uploaded.already ? had++ : done++;
+        runRemember(k);
+      }catch(e){
+        const m = localIndex.get(k); if(m){ m.lastError = e.message; await ldbPutMeta(m); }
+        if(e.message === 'no internet' || e.stop){ stop = e.message; break; }
+        log('Run '+(x.seq+1)+' was not uploaded: '+e.message, 'err');
+      }
+      renderLocal(); renderSessions();
+    }
+  } catch(e){ stop = e.message; }
+  finally{ runBusy = false; setButtons(); }
+  if(stop) dbMsg((stop === 'no internet' ? 'Waiting for internet to upload the runs.' : stop), 1);
+  else if(done || had) dbMsg('Runs uploaded by themselves: '+done+' sent'+(had ? ', '+had+' already in the inbox' : '')+'.');
+  if(done) log('Runs uploaded to the office inbox by themselves: '+done+'.', 'ok');
+  renderLocal(); renderSessions();
+  if(runAgain){ runAgain = false; setTimeout(() => runSyncSoon(), 3000); }
+}
+
 // once the cable link is up and the probe login is known: list the calibration files (the sync follows)
 function calSyncSoon(tries = 0){
   if(!INBOX || !onProbe) return;
@@ -8087,6 +8159,7 @@ async function uploadInbox(key){
   if(!job){ const e = new Error('no job code — type it under Office database'); e.stop = true; throw e; }
   const buf = await ldbGetBytes(key);
   if(!buf) throw new Error('the run\'s data is gone from this browser');
+  if(buf.byteLength !== m.session.count * REC_SIZE) throw new Error('the kept copy has '+buf.byteLength+' bytes for '+m.session.count+' records; read the run again');
   if(await sha256Hex(buf) !== m.sha256) throw new Error('the stored copy no longer matches its checksum');
   let at = await inboxToken();
   const file = safePart(job)+'__'+runFileName(m), path = INBOX.tool+'/'+file;
@@ -8133,6 +8206,7 @@ function calSeenAdd(name){ try{ const s = calSeen(); s.add(name); localStorage.s
 async function calSync(force){
   if(!INBOX || !chCtrl || !calFiles || !calFiles.done || !calFiles.rows.length) return;
   if(calSyncBusy){ calSyncAgain = true; calSyncForce = calSyncForce || !!force; return; }   // a press while it runs: done right after
+  if(typeof runBusy !== 'undefined' && (runBusy || fitBusy)){ setTimeout(() => calSync(force), 4000); return; }   // one job on the link at a time
   if(!navigator.onLine){ for(const r of calFiles.rows) if(calState[r.name] !== 'db') calState[r.name] = 'wait'; renderCalFiles(); return; }
   if(dumpActive || recording && !force){ calSyncAgain = true; calSyncForce = calSyncForce || !!force; setTimeout(() => { if(!calSyncBusy) calSync(false); }, 5000); return; }    // never in the way of reading a run
   calSyncBusy = true;
@@ -8201,6 +8275,7 @@ function renderInbox(){
   el('btnUpCal').hidden = !INBOX; el('btnUpCal').disabled = !INBOX || !cal;
   if(INBOX){
     el('inboxWho').textContent = 'probe-inbox/'+(INBOX.tool || '…')+'/  as '+INBOX.email;
+    el('chkAutoRuns').checked = autoRunsOn();
     if(document.activeElement !== el('inboxJob')) el('inboxJob').value = INBOX.job || '';
     if(!/inbox|Upload|upload|refused|Queued|job/.test(el('dbMsg').textContent))
       dbMsg('Each run is uploaded into this probe\'s inbox in the office database, where the office checks it. The login is kept on the probe: nobody types it again. Uploads use this phone\'s or laptop\'s internet; without it they wait in the queue.');
@@ -8275,7 +8350,7 @@ el('inboxJob').onchange = async () => {
   const j = el('inboxJob').value.trim().slice(0, 60);
   let r; try{ r = await dbLoginApi({job:j}); }catch(e){ r = {ok:false, error:e.message}; }
   if(!r.ok){ dbMsg('Could not keep the job code on the probe: '+r.error, 1); return; }
-  INBOX.job = j; dbMsg(j ? 'Job code '+j+' kept on the probe.' : 'No job code: uploads wait.', !j); processQueue();
+  INBOX.job = j; dbMsg(j ? 'Job code '+j+' kept on the probe.' : 'No job code: uploads wait.', !j); processQueue(); runSyncSoon();
 };
 el('btnInboxForget').onclick = async () => {
   if(!confirm('Remove the office-database login from this probe? Runs will stop uploading until it is kept again.')) return;
