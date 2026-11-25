@@ -886,7 +886,7 @@
         <div><button id="btnInboxSave" class="primary">Check and keep on the probe</button></div>
       </div>
       <div id="inboxOn" class="dbform" hidden>
-        <div><label for="inboxJob">Job code (starts each file name)</label><input id="inboxJob" placeholder="J-2026-005" autocomplete="off"></div>
+        <div><label for="inboxJob">Job code (starts each file name; empty: nojob)</label><input id="inboxJob" placeholder="J-2026-005" autocomplete="off"></div>
         <div><label>Uploads go to</label><div class="covnote" id="inboxWho" style="padding:7px 0"></div></div>
         <div><label class="tog" style="margin-top:18px"><input type="checkbox" id="chkAutoRuns"> Upload runs automatically</label></div>
         <div><button id="btnInboxForget">Remove the login</button></div>
@@ -2818,8 +2818,7 @@ async function uploadKeys(keys){
   renderLocal(); renderSessions(); setButtons();
   const s = sbSession();
   if(!queued) { dbMsg(failed ? 'Nothing uploaded: see the log.' : 'Those runs are already uploaded.', !!failed); updSel(); return; }
-  if(INBOX && !(INBOX.job||'').trim()){ dbMsg(queued+' run'+(queued>1?'s':'')+' queued. Type the job code under Office database and they upload.', 1); showTab('runs'); el('inboxJob').focus(); }
-  else if(!INBOX && onProbe && !DB_UPLOAD){ dbMsg(queued+' queued. Keep the probe\'s login on it under Office database and they upload.', 1); showTab('runs'); el('inboxEmail').focus(); }
+  if(!INBOX && onProbe && !DB_UPLOAD){ dbMsg(queued+' queued. Keep the probe\'s login on it under Office database and they upload.', 1); showTab('runs'); el('inboxEmail').focus(); }
   else if(!INBOX && (!s || !s.at)){ dbMsg(queued+' queued. Sign in under Office database and they upload.', 1); showTab('runs'); }
   else if(!navigator.onLine) dbMsg(queued+' queued. They upload when this device is back online.');
   else { dbMsg('Uploading '+queued+' run'+(queued>1?'s':'')+'…'); await processQueue(); }
@@ -8094,7 +8093,6 @@ async function runSync(){
   if(runBusy){ runAgain = true; return; }
   if(calSyncBusy || fitBusy || queueBusy){ setTimeout(() => runSyncSoon(), 4000); return; }   // one job on the link at a time
   if(!navigator.onLine) return;
-  if(!(INBOX.job || '').trim()){ dbMsg('Runs upload by themselves once the job code is typed below.', 1); return; }
   const mem = runMem();
   const todo = sessionsList.filter(x => !x.kind && x.count > 0).sort((a, b) => a.seq - b.seq)
     .filter(x => { const k = runKey(x), m = localIndex.get(k); return !(m && m.uploaded) && !mem.has(k); });
@@ -8155,8 +8153,7 @@ async function inboxToken(force){
 async function uploadInbox(key){
   const m = localIndex.get(key);
   if(!m || m.uploaded) return true;
-  const job = (INBOX.job || '').trim();
-  if(!job){ const e = new Error('no job code — type it under Office database'); e.stop = true; throw e; }
+  const job = (INBOX.job || '').trim() || 'nojob';    // without a job code: nojob__…, the office assigns the job site
   const buf = await ldbGetBytes(key);
   if(!buf) throw new Error('the run\'s data is gone from this browser');
   if(buf.byteLength !== m.session.count * REC_SIZE) throw new Error('the kept copy has '+buf.byteLength+' bytes for '+m.session.count+' records; read the run again');
@@ -8289,7 +8286,6 @@ async function requestUpload(key){
   await ldbPutMeta(m);
   renderLocal(); renderSessions();
   const s = sbSession();
-  if(INBOX && !(INBOX.job||'').trim()){ dbMsg('Queued. Type the job code below and it uploads.', 1); showTab('runs'); el('inboxJob').focus(); return; }
   if(!INBOX && onProbe && !DB_UPLOAD){ dbMsg('Queued. Keep the probe\'s login on it below and it uploads.'); showTab('runs'); el('inboxEmail').focus(); return; }
   if(!INBOX && (!s || !s.at)){ dbMsg('Queued. Sign in below and it uploads.'); showTab('runs'); el('dbEmail').focus(); return; }
   if(!navigator.onLine){ dbMsg('Queued. It uploads when this device is back online.'); return; }
