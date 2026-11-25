@@ -251,6 +251,10 @@ const SECTIONS = [
   {id:'device_heartbeats', title:'Heartbeats', desc:'Every status report probes have sent, newest first.', table:'device_heartbeats',
    cols:'id,tool,at,battery_v,free_kb,unsent,runs_total,uptime_s,ssid,ip,clock_source,recording,firmware,note', order:'at.desc', limit:500,
    name:r=>r.tool+' · '+fmtDate(r.at), list:[['tool','Probe','mono'],['at','At','date'],['battery_v','Battery V','num'],['free_kb','Free kB','num'],['recording','Recording','bool']]},
+  {id:'device_infos', title:'Device info', desc:'Each probe\u2019s device_info.json (board, sensors, battery, size), every version, kept byte for byte. Newest first.', table:'device_infos',
+   cols:'id,device_serial,device_id,chip_id,pcb_rev,battery_capacity_mah,height_mm,diameter_mm,filename,content,sha256,size_bytes,org_id,uploaded_by,created_at', order:'created_at.desc',
+   missing:'Not in this database yet: run change file 0021_device_infos.sql once.',
+   name:r=>r.device_serial+' · device_info.json', list:[['device_serial','Probe','mono'],['battery_capacity_mah','Battery mAh','num'],['height_mm','Length mm','num'],['diameter_mm','Diameter mm','num'],['pcb_rev','PCB'],['created_at','Uploaded','date']]},
   {id:'device_calibrations', title:'Device calibrations', desc:'Lab calibration files of each probe, kept byte for byte.', table:'device_calibrations',
    cols:'id,device_serial,device_id,calibrated_at,cal_version,filename,content,sha256,size_bytes,org_id,uploaded_by,created_at', order:'calibrated_at.desc',
    name:r=>r.filename, list:[['device_serial','Probe','mono'],['calibrated_at','Calibrated','date'],['cal_version','Version','num'],['filename','File','mono'],['size_bytes','Size','bytes']]},
@@ -348,7 +352,7 @@ async function loadSection(s){
       const {d, total} = r;
       data[s.id] = {rows:d || [], total: total != null ? total : (d || []).length};
     }
-  }catch(e){ data[s.id] = {rows:[], total:0, error:e.message}; }
+  }catch(e){ data[s.id] = {rows:[], total:0, error: s.missing && /does not exist|could not find|PGRST205|42P01/i.test(e.message) ? s.missing : e.message}; }
 }
 function derive(){
   const runs = (data.runs && data.runs.rows) || [], files = [];

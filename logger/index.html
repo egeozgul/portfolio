@@ -284,6 +284,7 @@
   .st.queued{color:#ffd479;background:#3a2f16;border-color:#5c4a1f}
   .st.up{color:#a3e635;background:#1f2e16;border-color:#3c5a22}
   #btnSelfTest[hidden],#btnPoseCheck[hidden]{display:none!important}
+  #dbBlock[hidden],#autoRunsTog[hidden]{display:none!important}
   .st.now{color:#7fd4ff;background:#132a38;border-color:#2c6a8a;position:relative;padding-left:16px}
   .st.now::before{content:"";position:absolute;left:6px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:#7fd4ff;animation:upPulse 1s ease-in-out infinite}
   @keyframes upPulse{0%,100%{opacity:1}50%{opacity:.25}}
@@ -639,10 +640,13 @@
       <div class="statrow"><span>Tube tilt</span><b id="aTubeTilt">—</b></div>
       <div class="statrow"><span>Lean azimuth</span><b id="aTubeLean">—</b></div>
       <div class="statrow"><span>Spin about axis</span><b id="aTubeSpin">—</b></div>
+      <div class="statrow decl"><span>Declination °</span>
+        <input id="inpDecl" type="number" step="0.1" value="0" aria-label="Magnetic declination in degrees (west negative)" title="For true north, e.g. about -14 in Boston; west is negative"></div>
       <div class="scenebtns wide">
         <button id="btnSelfTest" hidden>Viewer self-test</button>
         <button id="btnPoseCheck" hidden>Pose check</button>
         <button id="btnArrows">Show axis arrows</button>
+        <button id="btnCompassMode3d" type="button" title="The pointer on the ground. Azimuth: where the lower end of the probe points. Relative: the board's +y axis, across the tube.">Show relative heading</button>
       </div>
       <div class="covnote wide" id="aPose" style="font-family:var(--mono)"></div>
       <div style="display:none">   <!-- kept for the code that updates them; not shown -->
@@ -690,8 +694,6 @@
       <div class="covnote" id="cRef">magnetic north</div>
       <div class="statrow"><span>Tube tilt</span><b id="cTilt">—</b></div>
       <div class="statrow"><span>Calibration</span><b id="cCalShort">none</b></div>
-      <div class="statrow decl"><span>Declination °</span>
-        <input id="inpDecl" type="number" step="0.1" value="0" aria-label="Magnetic declination in degrees (west negative)" title="For true north, e.g. about -14 in Boston; west is negative"></div>
       <button id="btnCompassMode" type="button" style="margin-top:8px" title="Azimuth: where the lower end of the probe points. Relative: the board's +y axis, across the tube.">Show relative heading</button>
       <div style="display:none">   <!-- kept for the code that updates them; not shown -->
 
@@ -838,6 +840,7 @@
       <div class="membtns">
         <button id="btnUploadSel" class="primary" disabled hidden>Upload selected</button>
         <button id="btnUploadAll" disabled>Upload all</button>
+        <label class="tog" id="autoRunsTog" hidden style="align-self:center"><input type="checkbox" id="chkAutoRuns"> Upload runs automatically</label>
         <button id="btnFolder" hidden>Choose folder</button>
         <button id="btnSaveAll" disabled>Save all</button>
         <button id="btnSessRefresh" disabled>Refresh</button>
@@ -910,7 +913,6 @@
       <div id="inboxOn" class="dbform" hidden>
         <div><label for="inboxJob">Job code (starts each file name; empty: nojob)</label><input id="inboxJob" placeholder="J-2026-005" autocomplete="off"></div>
         <div><label>Uploads go to</label><div class="covnote" id="inboxWho" style="padding:7px 0"></div></div>
-        <div><label class="tog" style="margin-top:18px"><input type="checkbox" id="chkAutoRuns"> Upload runs automatically</label></div>
         <div><button id="btnInboxForget">Remove the login</button></div>
       </div>
     </div>
@@ -4615,7 +4617,9 @@ function drawAttitude(){
   // ground grid
   // a compass rose on the ground, like the 2D compass (world X north, Y west)
   const Z0=-0.8, RR=2.0;
-  const RP=(b,r)=>S([Math.cos(b*Math.PI/180)*r, -Math.sin(b*Math.PI/180)*r, Z0]);
+  // bearings on the rose are true when a declination is set: the scene itself is magnetic
+  // (world X = magnetic north), so the rose is turned by the declination
+  const RP=(b,r)=>{ const m=(b-hdgDecl)*Math.PI/180; return S([Math.cos(m)*r, -Math.sin(m)*r, Z0]); };
   g.strokeStyle='#3a4a58'; g.lineWidth=1; g.beginPath();
   for(let b=0;b<=360;b+=3){ const p=RP(b,RR); b?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]); }
   g.stroke();
@@ -4634,13 +4638,16 @@ function drawAttitude(){
   { const a=RP(0,RR-0.22), l=RP(-4,RR-0.36), r=RP(4,RR-0.36);   // red north marker
     g.fillStyle='#ff3b30'; g.beginPath(); g.moveTo(a[0],a[1]); g.lineTo(l[0],l[1]); g.lineTo(r[0],r[1]); g.closePath(); g.fill(); }
   g.textBaseline='alphabetic';
-  // heading pointers from the centre: white for the main view, orange for raw
-  const pointer=(H,col,dash)=>{ if(!H.ok) return;
-    const c0=S([0,0,Z0]), tip=RP(H.deg,RR-0.24);
+  // the heading pointer from the centre: what the compass beside it shows (azimuth of the
+  // lower end, or the relative heading of +y), declination included
+  const pointer=(H,col,dash)=>{ const b=hdgShown(H); if(b==null) return;
+    const c0=S([0,0,Z0]), tip=RP(b,RR-0.24);
     g.strokeStyle=col; g.lineWidth=2.5; g.setLineDash(dash);
     g.beginPath(); g.moveTo(c0[0],c0[1]); g.lineTo(tip[0],tip[1]); g.stroke(); g.setLineDash([]);
     g.fillStyle=col; g.beginPath(); g.arc(tip[0],tip[1],4,0,7); g.fill(); };
   pointer(HDG,'#ffffff',[]);
+  { const b=hdgShown(HDG); g.textAlign='left'; g.fillStyle='#8a99a6'; g.font='10px '+css('--mono');
+    g.fillText((compassAbs ? 'Azimuth (lower end) ' : 'Relative heading (+y) ')+(b==null ? '—' : Math.round(b)+'°')+(hdgDecl ? ' true' : ' magnetic'), 12, 18); }
   // no heading readout here (the compass beside it has the number), and no raw heading
   if(calBoth && CAL){
     g.textAlign='left'; g.fillStyle='#8a99a6'; g.font='10px '+css('--mono');
@@ -4671,8 +4678,8 @@ function drawAttitude(){
     else { g.strokeStyle='#0e141a'; g.lineWidth=1; g.stroke(); }
   }
 
-  // body axes
-  const AXES=[[[1.7,0,0],'X','--x'],[[0,1.3,0],'Y','--y'],[[0,0,1.0],'Z','--z']];
+  // body axes (and every other arrow below): only while the arrows are shown
+  const AXES=showArrows ? [[[1.7,0,0],'X','--x'],[[0,1.3,0],'Y','--y'],[[0,0,1.0],'Z','--z']] : [];
   g.lineWidth=2; g.font='11px '+css('--mono'); g.textAlign='center';
   for(const [v,name,col] of AXES){
     const p0=S(toWorld([0,0,0])), p1=S(toWorld(v));
@@ -4698,17 +4705,19 @@ function drawAttitude(){
     }
     g.setLineDash([]);
     const y0=S(tw([0,0,0])), y1=S(tw([0,1.3,0]));
-    g.beginPath(); g.moveTo(y0[0],y0[1]); g.lineTo(y1[0],y1[1]); g.stroke();
-    g.fillStyle='#ff9f0a'; g.font='11px '+css('--mono'); g.textAlign='center'; g.fillText('Y raw',y1[0],y1[1]-8);
+    if(showArrows){ g.beginPath(); g.moveTo(y0[0],y0[1]); g.lineTo(y1[0],y1[1]); g.stroke();
+    g.fillStyle='#ff9f0a'; g.font='11px '+css('--mono'); g.textAlign='center'; g.fillText('Y raw',y1[0],y1[1]-8); }
   }
 
   // gravity: straight down in the world frame, from the board centre
   const gp0=S([0,0,0]), gp1=S([0,0,-1.25]);
+  if(showArrows){
   g.strokeStyle='#5a6b7a'; g.lineWidth=2; g.setLineDash([4,3]);
   g.beginPath(); g.moveTo(gp0[0],gp0[1]); g.lineTo(gp1[0],gp1[1]); g.stroke();
   g.setLineDash([]);
   g.fillStyle='#5a6b7a'; g.font='10px '+css('--mono'); g.textAlign='center';
   g.fillText('g',gp1[0],gp1[1]+13);
+  }
 
   // measured gravity and field, taken into the world by the CURRENT estimate
   let chk = '—';
@@ -4739,7 +4748,7 @@ function drawAttitude(){
   // linear acceleration, gravity removed, drawn in the world frame
   const lw=toWorld(linAcc);
   const lmag=Math.hypot(lw[0],lw[1],lw[2]);
-  if(lmag>0.04){
+  if(showArrows && lmag>0.04){
     const k=Math.min(1.6,lmag*2.2)/lmag;
     const p1=S([lw[0]*k,lw[1]*k,lw[2]*k]);
     g.strokeStyle=css('--p'); g.lineWidth=2.5;
@@ -6599,13 +6608,16 @@ for(const [kind,P] of [['acc','vfAcc'],['mag','vfMag']]){
   sync();
 }
 el('btnPoseCheck').onclick = startPoseCheck;
-el('btnCompassMode').onclick = () => { compassAbs = !compassAbs;
+function compassModeLabels(){
+  for(const b of ['btnCompassMode','btnCompassMode3d']) el(b).textContent = compassAbs ? 'Show relative heading' : 'Show azimuth';
+  el('cHdgLbl').textContent = compassAbs ? 'Azimuth' : 'Relative heading';
+}
+el('btnCompassMode').onclick = el('btnCompassMode3d').onclick = () => { compassAbs = !compassAbs;   // one setting for both compasses
   try{ localStorage.setItem('bl_compass', compassAbs ? 'abs' : 'rel'); }catch(e){}
-  el('btnCompassMode').textContent = compassAbs ? 'Show relative heading' : 'Show azimuth';
-  el('cHdgLbl').textContent = compassAbs ? 'Azimuth' : 'Relative heading'; drawCompass(); dirty = true; };
-el('btnCompassMode').textContent = compassAbs ? 'Show relative heading' : 'Show azimuth';
+  compassModeLabels(); drawCompass(); dirty = true; };
+compassModeLabels();
 el('btnArrows').onclick = () => { showArrows=!showArrows;
-  el('btnArrows').textContent = showArrows ? 'Hide axis arrows' : 'Show axis arrows'; dirty=true; };
+  el('btnArrows').textContent = showArrows ? 'Hide axis arrows' : 'Show axis arrows'; dirty=true; };   // every arrow in the 3D view
 /* Accel + Mag thresholds: each field writes straight into AM */
 const AM_FIELDS = [['amK','k',1], ['amA','spkA',1], ['amB','spkB',1], ['amD','spkD',1],
                    ['amWin','win',1], ['amJ','jump',1], ['amAbs','absA',0.01], ['amHold','maxHold',1]];
@@ -6791,7 +6803,7 @@ async function calSaveToProbe(){
 el('cbSaveProbe').onclick = calSaveToProbe;
 el('btnCalFilesRefresh').onclick = calListRequest;
 el('btnCalFilesUp').onclick = () => calSync(true);
-addEventListener('online', () => { calSync(false); fitSyncSoon(); runSyncSoon(); });
+addEventListener('online', () => { calSync(false); fitSyncSoon(); runSyncSoon(); devInfoSync(); });
 el('btnFitSync').onclick = () => fitSync(true);
 el('upNow').onclick = () => showTab('runs');
 el('chkAutoRuns').onchange = () => { lsSet('bl_autoup', el('chkAutoRuns').checked ? null : '0');
@@ -7750,7 +7762,8 @@ async function sb(path, opt, retried){
 }
 const sbRpc = (fn, args) => sb('/rest/v1/rpc/'+fn, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(args)});
 
-function dbMsg(t, err){ el('dbMsg').innerHTML = err ? '<span class="err"></span>' : ''; if(err) el('dbMsg').firstChild.textContent = t; else el('dbMsg').textContent = t; }
+function dbMsg(t, err){ if(err && el('dbBlock').hidden) log(t, 'err');   // the panel may be hidden: problems still reach the log
+  el('dbMsg').innerHTML = err ? '<span class="err"></span>' : ''; if(err) el('dbMsg').firstChild.textContent = t; else el('dbMsg').textContent = t; }
 
 let dbProjects = [], dbBores = [];
 function renderDb(){
@@ -7853,7 +7866,49 @@ async function inboxLoad(){                // the probe's page only: is a login 
   inboxTok = null;
   renderInbox(); renderLocal(); renderSessions(); setButtons();
   if(INBOX && navigator.onLine) inboxToken().then(() => { renderInbox(); processQueue(); }, e => dbMsg(e.message, 1));
-  if(INBOX){ calSyncSoon(); fitSyncSoon(); }
+  if(INBOX){ calSyncSoon(); fitSyncSoon(); devInfoSync(); }
+}
+
+/* ── The probe's device_info.json, into the office database (device_infos, 0021) ──
+   Read over the cable (/api/devinfo) and sent byte for byte through add_device_info(). Sent again
+   only when the file changed (its SHA-256 differs from the last one stored for this probe); the
+   database keeps every version and answers "already" for one it has. */
+let devInfoBusy = false, devInfoMsg = '';
+const devInfoKey = () => 'bl_devinfo_'+(INBOX && INBOX.tool || '');
+function devInfoShow(t){ devInfoMsg = t; const e = el('devInfoState'); if(e) e.textContent = t; }
+function devInfoSum(txt){
+  try{ const d = JSON.parse(txt), b = [];
+       if(d.serial) b.push(d.serial);
+       if(typeof d.battery_capacity_mah === 'number') b.push(d.battery_capacity_mah+' mAh');
+       if(typeof d.height_mm === 'number' || typeof d.diameter_mm === 'number') b.push((d.height_mm ?? '?')+' mm long, ⌀ '+(d.diameter_mm ?? '?')+' mm');
+       return b.join(' · '); }catch(e){ return ''; }
+}
+async function devInfoSync(){
+  if(!onProbe || DB_UPLOAD || !INBOX || devInfoBusy) return;
+  devInfoBusy = true;
+  try{
+    let d;
+    try{ d = await (await fetch('/api/devinfo', {cache:'no-store'})).json(); }catch(e){ d = null; }
+    if(!d || !d.ok || typeof d.content !== 'string'){ devInfoShow(d && d.error ? d.error : 'This probe\'s firmware does not share device_info.json yet.'); return; }
+    const sum = devInfoSum(d.content), pre = 'device_info.json' + (sum ? ' ('+sum+')' : '') + ': ';
+    if(!navigator.onLine){ devInfoShow(pre+'waiting for internet.'); return; }
+    await inboxToken();
+    const sha = await sha256Hex(new TextEncoder().encode(d.content).buffer);
+    let last = null; try{ last = localStorage.getItem(devInfoKey()); }catch(e){}
+    if(last === sha){ devInfoShow(pre+'in database ✓'); return; }
+    const mine = !upNow; if(mine) setUpNow({what:'Uploading device info'});   // never over another job's indicator
+    try{
+      const r = await probeRpc('add_device_info', {p_content:d.content});
+      try{ localStorage.setItem(devInfoKey(), sha); }catch(e){}
+      devInfoShow(pre+'in database ✓');
+      if(r && !r.already) log('Device info (device_info.json) added to the office database.', 'ok');
+    }catch(e){
+      const notYet = /add_device_info|PGRST202|could not find the function/i.test(e.message);   // the database without 0021
+      devInfoShow(pre + (e.message === 'no internet' ? 'waiting for internet.' : notYet ? 'the office database does not take device info yet (change file 0021).' : 'not taken by the office database: '+e.message));
+      if(e.message !== 'no internet' && !notYet) log('device_info.json was not taken by the office database: '+e.message, 'err');
+    } finally { if(mine && upNow && upNow.what === 'Uploading device info') setUpNow(null); }
+  } catch(e){ devInfoShow('Device info: '+e.message); }
+  finally{ devInfoBusy = false; }
 }
 
 /* ── Field fits from the probe's calibration recordings, into the office database ──
@@ -8351,15 +8406,16 @@ function renderInbox(){
   const on = onProbe && !DB_UPLOAD;
   box.hidden = !on;
   if(!on) return;
-  el('dbBlock').hidden = false;
+  el('dbBlock').hidden = !!INBOX;      // the probe has its login: nothing to set here, the panel is not shown
   el('dbSignin').hidden = true; el('dbTarget').hidden = true; el('dbWho').innerHTML = '';
-  el('inboxSet').hidden = !!INBOX; el('inboxOn').hidden = !INBOX;
+  el('inboxSet').hidden = !!INBOX; el('inboxOn').hidden = !INBOX; el('autoRunsTog').hidden = !INBOX;
   el('btnUploadAll').style.display = INBOX ? '' : 'none';
   el('btnCalFilesUp').hidden = !INBOX; el('btnCalFilesUp').disabled = !INBOX || !chCtrl || !(calFiles && calFiles.done && calFiles.rows.length);
   el('btnUpCal').hidden = !INBOX; el('btnUpCal').disabled = !INBOX || !cal;
   if(INBOX){
     el('inboxWho').textContent = 'probe-inbox/'+(INBOX.tool || '…')+'/  as '+INBOX.email;
     el('chkAutoRuns').checked = autoRunsOn();
+    el('autoRunsTog').hidden = false;
     if(document.activeElement !== el('inboxJob')) el('inboxJob').value = INBOX.job || '';
     if(document.activeElement !== el('runJob')) el('runJob').value = INBOX.job || '';
     if(!/inbox|Upload|upload|refused|Queued|job/.test(el('dbMsg').textContent))
