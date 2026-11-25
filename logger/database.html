@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BoreLogger Database</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky top bar; section index on the left, every table stacked on the right; a record panel slides in from the right edge when a row is chosen. */
+:root{
+  --paper:#EEF2F3; --sheet:#FFFFFF; --ink:#16232B; --dim:#5A6B74; --faint:#8696A0; --rule:#D3DCE0; --soft:#E6ECEE; --hover:#F3F7F8;
+  --accent:#1D6A7E; --accent-ink:#FFFFFF; --accent-soft:#E2F0F3;
+  --ok:#2E7D4F; --warn:#9A5A12; --bad:#A3342E; --info:#2A6FB0;
+  --shadow:0 18px 50px rgba(22,35,43,.16);
+  --display:"Barlow Semi Condensed","Barlow","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0F171B; --sheet:#152026; --ink:#DCE6E8; --dim:#93A4AB; --faint:#6C7E86; --rule:#26353C; --soft:#1C2A30; --hover:#1A262C;
+    --accent:#5AB2C8; --accent-ink:#0B1519; --accent-soft:#183038;
+    --ok:#6CC28F; --warn:#E0A552; --bad:#E0766E; --info:#7FB2EE; --shadow:0 18px 50px rgba(0,0,0,.45); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0F171B; --sheet:#152026; --ink:#DCE6E8; --dim:#93A4AB; --faint:#6C7E86; --rule:#26353C; --soft:#1C2A30; --hover:#1A262C;
+  --accent:#5AB2C8; --accent-ink:#0B1519; --accent-soft:#183038;
+  --ok:#6CC28F; --warn:#E0A552; --bad:#E0766E; --info:#7FB2EE; --shadow:0 18px 50px rgba(0,0,0,.45); color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:76px}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;font-variant-numeric:tabular-nums}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+.mono{font-family:var(--mono);font-size:.88em}
+h1,h2,h3{font-family:var(--display);font-weight:600;margin:0;line-height:1.15;text-wrap:balance}
+
+/* top bar */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--sheet);z-index:30}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--sheet) 92%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule)}
+.top .in{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-block:12px;
+  padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px))}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand h1{font-size:22px;letter-spacing:.01em}
+.brand .sub{font-size:13px;color:var(--dim)}
+.search{position:relative;flex:1 1 260px;max-width:380px}
+.search input{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:8px 12px 8px 34px}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--faint);fill:none;stroke-width:2}
+.who{font-size:13px;color:var(--dim)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:var(--sheet);border-radius:8px;padding:7px 12px;font-size:14px;font-weight:500;cursor:pointer}
+.btn:hover{border-color:var(--faint)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.5;cursor:default}
+
+/* sign in */
+.signin{max-width:400px;margin:12vh auto 0;background:var(--sheet);border:1px solid var(--rule);border-radius:14px;padding:28px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)}
+.signin h2{font-size:26px}
+.signin p{margin:0;color:var(--dim);font-size:14px}
+.signin label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--dim)}
+.signin input{background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:15px}
+.err{color:var(--bad);font-size:14px;min-height:1.2em}
+.wrapout{padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));padding-block:0 40px}
+
+/* layout */
+.layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:26px;align-items:start;max-width:1440px;margin:0 auto;
+  padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));padding-block:24px 60px;transition:padding-right .25s ease}
+body.panel-open .layout{padding-right:calc(min(520px,100vw) + 18px)}
+nav.index{position:sticky;top:84px;display:flex;flex-direction:column;gap:18px;max-height:calc(100vh - 100px);overflow-y:auto;padding-right:4px}
+.ngroup{display:flex;flex-direction:column;gap:2px}
+.ngroup .gh{font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:0 10px 4px}
+nav.index a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:7px;color:var(--ink);text-decoration:none;font-size:14.5px}
+nav.index a:hover{background:var(--soft)}
+nav.index a.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+nav.index a .n{font-family:var(--mono);font-size:12px;color:var(--faint)}
+nav.index a.blocked{color:var(--faint)}
+main{display:flex;flex-direction:column;gap:22px;min-width:0}
+#sections{display:flex;flex-direction:column;gap:16px}
+nav.index{scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+
+/* overview */
+.overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.stat{background:var(--sheet);border:1px solid var(--rule);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.stat .k{font-size:13px;color:var(--dim)}
+.stat .v{font-family:var(--display);font-weight:600;font-size:26px;line-height:1.1}
+.status{font-size:13px;color:var(--dim)}
+.status.err{color:var(--bad)}
+
+/* group headings and table cards */
+.group-h{display:flex;align-items:baseline;gap:12px;margin-top:10px}
+.group-h h2{font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.group-h .line{flex:1;height:1px;background:var(--rule)}
+.card{background:var(--sheet);border:1px solid var(--rule);border-radius:12px;overflow:hidden;scroll-margin-top:84px}
+.card .head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--rule)}
+.card .head h3{font-size:19px}
+.card .head .count{font-family:var(--mono);font-size:12px;color:var(--dim);background:var(--soft);border-radius:999px;padding:2px 9px}
+.card .head .desc{flex:1 1 260px;font-size:13.5px;color:var(--dim);margin:0}
+.card .src{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{position:sticky;top:0;text-align:left;font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);
+  background:var(--sheet);padding:9px 14px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:9px 14px;border-bottom:1px solid var(--soft);vertical-align:top;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--hover)}
+tbody tr.sel td{background:var(--accent-soft)}
+tbody tr:last-child td{border-bottom:0}
+td.num{text-align:right;font-family:var(--mono);font-size:13px}
+th.num{text-align:right}
+td .muted{color:var(--faint)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--soft);color:var(--dim)}
+.pill.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.pill.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.pill.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 13%,transparent)}
+.pill.info{color:var(--info);background:color-mix(in srgb,var(--info) 13%,transparent)}
+.more{display:flex;justify-content:center;padding:10px;border-top:1px solid var(--soft)}
+.empty{padding:22px 18px;color:var(--dim);font-size:14px}
+.empty.blocked{display:flex;gap:10px;align-items:flex-start}
+.empty.blocked svg{flex:none;width:16px;height:16px;margin-top:2px;stroke:var(--faint);fill:none;stroke-width:2}
+.loading{padding:22px 18px;color:var(--faint);font-size:14px}
+
+/* record panel */
+.panel{position:fixed;z-index:25;top:var(--toph,0px);right:0;bottom:0;width:min(520px,100vw);background:var(--sheet);border-left:1px solid var(--rule);box-shadow:var(--shadow);
+  display:flex;flex-direction:column;transform:translateX(102%);visibility:hidden;transition:transform .25s ease,visibility 0s linear .25s;
+  padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.panel.open{transform:none;visibility:visible;transition:transform .25s ease}
+.panel .ph{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 14px;border-bottom:1px solid var(--rule)}
+.panel .ph .t{flex:1;min-width:0}
+.panel .ph .kind{font-family:var(--display);font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.panel .ph h3{font-size:22px;overflow-wrap:anywhere}
+.close{flex:none;width:34px;height:34px;border-radius:8px;border:1px solid var(--rule);background:var(--sheet);display:grid;place-items:center;cursor:pointer}
+.close:hover{border-color:var(--faint)}
+.close svg{width:16px;height:16px;stroke:var(--ink);stroke-width:2;fill:none}
+.panel .pb{flex:1;overflow-y:auto;padding:6px 20px 24px}
+.fields{display:grid;grid-template-columns:minmax(120px,38%) minmax(0,1fr);gap:0;margin:0}
+.fields dt,.fields dd{padding:9px 0;border-bottom:1px solid var(--soft);margin:0;font-size:14px}
+.fields dt{color:var(--dim);font-family:var(--mono);font-size:12.5px;padding-right:12px;overflow-wrap:anywhere}
+.fields dd{overflow-wrap:anywhere;min-width:0}
+.fields dd .null{color:var(--faint);font-style:italic}
+.fields dd a{color:var(--accent);text-decoration:none;cursor:pointer}
+.fields dd a:hover{text-decoration:underline}
+pre.json{margin:4px 0 0;background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:12px;line-height:1.5;
+  white-space:pre-wrap;word-break:break-word;max-height:340px;overflow:auto}
+.sub-h{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:22px 0 8px}
+.mini{border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.mini table{font-size:13px}
+.mini td,.mini th{padding:6px 10px}
+.mini tbody tr{cursor:default}
+.copy{border:0;background:none;color:var(--faint);cursor:pointer;padding:0 0 0 6px;font-size:12px}
+.copy:hover{color:var(--accent)}
+
+@media (max-width: 900px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  nav.index{position:static;flex-direction:row;overflow-x:auto;max-height:none;gap:6px;padding-bottom:4px}
+  .ngroup{flex-direction:row;gap:6px}
+  .ngroup .gh{display:none}
+  nav.index a{white-space:nowrap;border:1px solid var(--rule);background:var(--sheet)}
+  body.panel-open .layout{padding-right:max(18px,env(safe-area-inset-right,0px))}
+}
+@media (max-width: 600px){ .brand .sub{display:none} .brand h1{font-size:20px} }
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="in">
+    <div class="brand"><h1>BoreLogger Database</h1><span class="sub">office database · everything a staff login can read</span></div>
+    <label class="search" id="searchBox" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Search every table…" autocomplete="off" aria-label="Search every table"></label>
+    <span class="who" id="who"></span>
+    <button class="btn" id="btnRefresh" type="button" hidden>Refresh</button>
+    <button class="btn" id="btnOut" type="button" hidden>Sign out</button>
+  </div>
+</header>
+
+<div class="wrapout" id="signinWrap" hidden>
+  <form class="signin" id="signin" autocomplete="on">
+    <h2>Sign in</h2>
+    <p>With your BoreLogger portal staff login. Asked once in this browser; the password itself is not kept.</p>
+    <label>Email<input id="em" type="email" autocomplete="username" required></label>
+    <label>Password<input id="pw" type="password" autocomplete="current-password" required></label>
+    <button class="btn pri" id="go" type="submit">Sign in</button>
+    <div class="err" id="signErr" role="alert"></div>
+  </form>
+</div>
+
+<div class="layout" id="app" hidden>
+  <nav class="index" id="index" aria-label="Tables"></nav>
+  <main id="main">
+    <div class="overview" id="overview"></div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+    <div id="sections"></div>
+  </main>
+</div>
+
+<aside class="panel" id="panel" aria-hidden="true" aria-labelledby="pTitle">
+  <div class="ph">
+    <div class="t"><div class="kind" id="pKind"></div><h3 id="pTitle"></h3></div>
+    <button class="close" id="pClose" type="button" aria-label="Close the record"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="pb" id="pBody"></div>
+</aside>
+
+<script>
+'use strict';
+/* BoreLogger Database: every table of the office database a staff login can read, on one page.
+   Signs in with a portal staff login (Supabase auth; the session renews itself, the password is not kept),
+   reads each table through the database's web API with the columns that login may see (select * fails on
+   tables with hidden columns), and shows a record in a side panel when a row is chosen.
+   Only on the laptop itself may tests point it at a stand-in database (?sb=...&sbkey=...). */
+const $ = id => document.getElementById(id);
+const SB_LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname), QS = new URLSearchParams(location.search);
+const SB = (SB_LOCAL && QS.get('sb')) || 'https://zqucjogarhnhalyxihim.supabase.co';
+const SB_KEY = (SB_LOCAL && QS.get('sbkey')) || 'sb_publishable_BPNyIbZKtELJ6x-waN2ogw_IBfylSZg';
+const LS = 'bldb-sb';
+const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const lsSet = (k, v) => { try{ v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); }catch(e){} };
+const sess = () => { try{ return JSON.parse(lsGet(LS) || 'null'); }catch(e){ return null; } };
+
+/* ---------- the tables ----------
+   list: the columns shown in the table [key, heading, kind]; everything else is in the record panel. */
+const SECTIONS = [
+  {group:'Field data'},
+  {id:'organizations', title:'Organizations', desc:'Companies that own job sites and probes.', table:'organizations', cols:'id,name,slug,created_at', order:'name.asc',
+   name:r=>r.name, list:[['name','Name'],['slug','Slug','mono'],['created_at','Created','date']]},
+  {id:'projects', title:'Job sites', desc:'Projects: one property with a field of bores.', table:'projects',
+   cols:'id,org_id,field_code,name,origin_lat,origin_lon,origin_alt_m,boundary,created_at,site_grid,ground,boundary_edited_at,boundary_edited_name', order:'created_at.desc',
+   name:r=>r.name, list:[['field_code','Code','mono'],['name','Name'],['org_id','Organization','ref:organizations'],['created_at','Created','date']]},
+  {id:'bores', title:'Bores', desc:'Each hole at a job site, with its collar and design.', table:'bores',
+   cols:'id,project_id,org_id,name,collar_lat,collar_lon,collar_alt_m,collar_source,design_type,design_inclination,design_azimuth,design_length_m,grid_e_m,grid_n_m,created_at', order:'name.asc',
+   name:r=>r.name, list:[['name','Bore'],['project_id','Job site','ref:projects'],['design_type','Design'],['design_length_m','Length m','num'],['collar_source','Collar']]},
+  {id:'runs', title:'Runs', desc:'Every trip down a bore, with its files (through staff_runs()).', rpc:'staff_runs', pick:d=>(d&&d.runs)||[],
+   name:r=>r.run, list:[['run','Run'],['project','Job site'],['bore','Bore'],['status','Status','status'],['accepted','Accepted','bool'],['stations','Stations','num'],['created_at','Created','date']]},
+  {id:'raw_files', title:'Raw files', desc:'The probe files behind the runs, in the raw-recordings store.', derive:'runs',
+   name:r=>r.name, list:[['name','File','mono'],['run','Run'],['bore','Bore'],['bytes','Size','bytes'],['at','Uploaded','date']]},
+  {id:'surveys', title:'Stations', desc:'Survey stations made from the runs by the office: depth, inclination, azimuth.', table:'surveys',
+   cols:'id,run_id,org_id,depth_m,inclination,azimuth,temp,wall_time,source_id', order:'run_id.asc,depth_m.asc', limit:2000,
+   name:r=>(r.depth_m!=null?(+r.depth_m).toFixed(2)+' m':'station'), list:[['run_id','Run','ref:runs'],['depth_m','Depth m','num'],['inclination','Inclination °','num'],['azimuth','Azimuth °','num'],['temp','Temp °C','num']]},
+  {id:'depth_readings', title:'Depth readings', blocked:'No login can read these: only the office’s own scripts (service key) have access.'},
+  {group:'Probes'},
+  {id:'devices', title:'Devices', desc:'Registered probes.', table:'devices', cols:'id,org_id,serial,chip_id,label,created_at,auth_user_id', order:'serial.asc',
+   name:r=>r.serial, list:[['serial','Serial','mono'],['label','Label'],['org_id','Organization','ref:organizations'],['created_at','Registered','date']]},
+  {id:'device_status', title:'Device status', desc:'The latest report from each probe.', table:'device_status',
+   cols:'tool,at,battery_v,free_kb,unsent,runs_total,uptime_s,ssid,ip,clock_source,recording,firmware,stale', order:'tool.asc', key:r=>r.tool,
+   name:r=>r.tool, list:[['tool','Probe','mono'],['at','Last report','date'],['battery_v','Battery V','num'],['firmware','Firmware','mono'],['stale','State','stale']]},
+  {id:'device_heartbeats', title:'Heartbeats', desc:'Every status report probes have sent, newest first.', table:'device_heartbeats',
+   cols:'id,tool,at,battery_v,free_kb,unsent,runs_total,uptime_s,ssid,ip,clock_source,recording,firmware,note', order:'at.desc', limit:500,
+   name:r=>r.tool+' · '+fmtDate(r.at), list:[['tool','Probe','mono'],['at','At','date'],['battery_v','Battery V','num'],['free_kb','Free kB','num'],['recording','Recording','bool']]},
+  {id:'device_calibrations', title:'Device calibrations', desc:'Lab calibration files of each probe, kept byte for byte.', table:'device_calibrations',
+   cols:'id,device_serial,device_id,calibrated_at,cal_version,filename,content,sha256,size_bytes,org_id,uploaded_by,created_at', order:'calibrated_at.desc',
+   name:r=>r.filename, list:[['device_serial','Probe','mono'],['calibrated_at','Calibrated','date'],['cal_version','Version','num'],['filename','File','mono'],['size_bytes','Size','bytes']]},
+  {id:'field_calibrations', title:'Field calibrations', desc:'Magnetometer fits made on site, per probe and job site.', table:'field_calibrations',
+   cols:'id,device_serial,device_id,job_code,project_id,source_run_id,lat,lon,gps_accuracy_m,calibrated_at,field_ut,residual,coverage,points,filename,content,sha256,size_bytes,org_id,uploaded_by,created_at', order:'calibrated_at.desc',
+   name:r=>r.filename, list:[['device_serial','Probe','mono'],['calibrated_at','Fitted','date'],['job_code','Job code','mono'],['project_id','Job site','ref:projects'],['field_ut','Field µT','num']]},
+  {id:'probe_inbox_files', title:'Probe inbox', desc:'Files uploaded from the field, waiting for the office.', table:'probe_inbox_files', cols:'tool,object_path,bytes,created_at', order:'created_at.desc', key:r=>r.object_path,
+   name:r=>String(r.object_path||'').split('/').pop(), list:[['tool','Probe','mono'],['object_path','File','file'],['bytes','Size','bytes'],['created_at','Uploaded','date']]},
+  {group:'People & access'},
+  {id:'staff_users', title:'Staff', desc:'Logins that can see everything.', table:'staff_users', cols:'user_id,created_at', order:'created_at.asc', key:r=>r.user_id,
+   name:r=>r.user_id, list:[['user_id','Login','mono'],['created_at','Added','date']]},
+  {id:'project_access', title:'Project access', desc:'Which customer login may see which job site.', table:'project_access', cols:'project_id,user_id,granted_at,note,can_edit_boundary', order:'granted_at.desc', key:r=>r.project_id+'|'+r.user_id,
+   name:r=>'Access', list:[['project_id','Job site','ref:projects'],['user_id','Login','mono'],['can_edit_boundary','Edits boundary','bool'],['granted_at','Granted','date']]},
+  {id:'org_members', title:'Organization members', desc:'Older membership list; no longer used for access.', table:'org_members', cols:'org_id,user_id,role,created_at', order:'created_at.desc', key:r=>r.org_id+'|'+r.user_id,
+   name:r=>r.role||'member', list:[['org_id','Organization','ref:organizations'],['user_id','Login','mono'],['role','Role'],['created_at','Added','date']]},
+  {id:'login_events', title:'Customer sign-ins', desc:'Who signed in to the portal, when and from where. Newest first.', table:'login_events',
+   cols:'id,user_id,email,session_id,at,kind,ip,user_agent,country,region,city,device,alert,alerted_at', order:'at.desc', limit:500,
+   name:r=>r.email||'sign-in', list:[['email','Email'],['at','At','date'],['kind','Kind'],['city','City'],['country','Country'],['alert','Alert','alert']]},
+  {id:'activity_events', title:'Portal activity', desc:'What customers opened and downloaded in the portal. Newest first.', table:'activity_events',
+   cols:'id,at,user_id,email,session_id,kind,what,project_id,bore_id,detail', order:'at.desc', limit:500,
+   name:r=>r.what||r.kind||'event', list:[['email','Email'],['at','At','date'],['kind','Kind'],['what','What'],['project_id','Job site','ref:projects']]},
+  {group:'Website'},
+  {id:'demo_requests', title:'Demo requests', desc:'The website’s contact form.', table:'demo_requests',
+   cols:'id,full_name,email,company_name,role,phone,message,created_at,insert_geological,interest_consulting,source', order:'created_at.desc',
+   name:r=>r.full_name||r.email, list:[['full_name','Name'],['company_name','Company'],['email','Email'],['created_at','Sent','date']]},
+];
+const TABLES = SECTIONS.filter(s => s.id);
+const PAGE = 50;                                     // rows shown before "Show all"
+const data = {};                                     // id -> {rows, total, error, shown}
+let selected = null;                                 // {sid, key}
+
+/* ---------- formatting ---------- */
+const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmtDate(v){ if(!v) return ''; const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleString([], {year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}); }
+const fmtBytes = n => n == null ? '' : n < 1000 ? n+' B' : n < 1e6 ? (n/1e3).toFixed(1)+' kB' : (n/1e6).toFixed(2)+' MB';
+const fmtNum = v => v == null || v === '' ? '' : (typeof v === 'number' && !Number.isInteger(v)) ? (Math.abs(v) >= 100 ? v.toFixed(1) : v.toFixed(3).replace(/0+$/,'').replace(/\.$/,'')) : String(v);
+const rowKey = (s, r) => s.key ? s.key(r) : (r.id != null ? String(r.id) : JSON.stringify(r));
+function refName(sid, id){
+  if(id == null) return '';
+  const s = TABLES.find(x => x.id === sid), d = data[sid], r = d && d.rows && d.rows.find(x => String(rowKey(s, x)) === String(id));
+  return r ? s.name(r) : String(id).slice(0, 8)+'…';
+}
+function cell(r, [k, , kind]){
+  const v = r[k];
+  if(v == null || v === '') return '<span class="muted">—</span>';
+  if(kind === 'date') return esc(fmtDate(v));
+  if(kind === 'num') return esc(fmtNum(v));
+  if(kind === 'bytes') return esc(fmtBytes(+v));
+  if(kind === 'bool') return v ? '<span class="pill ok">yes</span>' : '<span class="pill">no</span>';
+  if(kind === 'mono') return '<span class="mono">'+esc(v)+'</span>';
+  if(kind === 'file') return '<span class="mono">'+esc(String(v).split('/').pop())+'</span>';
+  if(kind === 'status') return '<span class="pill '+(v==='released'?'ok':v==='rejected'?'bad':'info')+'">'+esc(v)+'</span>';
+  if(kind === 'stale') return v ? '<span class="pill warn">quiet</span>' : '<span class="pill ok">reporting</span>';
+  if(kind === 'alert') return v ? '<span class="pill bad">'+esc(v === true ? 'alert' : v)+'</span>' : '<span class="muted">—</span>';
+  if(kind && kind.startsWith('ref:')) return esc(refName(kind.slice(4), v));
+  if(typeof v === 'object') return '<span class="mono">'+esc(JSON.stringify(v).slice(0, 60))+'</span>';
+  return esc(v);
+}
+
+/* ---------- the database ---------- */
+async function auth(body, grant){
+  let r;
+  try{ r = await fetch(SB+'/auth/v1/token?grant_type='+grant, {method:'POST', headers:{apikey:SB_KEY, 'Content-Type':'application/json'}, body:JSON.stringify(body)}); }
+  catch(e){ throw new Error('No internet connection.'); }
+  const d = await r.json().catch(() => ({}));
+  if(!r.ok){ if(grant === 'refresh_token') lsSet(LS, null); throw new Error(d.error_description || d.msg || d.message || ('Sign-in failed ('+r.status+')')); }
+  const s = {at:d.access_token, rt:d.refresh_token, exp:Date.now()/1000 + (d.expires_in || 3600) - 60, email:(d.user && d.user.email) || body.email || ''};
+  if(grant === 'refresh_token' && !sess()) throw new Error('signed out');
+  lsSet(LS, JSON.stringify(s)); return s;
+}
+async function api(path, opt = {}, retried){
+  let s = sess(); if(!s) throw new Error('not signed in');
+  if(Date.now()/1000 > s.exp) s = await auth({refresh_token:s.rt}, 'refresh_token');
+  let r;
+  try{ r = await fetch(SB+path, Object.assign({}, opt, {headers:Object.assign({apikey:SB_KEY, Authorization:'Bearer '+s.at}, opt.headers || {})})); }
+  catch(e){ throw new Error('No internet connection.'); }
+  if(r.status === 401 && !retried && s.rt){ await auth({refresh_token:s.rt}, 'refresh_token'); return api(path, opt, true); }
+  const t = await r.text(); let d = null; try{ d = t ? JSON.parse(t) : null; }catch(e){}
+  if(!r.ok) throw new Error((d && (d.message || d.error || d.msg)) || ('HTTP '+r.status));
+  const cr = r.headers.get('content-range'), total = cr && /\/(\d+)$/.test(cr) ? +cr.split('/')[1] : null;
+  return {d, total};
+}
+async function loadSection(s){
+  if(s.blocked || s.derive) return;
+  try{
+    if(s.rpc){
+      const {d} = await api('/rest/v1/rpc/'+s.rpc, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+      const rows = s.pick(d); data[s.id] = {rows, total:rows.length};
+    } else {
+      const lim = s.limit || 1000;
+      const {d, total} = await api('/rest/v1/'+s.table+'?select='+s.cols+'&order='+s.order+'&limit='+lim, {headers:{Prefer:'count=exact'}});
+      data[s.id] = {rows:d || [], total: total != null ? total : (d || []).length};
+    }
+  }catch(e){ data[s.id] = {rows:[], total:0, error:e.message}; }
+}
+function derive(){
+  const runs = (data.runs && data.runs.rows) || [], files = [];
+  for(const r of runs) for(const f of (r.files || [])) files.push(Object.assign({id:r.id+'|'+f.path, run:r.run, bore:r.bore, project:r.project, run_id:r.id}, f));
+  data.raw_files = {rows:files, total:files.length, error:data.runs && data.runs.error};
+}
+let loadGen = 0;
+async function loadAll(){
+  const gen = ++loadGen;
+  for(const s of TABLES) if(!s.blocked) data[s.id] = {loading:true, rows:[]};
+  render(); say('Reading the database…');
+  await Promise.all(TABLES.map(loadSection));
+  if(gen !== loadGen) return;
+  derive();
+  const bad = TABLES.filter(s => data[s.id] && data[s.id].error);
+  say(bad.length ? 'Could not read '+bad.length+' table'+(bad.length>1?'s':'')+': '+bad.map(s => s.title).join(', ')+'.' : 'Read '+new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})+'.', bad.length > 0);
+  render();
+  if(selected) openRecord(selected.sid, selected.key, true);
+}
+function say(t, err){ const s = $('status'); s.textContent = t || ''; s.className = 'status'+(err ? ' err' : ''); }
+
+/* ---------- rendering ---------- */
+const q = () => ($('q').value || '').trim().toLowerCase();
+const matches = (r, needle) => !needle || JSON.stringify(r).toLowerCase().includes(needle);
+function render(){
+  const needle = q();
+  // index
+  let nav = '', grp = null;
+  for(const s of SECTIONS){
+    if(s.group){ if(grp !== null) nav += '</div>'; nav += '<div class="ngroup"><div class="gh">'+esc(s.group)+'</div>'; grp = s.group; continue; }
+    const d = data[s.id] || {}, n = s.blocked ? '—' : d.loading ? '…' : d.error ? '!' : (needle ? d.rows.filter(r => matches(r, needle)).length : d.total);
+    nav += '<a href="#'+s.id+'" data-s="'+s.id+'" class="'+(s.blocked ? 'blocked' : '')+'"><span>'+esc(s.title)+'</span><span class="n">'+esc(n)+'</span></a>';
+  }
+  $('index').innerHTML = nav + '</div>';
+  // overview
+  const n = id => (data[id] && !data[id].loading && !data[id].error) ? data[id].total : '…';
+  $('overview').innerHTML = [['Job sites','projects'],['Bores','bores'],['Runs','runs'],['Stations','surveys'],['Probes','devices'],['Calibrations',null]].map(([k, id]) => {
+    const v = id ? n(id) : ((data.device_calibrations && data.field_calibrations && !data.device_calibrations.loading) ? (data.device_calibrations.total||0) + (data.field_calibrations.total||0) : '…');
+    return '<div class="stat"><span class="k">'+k+'</span><span class="v">'+esc(typeof v === 'number' ? v.toLocaleString() : v)+'</span></div>';
+  }).join('');
+  // sections
+  let html = '';
+  for(const s of SECTIONS){
+    if(s.group){ html += '<div class="group-h"><h2>'+esc(s.group)+'</h2><span class="line"></span></div>'; continue; }
+    html += '<section class="card" id="'+s.id+'" aria-labelledby="h-'+s.id+'"><div class="head"><h3 id="h-'+s.id+'">'+esc(s.title)+'</h3>';
+    if(s.blocked){ html += '<span class="count">no access</span></div><div class="empty blocked"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>'+esc(s.blocked)+'</span></div></section>'; continue; }
+    const d = data[s.id] || {loading:true, rows:[]};
+    const rows = d.rows.filter(r => matches(r, needle));
+    const count = d.loading ? 'loading' : d.error ? 'error' : (needle ? rows.length+' of '+d.total : d.total.toLocaleString() + (d.total > d.rows.length ? ' · showing '+d.rows.length.toLocaleString() : ''));
+    html += '<span class="count">'+esc(count)+'</span><p class="desc">'+esc(s.desc)+'</p><span class="src">'+esc(s.rpc ? s.rpc+'()' : s.derive ? 'from staff_runs()' : s.table)+'</span></div>';
+    if(d.loading){ html += '<div class="loading">Reading…</div></section>'; continue; }
+    if(d.error){ html += '<div class="empty">Could not read this table: '+esc(d.error)+'</div></section>'; continue; }
+    if(!rows.length){ html += '<div class="empty">'+(needle ? 'Nothing matches the search.' : 'Empty.')+'</div></section>'; continue; }
+    const shown = d.all || needle ? rows : rows.slice(0, PAGE);
+    html += '<div class="tw"><table><thead><tr>'+s.list.map(c => '<th'+(c[2]==='num'||c[2]==='bytes'?' class="num"':'')+'>'+esc(c[1])+'</th>').join('')+'</tr></thead><tbody>';
+    for(const r of shown){
+      const k = rowKey(s, r), on = selected && selected.sid === s.id && selected.key === String(k);
+      html += '<tr tabindex="0" data-s="'+s.id+'" data-k="'+esc(k)+'"'+(on ? ' class="sel"' : '')+'>'+s.list.map(c => '<td'+(c[2]==='num'||c[2]==='bytes'?' class="num"':'')+'>'+cell(r, c)+'</td>').join('')+'</tr>';
+    }
+    html += '</tbody></table></div>';
+    if(shown.length < rows.length) html += '<div class="more"><button class="btn" data-all="'+s.id+'" type="button">Show all '+rows.length.toLocaleString()+'</button></div>';
+    html += '</section>';
+  }
+  $('sections').innerHTML = html;
+}
+
+/* ---------- the record panel ---------- */
+const LINKS = {org_id:'organizations', project_id:'projects', bore_id:'bores', run_id:'runs', source_run_id:'runs', device_id:'devices'};
+function valueHtml(k, v){
+  if(v == null || v === '') return '<span class="null">empty</span>';
+  if(LINKS[k] && data[LINKS[k]] && data[LINKS[k]].rows.some(x => String(x.id) === String(v)))
+    return '<a data-go="'+LINKS[k]+'" data-k="'+esc(v)+'">'+esc(refName(LINKS[k], v))+'</a> <span class="mono" style="color:var(--faint)">'+esc(String(v).slice(0,8))+'…</span>';
+  if(typeof v === 'boolean') return v ? 'yes' : 'no';
+  if(typeof v === 'object') return '<pre class="json">'+esc(JSON.stringify(v, null, 2))+'</pre>';
+  if(k === 'content'){ let t = v; try{ t = JSON.stringify(JSON.parse(v), null, 2); }catch(e){} return '<pre class="json">'+esc(t)+'</pre>'; }
+  if(/(_at|^at)$/.test(k) && !isNaN(new Date(v))) return esc(fmtDate(v))+' <span class="mono" style="color:var(--faint)">'+esc(v)+'</span>';
+  if(/(bytes|size_bytes)$/.test(k) && typeof v === 'number') return esc(fmtBytes(v))+' <span class="mono" style="color:var(--faint)">'+v.toLocaleString()+'</span>';
+  if(/^(id|user_id|sha256|chip_id)$/.test(k) || /_id$/.test(k)) return '<span class="mono">'+esc(v)+'</span><button class="copy" data-copy="'+esc(v)+'" type="button" aria-label="Copy">copy</button>';
+  return esc(v);
+}
+function openRecord(sid, key, quiet){
+  const s = TABLES.find(x => x.id === sid), d = data[sid];
+  const r = d && d.rows.find(x => String(rowKey(s, x)) === String(key));
+  if(!r){ if(!quiet) closePanel(); return; }
+  selected = {sid, key:String(key)};
+  $('pKind').textContent = s.title.replace(/s$/, '');
+  $('pTitle').textContent = s.name(r) || '—';
+  let h = '<dl class="fields">';
+  for(const k of Object.keys(r)){ if(k === 'files' && sid === 'runs') continue; h += '<dt>'+esc(k)+'</dt><dd>'+valueHtml(k, r[k])+'</dd>'; }
+  h += '</dl>';
+  if(sid === 'runs'){                                 // its files and stations
+    const files = r.files || [];
+    h += '<div class="sub-h">Raw files · '+files.length+'</div>' + (files.length ? '<div class="mini"><table><tbody>'+files.map(f => '<tr><td class="mono">'+esc(f.name)+'</td><td class="num">'+esc(fmtBytes(f.bytes))+'</td></tr>').join('')+'</tbody></table></div>' : '<div class="status">None.</div>');
+    const st = ((data.surveys && data.surveys.rows) || []).filter(x => String(x.run_id) === String(r.id));
+    h += '<div class="sub-h">Stations · '+st.length+'</div>' + (st.length ? '<div class="mini tw"><table><thead><tr><th class="num">Depth m</th><th class="num">Inc °</th><th class="num">Azi °</th></tr></thead><tbody>'+
+      st.slice(0, 300).map(x => '<tr><td class="num">'+esc(fmtNum(x.depth_m))+'</td><td class="num">'+esc(fmtNum(x.inclination))+'</td><td class="num">'+esc(fmtNum(x.azimuth))+'</td></tr>').join('')+'</tbody></table></div>' : '<div class="status">None loaded for this run.</div>');
+  }
+  if(sid === 'projects'){                             // its bores
+    const b = ((data.bores && data.bores.rows) || []).filter(x => String(x.project_id) === String(r.id));
+    h += '<div class="sub-h">Bores · '+b.length+'</div>' + (b.length ? '<div class="mini"><table><tbody>'+b.map(x => '<tr><td><a data-go="bores" data-k="'+esc(x.id)+'" style="color:var(--accent);cursor:pointer">'+esc(x.name)+'</a></td><td>'+esc(x.design_type||'')+'</td></tr>').join('')+'</tbody></table></div>' : '<div class="status">None.</div>');
+  }
+  $('pBody').innerHTML = h; $('pBody').scrollTop = 0;
+  const p = $('panel'); p.classList.add('open'); p.setAttribute('aria-hidden', 'false'); document.body.classList.add('panel-open');
+  for(const tr of document.querySelectorAll('tbody tr.sel')) tr.classList.remove('sel');
+  const tr = document.querySelector('tr[data-s="'+sid+'"][data-k="'+CSS.escape(String(key))+'"]'); if(tr) tr.classList.add('sel');
+  if(!quiet) $('pClose').focus({preventScroll:true});
+}
+function closePanel(){
+  const p = $('panel'); p.classList.remove('open'); p.setAttribute('aria-hidden', 'true'); document.body.classList.remove('panel-open');
+  for(const tr of document.querySelectorAll('tbody tr.sel')) tr.classList.remove('sel');
+  const back = selected && document.querySelector('tr[data-s="'+selected.sid+'"][data-k="'+CSS.escape(selected.key)+'"]');
+  selected = null; if(back) back.focus({preventScroll:true});
+}
+
+/* ---------- events ---------- */
+$('sections').addEventListener('click', e => {
+  const all = e.target.closest('[data-all]'); if(all){ data[all.dataset.all].all = true; render(); return; }
+  const tr = e.target.closest('tbody tr[data-s]'); if(tr) openRecord(tr.dataset.s, tr.dataset.k);
+});
+$('sections').addEventListener('keydown', e => {
+  const tr = e.target.closest('tbody tr[data-s]'); if(tr && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); openRecord(tr.dataset.s, tr.dataset.k); }
+});
+$('pBody').addEventListener('click', e => {
+  const go = e.target.closest('[data-go]'); if(go){ e.preventDefault(); openRecord(go.dataset.go, go.dataset.k); return; }
+  const c = e.target.closest('[data-copy]');
+  if(c){ const t = c.dataset.copy; Promise.resolve().then(() => navigator.clipboard.writeText(t)).then(() => { c.textContent = 'copied'; setTimeout(() => c.textContent = 'copy', 1200); }, () => {}); }
+});
+$('pClose').onclick = closePanel;
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && $('panel').classList.contains('open')) closePanel(); });
+$('q').addEventListener('input', () => { clearTimeout(window._qt); window._qt = setTimeout(render, 120); });
+$('index').addEventListener('click', e => {
+  const a = e.target.closest('a[data-s]'); if(!a) return;
+  e.preventDefault(); const c = $(a.dataset.s); if(c) c.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
+});
+// highlight the section in view
+const spy = () => { let cur = null; for(const s of TABLES){ const c = $(s.id); if(c && c.getBoundingClientRect().top < 140) cur = s.id; }
+  for(const a of document.querySelectorAll('nav.index a')) a.classList.toggle('on', a.dataset.s === cur); };
+addEventListener('scroll', () => requestAnimationFrame(spy), {passive:true});
+
+let show = function(){
+  const s = sess();
+  $('signinWrap').hidden = !!s; $('app').hidden = !s;
+  $('searchBox').hidden = !s; $('btnRefresh').hidden = !s; $('btnOut').hidden = !s;
+  $('who').textContent = s ? s.email : '';
+  if(s) loadAll(); else { closePanel(); $('em').focus(); }
+};
+$('signin').onsubmit = async e => {
+  e.preventDefault(); $('go').disabled = true; $('signErr').textContent = '';
+  try{ await auth({email:$('em').value.trim(), password:$('pw').value}, 'password'); $('pw').value = ''; show(); }
+  catch(err){ $('signErr').textContent = err.message; }
+  finally{ $('go').disabled = false; }
+};
+$('btnOut').onclick = () => { loadGen++; lsSet(LS, null); for(const k in data) delete data[k]; $('sections').innerHTML = ''; $('overview').innerHTML = ''; say(''); show(); };
+$('btnRefresh').onclick = loadAll;
+// the panel starts below the top bar, whatever its height
+const topH = () => document.documentElement.style.setProperty('--toph', ($('app').hidden ? 0 : document.querySelector('.top').getBoundingClientRect().bottom) + 'px');
+addEventListener('resize', topH);
+const _show = show; show = function(){ _show(); topH(); };
+show();
+</script>
+</body>
+</html>
