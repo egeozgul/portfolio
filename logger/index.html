@@ -247,9 +247,9 @@
   .sesswrap{margin-top:11px;border:1px solid var(--rule);border-radius:3px;overflow-x:auto}
   .sesshead,.sessrow{
     display:grid;
-    grid-template-columns:22px 34px 72px minmax(150px,1fr) minmax(120px,1fr) minmax(150px,1fr)
-                          78px 66px 62px 62px 96px 58px;
-    min-width:1030px;
+    grid-template-columns:22px 34px minmax(150px,1fr) minmax(120px,1fr) minmax(150px,1fr)
+                          78px 66px 62px 62px 112px 96px;
+    min-width:1040px;
     gap:8px;align-items:center;padding:7px 10px;
     font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums;
   }
@@ -259,6 +259,9 @@
   .sessrow{border-bottom:1px solid #172029;color:var(--ink)}
   .sessrow:last-child{border-bottom:0}
   .sessrow span:nth-child(2){color:var(--dim)}
+  .sesshead.cal,.sessrow.cal{grid-template-columns:34px minmax(150px,1fr) minmax(120px,1fr) minmax(150px,1fr) 66px 62px 62px 150px 112px 96px}
+  .sessrow.cal span:first-child{color:var(--dim)} .sessrow.cal span:nth-child(2){color:var(--ink)}
+  .sessrow .rbtns{display:flex;gap:4px;justify-content:flex-end} .sessrow .rbtns button{padding:3px 7px}
   .sesshead input,.sessrow input.sel{width:15px;height:15px;margin:0;accent-color:var(--link);cursor:pointer}
   .sessrow .nogps{color:#6b7b88;font-style:italic}
   .sessrow .sessname{color:#a3e635;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -280,6 +283,7 @@
   .st.local{color:#8fd2e8;background:#1b2b33;border-color:#2b4653}
   .st.queued{color:#ffd479;background:#3a2f16;border-color:#5c4a1f}
   .st.up{color:#a3e635;background:#1f2e16;border-color:#3c5a22}
+  #btnSelfTest[hidden],#btnPoseCheck[hidden]{display:none!important}
   .st.now{color:#7fd4ff;background:#132a38;border-color:#2c6a8a;position:relative;padding-left:16px}
   .st.now::before{content:"";position:absolute;left:6px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:#7fd4ff;animation:upPulse 1s ease-in-out infinite}
   @keyframes upPulse{0%,100%{opacity:1}50%{opacity:.25}}
@@ -636,9 +640,9 @@
       <div class="statrow"><span>Lean azimuth</span><b id="aTubeLean">—</b></div>
       <div class="statrow"><span>Spin about axis</span><b id="aTubeSpin">—</b></div>
       <div class="scenebtns wide">
-        <button id="btnSelfTest">Viewer self-test</button>
-        <button id="btnPoseCheck">Pose check</button>
-        <button id="btnArrows">Hide check arrows</button>
+        <button id="btnSelfTest" hidden>Viewer self-test</button>
+        <button id="btnPoseCheck" hidden>Pose check</button>
+        <button id="btnArrows">Show axis arrows</button>
       </div>
       <div class="covnote wide" id="aPose" style="font-family:var(--mono)"></div>
       <div style="display:none">   <!-- kept for the code that updates them; not shown -->
@@ -731,6 +735,10 @@
       </div>
       <div class="ctlhint">Tube: which pipe of the loop the probe goes down (U-bend 1-2, quad 1-4). Runs in different
         tubes prove every leg is open to the bottom.</div>
+      <div class="runform one">
+        <div><label for="runJob">Job code (optional - the job site's code, e.g. J-2026-005; uploads without one go as "nojob")</label>
+          <input id="runJob" placeholder="e.g. J-2026-005" autocapitalize="characters" spellcheck="false" maxlength="60" autocomplete="off"></div>
+      </div>
       <div class="runform one">
         <div><label for="runDesign">Design depth, ft (optional - lets QC confirm the probe reached the bottom)</label>
           <input id="runDesign" inputmode="decimal" placeholder="e.g. 700"></div>
@@ -828,6 +836,9 @@
       <div class="lbl">Recording sessions</div>
       <div class="membtns">
         <button id="btnUploadSel" class="primary" disabled hidden>Upload selected</button>
+        <button id="btnUploadAll" disabled>Upload all</button>
+        <button id="btnFolder" hidden>Choose folder</button>
+        <button id="btnSaveAll" disabled>Save all</button>
         <button id="btnSessRefresh" disabled>Refresh</button>
         <button id="btnSessCsv" disabled>Save index CSV</button>
         <button id="btnExportAll" disabled>Export everything (ZIP)</button>
@@ -844,34 +855,35 @@
         <button id="btnExportCancel" class="expcancel">Cancel</button>
       </div>
     </div>
+    <div class="ctlhint" style="margin-top:6px">Measurement runs on the probe. <b>Stored</b> says where each one is:
+      <b>in database</b> (uploaded), <b>on this device</b> (read here, not uploaded) or <b>only on probe</b>. A run read here
+      is kept in this browser; <b>Save</b> puts a copy outside it, which is the safe one (browsers can clear their storage).</div>
+    <div class="ctlhint" id="folderInfo" style="margin-top:6px"></div>
     <div class="sesswrap">
       <div class="sesshead">
-        <span><input type="checkbox" class="sel" id="sessAll" title="Select every run"></span><span>#</span><span>Type</span><span>Started</span><span>Note</span><span>Location</span>
+        <span><input type="checkbox" class="sel" id="sessAll" title="Select every run"></span><span>#</span><span>Started</span><span>Note</span><span>Location</span>
         <span>Address</span><span>Records</span><span>Rate</span>
-        <span>Duration</span><span>Copy</span><span></span>
+        <span>Duration</span><span>Stored</span><span></span>
       </div>
       <div class="sessbody" id="sessRows">
-        <div class="sessempty">No sessions recorded yet.</div>
+        <div class="sessempty">No measurement runs on the probe.</div>
       </div>
+    </div>
+    <div class="dbmsg" id="localInfo"></div>
+  </section>
+
+  <section class="mem" id="calSessBlock">
+    <div class="memhead"><div class="lbl">Field calibrations</div></div>
+    <div class="ctlhint" style="margin-top:6px">Calibration recordings (tumbles) on the probe. <b>Fit</b> is this app's magnetometer fit of
+      each one; with the probe's login kept, the fit and the raw readings go into the office database by themselves.</div>
+    <div class="sesswrap">
+      <div class="sesshead cal"><span>#</span><span>Started</span><span>Note</span><span>Location</span><span>Records</span><span>Rate</span>
+        <span>Duration</span><span>Fit</span><span>Stored</span><span></span></div>
+      <div class="sessbody" id="calSessRows"><div class="sessempty">No calibration recordings on the probe.</div></div>
     </div>
   </section>
 
-  <section class="mem" id="localBlock">
-    <div class="memhead">
-      <div class="lbl">On this device</div>
-      <div class="membtns">
-        <button id="btnFolder" hidden>Choose folder</button>
-        <button id="btnSaveAll" disabled>Save all</button>
-        <button id="btnUploadAll" disabled>Upload all</button>
-      </div>
-    </div>
-    <div class="ctlhint" style="margin-top:6px">Every run you read is kept here, in this browser, until you delete it.
-      <b>Save file</b> puts a copy outside the browser — that copy is the safe one:
-      browsers can clear their storage, iPhones after a few weeks without use.</div>
-    <div class="ctlhint" id="folderInfo" style="margin-top:6px"></div>
-    <div class="sesswrap" id="localRows"><div class="sessempty">No runs kept on this device yet. Read a run above.</div></div>
-    <div class="dbmsg" id="localInfo"></div>
-  </section>
+  <div id="localBlock" hidden><div id="localRows"></div></div>
 
   <section class="mem" id="dbBlock">
     <div class="memhead">
@@ -2733,49 +2745,48 @@ function renderSessions(){
   if(typeof renderFitSync==='function' && window.localIndex){ renderFitSync(); if(INBOX && onProbe && !fitBusy) fitSyncSoon(); if(INBOX && onProbe && !runBusy) runSyncSoon(); }
   renderKindList('boreRunsRows', 0);
   renderKindList('calRunsRows', 1);
-  const box=el('sessRows');
-  if(!sessionsList.length){
-    box.innerHTML='<div class="sessempty">No sessions recorded yet.</div>';
-    return;
-  }
-  const frag=document.createDocumentFragment();
-  sessionsList.forEach((s,i)=>{
-    const hz=s.sampleMs?1000/s.sampleMs:0;
-    const d=document.createElement('div');
-    d.className='sessrow';
+  // one row of either list; i is the run's place in sessionsList (Read uses it)
+  const rowOf = (s, i, cal) => {
+    const hz=s.sampleMs?1000/s.sampleMs:0, d=document.createElement('div'), key=runKey(s);
+    d.className='sessrow'+(cal?' cal':'');
     const when=s.epoch?new Date(s.epoch*1000).toLocaleString():'no clock';
-    const kindTag=s.kind
-      ? '<span class="kind cal">Calib</span>'
-      : '<span class="kind meas">Measure</span>';
-    d.innerHTML=
-      `<span></span>`+
-      `<span>${s.seq+1}</span>`+
-      `<span>${kindTag}</span>`+
-      `<span>${when}</span>`+
-      `<span class="sessname"></span>`+
-      `<span class="${s.gps?'':'nogps'}">${s.gps
-          ? s.lat.toFixed(5)+', '+s.lon.toFixed(5)+'  ±'+s.acc+'m'
-          : 'GPS unavailable'}</span>`+
-      `<span>0x${s.start.toString(16).toUpperCase().padStart(6,'0')}</span>`+
-      `<span>${s.count.toLocaleString()}</span>`+
-      `<span>${hz?hz.toFixed(2)+' Hz':'—'}</span>`+
-      `<span>${fmtDur(hz?s.count/hz:0)}</span>`+
+    const loc=`<span class="${s.gps?'':'nogps'}">${s.gps ? s.lat.toFixed(5)+', '+s.lon.toFixed(5)+'  ±'+s.acc+'m' : 'GPS unavailable'}</span>`;
+    let fit='—';
+    if(cal && typeof fitState!=='undefined'){ const f=fitState[key]||(INBOX && typeof fitMem==='function' ? fitMem()[key] : null)||{};
+      fit = f.st==='db' ? (f.rawOnly ? 'too short to fit' : (f.quality||'')+(f.ut ? ' · '+f.ut.toFixed(1)+' µT' : '')) : f.st==='skip' ? 'too short to fit' : f.st==='up' ? 'fitting…' : '—'; }
+    d.innerHTML = (cal ? '' : `<span></span>`)+
+      `<span>${s.seq+1}</span><span>${when}</span><span class="sessname"></span>`+loc+
+      (cal ? '' : `<span>0x${s.start.toString(16).toUpperCase().padStart(6,'0')}</span>`)+
+      `<span>${s.count.toLocaleString()}</span><span>${hz?hz.toFixed(2)+' Hz':'—'}</span><span>${fmtDur(hz?s.count/hz:0)}</span>`+
+      (cal ? `<span class="fitcell"></span>` : '')+
       `<span>${runStatusPill(s)}</span>`;
-    const b=document.createElement('button');
-    b.textContent='Read';
-    b.className='sessRead';
-    b.disabled=!chCtrl||recording||dumpActive;
-    b.onclick=()=>readSession(i);
-    d.appendChild(b);
     d.querySelector('.sessname').textContent = s.note || '—';   // text, never markup
-    const key=runKey(s), cb=document.createElement('input');
-    cb.type='checkbox'; cb.className='sel'; cb.checked=sessSel.has(key);
-    cb.title='Select to upload'; cb.setAttribute('aria-label','select run '+(s.seq+1));
-    cb.onchange=()=>{ cb.checked ? sessSel.add(key) : sessSel.delete(key); updSel(); };
-    d.firstChild.appendChild(cb);
-    frag.appendChild(d);
-  });
-  box.replaceChildren(frag);
+    if(cal) d.querySelector('.fitcell').textContent = fit;
+    const btns=document.createElement('span'); btns.className='rbtns';
+    const b=document.createElement('button'); b.textContent='Read'; b.className='sessRead';
+    b.disabled=!chCtrl||recording||dumpActive; b.onclick=()=>readSession(i); btns.appendChild(b);
+    if(window.localIndex && localIndex.has(key)){
+      const sv=document.createElement('button'); sv.textContent='Save'; sv.title='Save a copy outside this browser';
+      sv.onclick=()=>saveRunFile(key); btns.appendChild(sv);
+    }
+    d.appendChild(btns);
+    if(!cal){
+      const cb=document.createElement('input');
+      cb.type='checkbox'; cb.className='sel'; cb.checked=sessSel.has(key);
+      cb.title='Select to upload'; cb.setAttribute('aria-label','select run '+(s.seq+1));
+      cb.onchange=()=>{ cb.checked ? sessSel.add(key) : sessSel.delete(key); updSel(); };
+      d.firstChild.appendChild(cb);
+    }
+    return d;
+  };
+  for(const [boxId, cal, none] of [['sessRows', false, 'No measurement runs on the probe.'], ['calSessRows', true, 'No calibration recordings on the probe.']]){
+    const box=el(boxId); if(!box) continue;
+    const rows=sessionsList.map((s,i)=>[s,i]).filter(([s])=>!!s.kind===cal);
+    if(!rows.length){ box.innerHTML='<div class="sessempty">'+none+'</div>'; continue; }
+    const frag=document.createDocumentFragment();
+    for(const [s,i] of rows) frag.appendChild(rowOf(s, i, cal));
+    box.replaceChildren(frag);
+  }
   updSel();
 }
 /* ── upload what is selected ──
@@ -2785,12 +2796,12 @@ function renderSessions(){
 const sessSel = new Set();                 // run keys
 let selBusy = false;
 function updSel(){
-  const keys = new Set(sessionsList.map(runKey));
+  const meas = sessionsList.filter(x => !x.kind), keys = new Set(meas.map(runKey));
   for(const k of [...sessSel]) if(!keys.has(k)) sessSel.delete(k);      // runs gone from the probe
   const n = sessSel.size, b = el('btnUploadSel'), all = el('sessAll');
   if(b){ b.hidden = !upOn(); b.textContent = selBusy ? 'Uploading…' : 'Upload selected'+(n ? ' ('+n+')' : '');
          b.disabled = selBusy || !n; }
-  if(all){ all.checked = n>0 && n===sessionsList.length; all.indeterminate = n>0 && n<sessionsList.length; all.disabled = !sessionsList.length; }
+  if(all){ all.checked = n>0 && n===meas.length; all.indeterminate = n>0 && n<meas.length; all.disabled = !meas.length; }
   const q = el('btnQcUpload');
   if(q && typeof QCV!=='undefined'){
     const k = QCV.selected, m = k && localIndex.get(k);
@@ -6413,7 +6424,7 @@ function tubeAngles(R, upKey){
                  frame using the current orientation. If the orientation is
                  right they stay put as the tube turns -- gravity straight
                  down, the field pointing north and down at the dip angle. */
-let showArrows = true, selfTest = null;
+let showArrows = false, selfTest = null;      // the axis arrows: off until asked for
 const vN=[1,0,0], vS=[-1,0,0], vE=[0,-1,0], vW=[0,1,0], vU=[0,0,1], vD=[0,0,-1];
 const vCross=(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
 // rotation from the world images of body x and y (columns of R)
@@ -6572,7 +6583,7 @@ for(const [kind,P] of [['acc','vfAcc'],['mag','vfMag']]){
 }
 el('btnPoseCheck').onclick = startPoseCheck;
 el('btnArrows').onclick = () => { showArrows=!showArrows;
-  el('btnArrows').textContent = showArrows ? 'Hide check arrows' : 'Show check arrows'; dirty=true; };
+  el('btnArrows').textContent = showArrows ? 'Hide axis arrows' : 'Show axis arrows'; dirty=true; };
 /* Accel + Mag thresholds: each field writes straight into AM */
 const AM_FIELDS = [['amK','k',1], ['amA','spkA',1], ['amB','spkB',1], ['amD','spkD',1],
                    ['amWin','win',1], ['amJ','jump',1], ['amAbs','absA',0.01], ['amHold','maxHold',1]];
@@ -7287,7 +7298,7 @@ function runStatus(m){
   return 'local';
 }
 const fmtSize = n => n < 100000 ? (n/1000).toFixed(1)+' kB' : (n/1e6).toFixed(2)+' MB';
-const ST_TEXT = {probe:'on probe', local:'on this device', queued:'queued', up:'uploaded ✓'};
+const ST_TEXT = {probe:'only on probe', local:'on this device', queued:'queued', up:'in database ✓'};
 /* What is being uploaded right now, shown on the run itself and as a badge in the top bar:
    upNow = {what, key (a run), i, n, phase ('reading' | 'sending'), pct}. */
 let upNow = null;
@@ -8328,6 +8339,7 @@ function renderInbox(){
     el('inboxWho').textContent = 'probe-inbox/'+(INBOX.tool || '…')+'/  as '+INBOX.email;
     el('chkAutoRuns').checked = autoRunsOn();
     if(document.activeElement !== el('inboxJob')) el('inboxJob').value = INBOX.job || '';
+    if(document.activeElement !== el('runJob')) el('runJob').value = INBOX.job || '';
     if(!/inbox|Upload|upload|refused|Queued|job/.test(el('dbMsg').textContent))
       dbMsg('Each run is uploaded into this probe\'s inbox in the office database, where the office checks it. The login is kept on the probe: nobody types it again. Uploads use this phone\'s or laptop\'s internet; without it they wait in the queue.');
   } else dbMsg('To upload runs, keep the probe\'s own login on it, once: its email (e.g. bl-a001@tools.borelogger.io) and password. It is checked with the office database first, then kept on the probe, so any phone or laptop plugged in uploads without typing it. Bluetooth never sends it.');
@@ -8396,9 +8408,21 @@ el('btnInboxSave').onclick = async () => {
   renderInbox(); renderLocal(); renderSessions(); setButtons(); processQueue(); calSyncSoon(); fitSyncSoon();
 };
 el('inboxPass').addEventListener('keydown', e => { if(e.key==='Enter') el('btnInboxSave').click(); });
-el('inboxJob').onchange = async () => {
+async function setJobCode(j){
+  j = (j || '').trim().slice(0, 60);
+  el('runJob').value = j; el('inboxJob').value = j;
+  lsSet('bl_job', j || null);
   if(!INBOX) return;
+  let r; try{ r = await dbLoginApi({job:j}); }catch(e){ r = {ok:false, error:e.message}; }
+  if(!r.ok){ dbMsg('Could not keep the job code on the probe: '+r.error, 1); return; }
+  INBOX.job = j; dbMsg(j ? 'Job code '+j+' kept on the probe.' : 'No job code: runs upload as nojob.'); processQueue(); runSyncSoon();
+}
+el('runJob').onchange = () => setJobCode(el('runJob').value);
+el('runJob').value = lsGet('bl_job') || '';
+el('inboxJob').onchange = async () => {
+  if(!INBOX){ setJobCode(el('inboxJob').value); return; }
   const j = el('inboxJob').value.trim().slice(0, 60);
+  el('runJob').value = j; lsSet('bl_job', j || null);
   let r; try{ r = await dbLoginApi({job:j}); }catch(e){ r = {ok:false, error:e.message}; }
   if(!r.ok){ dbMsg('Could not keep the job code on the probe: '+r.error, 1); return; }
   INBOX.job = j; dbMsg(j ? 'Job code '+j+' kept on the probe.' : 'No job code: uploads wait.', !j); processQueue(); runSyncSoon();
@@ -8411,7 +8435,7 @@ el('btnInboxForget').onclick = async () => {
 };
 el('btnFolder').onclick = chooseFolder;
 el('btnUploadSel').onclick = () => uploadKeys(sessionsList.map(runKey).filter(k => sessSel.has(k)));
-el('sessAll').onchange = () => { if(el('sessAll').checked) sessionsList.forEach(x => sessSel.add(runKey(x))); else sessSel.clear(); renderSessions(); };
+el('sessAll').onchange = () => { if(el('sessAll').checked) sessionsList.filter(x => !x.kind).forEach(x => sessSel.add(runKey(x))); else sessSel.clear(); renderSessions(); };
 el('btnQcUpload').onclick = () => { const k = QCV.selected; if(k) uploadKeys([k]); };
 el('btnSaveAll').onclick = saveAllRuns;
 fsLoad();
